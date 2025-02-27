@@ -1,13 +1,9 @@
 import numpy as np
-import scipy
 from scipy import integrate
-from scipy import optimize
-import const
-import utils
-import hamiltonian_box, redfield_box
-import warnings
+from . import const
+from . import utils
+from . import hamiltonian_box, redfield_box
 import time
-import math
 
 
 

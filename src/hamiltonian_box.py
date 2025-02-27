@@ -1,12 +1,11 @@
 import numpy as np
-import scipy
 from scipy import integrate
 from scipy import optimize
-import const
-import utils
+from . import const
+from . import utils
 import warnings
 import time
-import matplotlib.pyplot as plt
+
 
 class HamiltonianSystem():
 

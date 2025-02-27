@@ -1,7 +1,6 @@
 
 import numpy as np
-import const
-import utils
+from . import const
 import time
 
 class Unitary(object):

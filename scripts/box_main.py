@@ -34,7 +34,7 @@ def main():
     r_ove = 3.5                                 # overlap radius (see Kassal) (in units of lattice spacing)
     r_box = math.ceil(min(r_hop, r_ove))
     
-    ntrajs = 1000                               # number of trajectories to compute MSDs over
+    ntrajs = 10                                 # number of trajectories to compute MSDs over
     t_final = 1                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
 
