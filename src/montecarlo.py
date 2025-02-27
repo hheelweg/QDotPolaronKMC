@@ -34,9 +34,15 @@ class KMCRunner():
 
         # get box information based on r_hop and r_ove (in units of the lattice spacing)
         self.make_box_dimensions(r_hop, r_ove, r_box)
+        print('box side length', self.box_length)
         
         # make QD lattice
         self.make_qd_array()
+        print('qd_spacing', self.qd_spacing)
+
+        # dimensions of the lattice
+        self.lattice_dimension = np.array([sidelength] * dims) * self.qd_spacing
+        print('lattice dim', self.lattice_dimension)
         
         # get temperature and Hamiltonian
         self.temp = temp
@@ -90,7 +96,7 @@ class KMCRunner():
         grid = [list(x) for x in relative_grid] # transform relative grid to list for index search
 
         box_idxs = []
-        # TODO : add dims == 1 and dims == 3.
+        # TODO : add dims == 3.
         if self.dims == 1:
             for i in range(self.box_length):
                 box_coord = list(np.array([self.qd_spacing])*(i-self.box_radius))
@@ -184,7 +190,7 @@ class KMCRunner():
         self.kappa_polaron = np.exp(-integrate.quad(integrand, 0, freq_max)[0])
   
 
-    # 
+    # polaron-transformed Hamiltonian, eigenenergies, and polaron positions
     def get_hamil(self):
 
         self.hamil = np.diag(self.qdnrgs)
@@ -195,6 +201,8 @@ class KMCRunner():
                     * 1/np.linalg.norm(displacement_vector_matrix[:, i, j])**3
                 self.hamil[j, i] = self.hamil[i, j]
         [self.eignrgs, self.eigstates] = utils.diagonalize(self.hamil)
+        # get the positions of the eigenstates
+        self.polaron_locs = np.matmul(self.eigstates ** 2, self.qd_locations)
 
 
     def make_kmatrix_box(self, center):
@@ -222,11 +230,111 @@ class KMCRunner():
         # get rates and indices of the potential final polaron states we can jump to
         self.rates, self.final_states = my_redfield.make_redfield_box(center)
 
+    # need to add this function! 
+    def NEW_kmatrix_box(self, center):
+        pass
+
+
+    # make box around center position where we are currently at
+    # TODO : incorporate periodic boundary conditions explicty (boolean)
+    def NEW_get_box(self, center, periodic = True):
+
+        # box dimensions
+        self.box_size = self.box_length * self.qd_spacing
+
+        # (1)function that finds indices of points array within box_size of center
+        def find_indices_within_box(points, center, grid_dimensions, box_size, periodic = True):
+            # half box size
+            half_box = box_size /2
+            # get dimensiona of lattice and make sure all dimensions are equal
+            dim = len(center)
+            assert(len(points[0]) == len(center) == len(grid_dimensions))
+
+            # TODO : implement for 3D
+            if dim == 1:
+                # Compute periodic distances in x direction
+                dx = np.abs(points[0] - center[0])
+
+                # Apply periodic boundary conditions
+                dx = np.minimum(dx, grid_dimensions[0] - dx)  # Distance considering periodic wrapping
+
+                # Find indices where points are within the box
+                mask = (dx <= half_box)
+                return np.where(mask)[0]
+
+            elif dim == 2:
+                # Compute periodic distances in x and y directions
+                dx = np.abs(points[:, 0] - center[0])
+                dy = np.abs(points[:, 1] - center[1])
+
+                # Apply periodic boundary conditions
+                dx = np.minimum(dx, grid_dimensions[0] - dx)  # Distance considering periodic wrapping
+                dy = np.minimum(dy, grid_dimensions[1] - dy)
+
+                # Find indices where points are within the square box
+                mask = (dx <= half_box) & (dy <= half_box)
+                return np.where(mask)[0]
+
+        # (2) function that finds relative position of points array w.r.t. center
+        def get_relative_positions(points, center, grid_dimensions):
+
+            # get dimensiona of lattice and make sure all dimensions are equal
+            dim = len(center)
+            assert(len(points[0]) == len(center) == len(grid_dimensions))
+            if dim == 1:
+                # Compute raw relative distances
+                dx = points[0] - center[0]
+
+                # Apply periodic boundary conditions: adjust distances for wrap-around
+                dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2  # Wrap around midpoint
+                return np.column_stack((dx)) 
+            elif dim == 2:
+                # Compute raw relative distances
+                dx = points[:, 0] - center[0]
+                dy = points[:, 1] - center[1]
+
+                # Apply periodic boundary conditions: adjust distances for wrap-around
+                dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2  # Wrap around midpoint
+                dy = (dy + grid_dimensions[1] / 2) % grid_dimensions[1] - grid_dimensions[1] / 2
+                return np.column_stack((dx, dy)) 
+
+        # get indices of polarons that are inside the box
+        pol_idxs = find_indices_within_box(self.polaron_locs, center, self.lattice_dimension, self.box_size)
+        # get indices of sites that are within the box
+        site_idxs = find_indices_within_box(self.qd_locations, center, self.lattice_dimension, self.box_size)
+
+        # get absolute positions of polarons and sites in box
+        self.eigstates_locs_abs = self.polaron_locs[pol_idxs]
+        self.site_locs = self.qd_locations[site_idxs]
+
+
+        # get relative positions of polarons and sites in box
+        self.eigstates_locs = get_relative_positions(self.eigstates_locs_abs, center, self.lattice_dimension)
+        self.sites_locs_rel = get_relative_positions(self.site_locs, center, self.lattice_dimension)
+
+        # get eigenstate energies and eigenstates in box
+        self.eignrgs_box = self.eignrgs[site_idxs]
+
+        # get box Hamiltonian
+        # TODO : how can we use the new Hamiltonian for Redfield?
+        self.hamil_box = self.hamil[site_idxs]
+
+
+    # need to continue here
+    def NEW_make_kmc_step(self, polaron_start_site):
         
+        # (1) create box around polaron start_site
+        self.NEW_get_box(polaron_start_site)
+        
+        # TODO : continue here
+        # (2)
+    
+    
+    
     def make_kmc_step(self, start_site):
         
         """
-        perform a single KMC step from site coordinate (start_site) by locally diagoanlizing
+        perform a single KMC step from site coordinate (start_site) by locally diagonalizing
         the Hamiltonian in a box around that site.
         -----
         Returns:
