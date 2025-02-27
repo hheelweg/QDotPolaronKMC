@@ -3,7 +3,7 @@
 Code to evolve the dynamics of excitons on quantum dot lattices with KMC based on the Polaron-transformed Redfield equation (PTRE).
 
 ### Usage
-The `main.py` functions are in folder `scripts`. In order to execute them locally on your computer, naviagte to the root dorectory (`/path/to/QDotPolaronKMC/`) and execute via
+The `main.py` functions are in folder `scripts`. In order to execute them (e.g. `[main_name].py`) locally on your computer, naviagte to the root dorectory (`/path/to/QDotPolaronKMC/`) and execute via
 
 ```
 python -m scripts.[main_name]
