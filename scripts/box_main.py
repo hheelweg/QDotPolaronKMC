@@ -1,27 +1,15 @@
-import numpy as np
-import copy
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.mplot3d import Axes3D  
-import time
-import scipy.stats as st
-import scipy.integrate as integrate
-import sys
-import scipy
-import redfield_box, hamiltonian_box
-import utils
-import itertools
-import montecarlo as mc
+from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
-import os
-import const
 import math
 
 
 def main():
 
     ndim = 1                                    # number of dimensions
-    N = 100                                      # number of QDs in each dimension
+    N = 20                                      # number of QDs in each dimension
     nc_edgelength = 8                           # length of each QD (units?)
     ligand_length = 1                           # length of ligands on QD (units?)
 
@@ -32,7 +20,7 @@ def main():
     reorg_nrg = 0.01                            # reorganization energy (units?)
     w_c = 0.1                                   # cutoff frequency (units?)
     J_c = 10                                    # J_c (units?)
-    inhomog_sd = 0.002                           # inhomogenous broadening (units?)
+    inhomog_sd = 0.002                          # inhomogenous broadening (units?)
     nrg_center = 2.0                            # mean site energy (units ?)
     rel_spatial_disorder = 0.0                  # relative spatial disorder
     dipolegen = 'random'                        # dipole generation procedure
@@ -46,8 +34,8 @@ def main():
     r_ove = 3.5                                 # overlap radius (see Kassal) (in units of lattice spacing)
     r_box = math.ceil(min(r_hop, r_ove))
     
-    ntrajs = 1000                                 # number of trajectories to compute MSDs over
-    t_final = 1                               # final time for each trajectory (units?)
+    ntrajs = 1000                               # number of trajectories to compute MSDs over
+    t_final = 1                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
 
     # lattice spacing
