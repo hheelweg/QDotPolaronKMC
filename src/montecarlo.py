@@ -184,6 +184,7 @@ class KMCRunner():
         self.kappa_polaron = np.exp(-integrate.quad(integrand, 0, freq_max)[0])
   
 
+    # 
     def get_hamil(self):
 
         self.hamil = np.diag(self.qdnrgs)
@@ -466,7 +467,7 @@ class KMCRunner():
         idx = np.argmin([np.linalg.norm(pos - coord) for coord in array])
         return idx
     
-    
+
     def get_diffusivity_hh(self, msds, times, dims):
         # note : I here assume that the whole time arrange is approx. linear (might break down)
         fit_params, cov = np.polyfit(times, msds, 1, cov=True)
