@@ -46,7 +46,7 @@ def main():
 
 
     # greate instance of MC class to run KMC simulation
-    kmc_setup = mc.kmc_runner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
+    kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box)
     
     # perform a KMC simulation

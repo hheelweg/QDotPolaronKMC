@@ -67,3 +67,22 @@ def draw_circle(center, radius):
     # feeds circle-center (np.array), and radius
     return plt.Circle(tuple(center), radius, color = 'grey', alpha = 0.1)
 
+
+# TODO : only implemented for 2D
+def plot_lattice(points, qd_lattice, periodic = False):
+
+    # if we use periodic boundary conditions for the plottings
+    if periodic:
+        max_length = np.max(qd_lattice)
+        points = np.mod(points, max_length)
+
+    # plot points 
+    plt.scatter(points.T[0], points.T[1], color = 'C01', s = 5)
+
+    # plot qd_lattice
+    plt.scatter(qd_lattice.T[0], qd_lattice.T[1], color = 'k', s = 2)
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.axis('off')
+    plt.show()
+
+

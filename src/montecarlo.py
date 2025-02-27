@@ -7,7 +7,7 @@ import time
 
 
 
-class kmc_runner():
+class KMCRunner():
     
     def __init__(self, dims, sidelength, qd_spacing, nrg_center, inhomog_sd, dipolegen, seed, relative_spatial_disorder, \
                  J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box):
@@ -358,7 +358,7 @@ class kmc_runner():
         print('length rate vector', len(self.ratesFull))
         print('cum rates', np.sum(self.ratesFull))
         
-    # HH : helper function that prints you the rates from star_site coordinate   
+    # HH : helper function that prints you the rates from start_site coordinate   
     def test_box_rates(self, start_site, rates_verbose = True):
         # create box
         self.get_box(start_site)
@@ -465,6 +465,7 @@ class kmc_runner():
         # find closest index
         idx = np.argmin([np.linalg.norm(pos - coord) for coord in array])
         return idx
+    
     
     def get_diffusivity_hh(self, msds, times, dims):
         # note : I here assume that the whole time arrange is approx. linear (might break down)
