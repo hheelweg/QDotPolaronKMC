@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # ### Test Script for getting the PTRE KMC calculations going
 # this script just contains some tests. we use the following sample parameters
 # %%
-ndim = 2                                    # number of dimensions
+ndim = 2                                   # number of dimensions
 N = 8                                      # number of QDs in each dimension
 nc_edgelength = 8                           # length of each QD (units?)
 ligand_length = 1                           # length of ligands on QD (units?)
@@ -20,7 +20,7 @@ seed = None
 reorg_nrg = 0.01                            # reorganization energy (units?)
 w_c = 0.1                                   # cutoff frequency (units?)
 J_c = 1                                    # J_c (units?)
-inhomog_sd = 0.02                          # inhomogenous broadening (units?)
+inhomog_sd = 0.2                          # inhomogenous broadening (units?)
 nrg_center = 2.0                            # mean site energy (units ?)
 rel_spatial_disorder = 0.0                  # relative spatial disorder
 dipolegen = 'random'                        # dipole generation procedure
@@ -72,18 +72,35 @@ plt.show()
 # %%
 J_c = 10
 inhomog_sd = 0.2
-ndim = 2
+ndim = 1
 N = 10
 
 # greate instance of MC class to run KMC simulation
 kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                             J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box)
 
+ntrajs = 10                                 # number of trajectories to compute MSDs over
+t_final = 10                               # final time for each trajectory (units?)
 
-center_test = [10, 10]
+times, msds = kmc_setup.NEW_simulate_kmc(t_final)
+
+diff, diff_err = kmc_setup.get_diffusivity_hh(msds, times, ndim)
+
+# without taking into account units:
+print('diffusivity ', diff)
+print('diffusivity error', diff_err)
+
+# test plot of the msds
+plt.xlabel(r'$t$')
+plt.ylabel('MSD')
+plt.plot(times, msds)
+plt.show()
+
+center_test = [5]
 
 # get polaron locations (abs. and rel)
 kmc_setup.NEW_get_box(center_test)
+
 selection_abs = kmc_setup.eigstates_locs_abs
 selection_rel = kmc_setup.eigstates_locs
 
@@ -92,7 +109,7 @@ polaron_states = kmc_setup.polaron_locs
 
 # plot polaron states as compared to grid points
 utils.plot_lattice(polaron_states ,kmc_setup.qd_locations, label = 'polaron states', periodic = True)
-plt.scatter(center_test[0], center_test[1], color ='red', s =20, label = 'center')
+plt.scatter(center_test[0], color ='red', s =20, label = 'center')
 # plot absolute and relative positions to center of polarons in box 
 plt.scatter(selection_abs.T[0], selection_abs.T[1], color = 'blue', s = 20, alpha = 0.2, label = 'box (abs.)')
 plt.scatter(selection_rel.T[0] + center_test[0], selection_rel.T[1] + center_test[1], color = 'green', s = 20, alpha = 0.2, label = 'box (rel.)')

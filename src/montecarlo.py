@@ -191,7 +191,7 @@ class KMCRunner():
   
 
     # polaron-transformed Hamiltonian, eigenenergies, and polaron positions
-    def get_hamil(self):
+    def get_hamil(self, periodic = True):
 
         self.hamil = np.diag(self.qdnrgs)
         displacement_vector_matrix = self.get_disp_vector_matrix(self.qd_locations)
@@ -202,7 +202,21 @@ class KMCRunner():
                 self.hamil[j, i] = self.hamil[i, j]
         [self.eignrgs, self.eigstates] = utils.diagonalize(self.hamil)
         # get the positions of the eigenstates
-        self.polaron_locs = np.matmul(self.eigstates ** 2, self.qd_locations)
+        if periodic:
+            # use circular average for periodic boundary conditions to properly account for wraparound
+            # convert all coordinates to vectors with tips on the unit circle 
+            locations_unit_circle = self.qd_locations / self.boundary * 2 * np.pi
+            unit_circle_ycoords = np.sin(locations_unit_circle)
+            unit_circle_xcoords = np.cos(locations_unit_circle)
+            # add corresponding vectors of each eigenstate
+            unit_circle_eig_xcoords = np.transpose(np.matmul(np.transpose(unit_circle_xcoords), self.eigstates**2))
+            unit_circle_eig_ycoords = np.transpose(np.matmul(np.transpose(unit_circle_ycoords), self.eigstates**2))
+            # convert back to location coordinates for qds
+            eigstate_positions = np.arctan2(unit_circle_eig_ycoords, unit_circle_eig_xcoords) * self.boundary /(2 * np.pi)
+            eigstate_positions[eigstate_positions < 0] = eigstate_positions[eigstate_positions < 0] + self.boundary
+            self.polaron_locs = eigstate_positions
+        else:
+            self.polaron_locs = np.transpose(np.matmul(np.transpose(self.qd_locations), self.eigstates**2))
 
 
     def make_kmatrix_box(self, center):
@@ -232,6 +246,29 @@ class KMCRunner():
 
     # need to add this function! 
     def NEW_kmatrix_box(self, center):
+        # TODO: consider checking that enough fraction of an eigenstate is included in the box before summing
+        """
+        make rates and return indices of final polaron states, as well as index i
+        of the start polaron
+        """
+        # system-bath Hamiltonian
+        J = self.hamil_box - np.diag(np.diag(self.hamil_box)) 
+        dim = len(self.hamil_box)
+        ham_sysbath = []
+        for i in range(dim):
+            ham_list=[]
+            for j in range(dim):
+                ham_coupl=np.zeros((dim,dim))
+                ham_coupl[i,j]=J[i,j]
+                ham_list.append(ham_coupl)
+            ham_sysbath.append(ham_list)   
+        
+        my_ham = hamiltonian_box.Hamiltonian(self.eignrgs_box, self.eigstates_box, self.sites_locs_rel,
+                                             ham_sysbath, self.spectrum, const.kB * self.temp)
+        my_redfield = redfield_box.NewRedfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
+
+        # get rates and indices of the potential final polaron states we can jump to
+        self.rates, self.final_states = my_redfield.make_redfield_box(center)
         pass
 
 
@@ -253,7 +290,7 @@ class KMCRunner():
             # TODO : implement for 3D
             if dim == 1:
                 # Compute periodic distances in x direction
-                dx = np.abs(points[0] - center[0])
+                dx = np.abs(points - center[0])
 
                 # Apply periodic boundary conditions
                 dx = np.minimum(dx, grid_dimensions[0] - dx)  # Distance considering periodic wrapping
@@ -275,7 +312,7 @@ class KMCRunner():
                 mask = (dx <= half_box) & (dy <= half_box)
                 return np.where(mask)[0]
 
-        # (2) function that finds relative position of points array w.r.t. center
+        # (2) function that finds relative position of points array w.r.t. centerx
         def get_relative_positions(points, center, grid_dimensions):
 
             # get dimensiona of lattice and make sure all dimensions are equal
@@ -283,11 +320,11 @@ class KMCRunner():
             assert(len(points[0]) == len(center) == len(grid_dimensions))
             if dim == 1:
                 # Compute raw relative distances
-                dx = points[0] - center[0]
+                dx = points - center[0]
 
                 # Apply periodic boundary conditions: adjust distances for wrap-around
                 dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2  # Wrap around midpoint
-                return np.column_stack((dx)) 
+                return dx
             elif dim == 2:
                 # Compute raw relative distances
                 dx = points[:, 0] - center[0]
@@ -314,10 +351,11 @@ class KMCRunner():
 
         # get eigenstate energies and eigenstates in box
         self.eignrgs_box = self.eignrgs[site_idxs]
+        self.eigstates_box = self.eigstates[site_idxs, :][:, pol_idxs]
 
         # get box Hamiltonian
         # TODO : how can we use the new Hamiltonian for Redfield?
-        self.hamil_box = self.hamil[site_idxs]
+        self.hamil_box = self.hamil[site_idxs, :][:, site_idxs]
 
 
     # need to continue here
@@ -326,8 +364,27 @@ class KMCRunner():
         # (1) create box around polaron start_site
         self.NEW_get_box(polaron_start_site)
         
-        # TODO : continue here
-        # (2)
+        # (2) get idx of polaron eigenstate in box
+        idx_start = self.get_closest_idx(polaron_start_site, self.eigstates_locs_abs)
+        start_pol = self.eigstates_locs_abs[idx_start]
+        
+        # (3) get rates from this polaron (box center) to potential final states
+        self.NEW_kmatrix_box(idx_start)
+        
+        # (4) rejection-free KMC step
+        # (4a) get cumulative rates
+        cum_rates = np.array([np.sum(self.rates[:i+1]) for i in range(len(self.rates))])
+        S = cum_rates[-1]
+        # (4b) draw random number u and determine j s.t. cumrates[j-1] < u*T < cum_rates[j]
+        u = np.random.uniform()
+        self.j = np.searchsorted(cum_rates, u * S)
+        # (4b) update time clock
+        self.time += - np.log(np.random.uniform()) / S
+
+        # (5) obtain spatial coordinates of final polaron state j
+        end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
+        
+        return start_pol, end_pol
     
     
     
@@ -523,6 +580,70 @@ class KMCRunner():
             
                 # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
                 start_pol, end_pol = self.make_kmc_step(start_site)
+                
+                # (3) update trajectory and compute squared displacements 
+                if self.step_counter == 0:
+                    self.trajectory_start = start_pol
+                    self.trajectory_current = start_pol
+                if self.time < t_final:
+                    # get current location in trajectory and compute squared displacement
+                    self.trajectory_current = self.trajectory_current + end_pol-start_pol
+                    sq_displacement = np.linalg.norm(self.trajectory_current-self.trajectory_start)**2 
+                
+                    # add squared displacement at correct position in times_msd grid
+                    time_idx += np.searchsorted(times_msds[time_idx:], self.time)
+                    self.sds[time_idx:] = sq_displacement
+                        
+                # (4) find lattice site closest to end_pol position and only diagonalize again if start_site != final_site 
+                end_site = self.qd_locations[self.get_closest_idx(end_pol, self.qd_locations)]
+                self.new_diagonalization = not (start_site == end_site).all()
+                
+                self.step_counter += 1 # update step counter
+                
+            # compute mean squared displacement as a running average instead of storing all displacement vectors
+            msds = n/(n+1)*msds + 1/(n+1)*self.sds
+            
+            # return progress
+            print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached!". format(n+1, self.step_counter, self.sds[-1]))
+            if self.sds[-1] > 10000:
+                print("uh oh {}".format(self.sds[-1]))
+        return times_msds, msds
+    
+    def NEW_simulate_kmc(self, t_final):
+
+        times_msds = np.linspace(0, t_final, int(t_final * 100))    # time ranges to use for computation of msds
+                                                                    # note: can adjust the coarseness of time grid (here: 1000)
+        msds = np.zeros(len(times_msds))                            # mean squared displacements
+        
+        for n in range(self.ntrajs):
+            
+            self.time = 0                                       # reset clock for each trajectory
+            self.step_counter = 0                               # keeping track of the # of KMC steps
+            self.trajectory_start = np.zeros(self.dims)         # initialize trajectory start point
+            self.trajectory_current = np.zeros(self.dims)       # initialize current trajectopry state
+            self.sds = np.zeros(len(times_msds))                # store sq displacements on times_msd time grid
+            time_idx = 0
+
+            # re-initialize Hamiltonian (i.e. different realizations of noise)
+            self.make_qd_array()
+            self.set_temp(self.temp)
+            
+            while self.time < t_final:
+
+                # (1) determine what site we construct the box around
+                if self.step_counter == 0:
+                    # draw initial center of the box (here: 'uniform') in the exciton site basis
+                    # TODO : might want to add other initializations
+                    start_site = self.qd_locations[np.random.randint(0, self.n-1)]
+                    start_polaron = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
+                    #self.times.append(self.time)
+                    self.new_diagonalization = True
+                else:
+                    # start_site is final_site from previous step
+                    start_site = end_site
+            
+                # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
+                start_pol, end_pol = self.NEW_make_kmc_step(start_polaron)
                 
                 # (3) update trajectory and compute squared displacements 
                 if self.step_counter == 0:
