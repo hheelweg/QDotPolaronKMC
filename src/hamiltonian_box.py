@@ -50,7 +50,7 @@ class Hamiltonian(HamiltonianSystem):
         self.init_system(evals, eigstates)
         self.sysbath = ham_sysbath
 
-        # sepctral density
+        # spectral density
         self.spec=SpecDens(spec_density, max_energy_diff)
         
 
