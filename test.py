@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # ### Test Script for getting the PTRE KMC calculations going
 # this script just contains some tests. we use the following sample parameters
 # %%
-ndim = 2                                   # number of dimensions
+ndim = 1                                   # number of dimensions
 N = 8                                      # number of QDs in each dimension
 nc_edgelength = 8                           # length of each QD (units?)
 ligand_length = 1                           # length of ligands on QD (units?)
@@ -30,8 +30,8 @@ spec_density = 'cubic-exp'                  # bath spectral density
 # PTRE and KMC related parameters
 numtrials = 1                               # number of trials to average over (here: 1)
 method = 'first-order'                      # method for computing bath integrals 
-r_hop = 3                                   # hopping radius (see Kassal) (in units of lattice spacing)
-r_ove = 2                                   # overlap radius (see Kassal) (in units of lattice spacing)
+r_hop = 3                                  # hopping radius (see Kassal) (in units of lattice spacing)
+r_ove = 3                                   # overlap radius (see Kassal) (in units of lattice spacing)
 r_box = math.ceil(min(r_hop, r_ove))        
 
 ntrajs = 10                                 # number of trajectories to compute MSDs over
@@ -52,7 +52,7 @@ spectrum = [spec_density, reorg_nrg, w_c, method]
 J_c = 10
 inhomog_sd = 0.02
 ndim = 1
-N = 20
+N = 100
 
 # greate instance of MC class to run KMC simulation
 kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
@@ -70,9 +70,9 @@ plt.show()
 # Test function that makes box around specific center point on the lattice. This just serves as a sanity check to see
 # whether we have implemented the correct function to make a box
 # %%
-J_c = 10
-inhomog_sd = 0.2
-ndim = 1
+J_c = 2
+inhomog_sd = 0.02
+ndim = 2
 N = 10
 
 # greate instance of MC class to run KMC simulation
@@ -96,7 +96,15 @@ plt.ylabel('MSD')
 plt.plot(times, msds)
 plt.show()
 
-center_test = [5]
+# get polaron states
+polaron_states = kmc_setup.polaron_locs
+
+# plot polaron states as compared to grid points
+utils.plot_lattice(polaron_states ,kmc_setup.qd_locations, label = 'polaron states', periodic = True)
+plt.legend()
+plt.show()
+
+center_test = [5 5]
 
 # get polaron locations (abs. and rel)
 kmc_setup.NEW_get_box(center_test)

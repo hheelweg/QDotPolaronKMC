@@ -514,9 +514,8 @@ class KMCRunner():
                 ham_coupl[i,j]=J[i,j]
                 ham_list.append(ham_coupl)
             ham_sysbath.append(ham_list)   
-        
-        my_ham_full = hamiltonian_box.HamiltonianFull(self.eignrgs, self.eigstates,
-                                                    ham_sysbath, self.spectrum, const.kB * self.temp)
+        my_ham_full = hamiltonian_box.Hamiltonian(self.eignrgs, self.eigstates, self.qd_locations,
+                                             ham_sysbath, self.spectrum, const.kB * self.temp)
         my_fullredfield = redfield_box.RedfieldFull(my_ham_full, self.kappa_polaron)
 
         # make Redfield rates for final polaron states in box
@@ -629,7 +628,7 @@ class KMCRunner():
         msds = np.zeros(len(times_msds))                            # mean squared displacements
         
         for n in range(self.ntrajs):
-            
+                
             self.time = 0                                       # reset clock for each trajectory
             self.step_counter = 0                               # keeping track of the # of KMC steps
             self.trajectory_start = np.zeros(self.dims)         # initialize trajectory start point
@@ -639,7 +638,7 @@ class KMCRunner():
             comp_time = time.time()
             time_idx = 0
             sq_displacement = 0
-            
+
             # re-initialize Hamiltonian (i.e. different realizations of noise)
             if n % qd_array_refresh == 0:
                 self.make_qd_array()
@@ -674,6 +673,8 @@ class KMCRunner():
                     # add squared displacement at correct position in times_msd grid
                     time_idx += np.searchsorted(times_msds[time_idx:], self.time)
                     self.sds[time_idx:] = sq_displacement
+                # if sq_displacement > 10000:
+                #     print("uh oh {}".format(self.sds[-1]))
                         
                 # (4) find lattice site closest to end_pol position and only diagonalize again if start_site != final_site 
                 end_site = self.qd_locations[self.get_closest_idx(end_pol, self.qd_locations)]
