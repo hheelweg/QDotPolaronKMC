@@ -4,6 +4,7 @@ from . import const
 from . import utils
 from . import hamiltonian_box, redfield_box
 import time
+import math
 
 
 
@@ -62,8 +63,8 @@ class KMCRunner():
         self.r_hop = r_hop * self.qd_spacing
         self.r_ove = r_ove * self.qd_spacing
         # box radius and dimensions:
-        # self.box_radius = math.ceil(min(r_hop, r_ove))
-        self.box_radius = r_box
+        self.box_radius = math.ceil(min(r_hop, r_ove))
+        # self.box_radius = r_box
         self.box_length = 2 * self.box_radius + 1
         # raise wanring if lattice dimensions are exceeded
         if self.box_length > self.sidelength:
@@ -150,6 +151,9 @@ class KMCRunner():
             self.qddipoles[:, 2] = np.ones(self.n)
         else:
             raise Exception("Invalid dipole generation type") 
+        self.stored_npolarons_box = np.zeros(self.n)
+        self.stored_polaron_sites = [np.array([]) for i in np.arange(self.n)]
+        self.stored_rate_vectors = [np.array([]) for i in np.arange(self.n)]
         return
     
     def get_disp_vector_matrix(self, positions):
@@ -269,6 +273,10 @@ class KMCRunner():
 
         # get rates and indices of the potential final polaron states we can jump to
         self.rates, self.final_states = my_redfield.make_redfield_box(center)
+        overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[center], self.polaron_locs)
+        self.stored_npolarons_box[overall_idx_start] = len(self.hamil_box)
+        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
+        self.stored_rate_vectors[overall_idx_start] = np.copy(self.rates)
         pass
 
 
@@ -350,7 +358,7 @@ class KMCRunner():
         self.sites_locs_rel = get_relative_positions(self.site_locs, center, self.lattice_dimension)
 
         # get eigenstate energies and eigenstates in box
-        self.eignrgs_box = self.eignrgs[site_idxs]
+        self.eignrgs_box = self.eignrgs[pol_idxs]
         self.eigstates_box = self.eigstates[site_idxs, :][:, pol_idxs]
 
         # get box Hamiltonian
@@ -365,11 +373,16 @@ class KMCRunner():
         self.NEW_get_box(polaron_start_site)
         
         # (2) get idx of polaron eigenstate in box
-        idx_start = self.get_closest_idx(polaron_start_site, self.eigstates_locs_abs)
-        start_pol = self.eigstates_locs_abs[idx_start]
+        overall_idx_start = self.get_closest_idx(polaron_start_site, self.polaron_locs)
+        box_idx_start = self.get_closest_idx(polaron_start_site, self.eigstates_locs_abs)
+        start_pol = self.eigstates_locs_abs[box_idx_start]
         
         # (3) get rates from this polaron (box center) to potential final states
-        self.NEW_kmatrix_box(idx_start)
+        if self.stored_npolarons_box[overall_idx_start] == 0:
+            self.NEW_kmatrix_box(box_idx_start)
+        else:
+            self.final_states = self.stored_polaron_sites[overall_idx_start]
+            self.rates = self.stored_rate_vectors[overall_idx_start]
         
         # (4) rejection-free KMC step
         # (4a) get cumulative rates
@@ -502,9 +515,9 @@ class KMCRunner():
                 ham_list.append(ham_coupl)
             ham_sysbath.append(ham_list)   
         
-        my_fullham = hamiltonian_box.HamiltonianFull(self.eignrgs, self.eigstates,
+        my_ham_full = hamiltonian_box.HamiltonianFull(self.eignrgs, self.eigstates,
                                                     ham_sysbath, self.spectrum, const.kB * self.temp)
-        my_fullredfield = redfield_box.RedfieldFull(my_fullham, self.kappa_polaron)
+        my_fullredfield = redfield_box.RedfieldFull(my_ham_full, self.kappa_polaron)
 
         # make Redfield rates for final polaron states in box
         self.ratesFull = my_fullredfield.make_redfield_tensor(center)
@@ -609,7 +622,7 @@ class KMCRunner():
                 print("uh oh {}".format(self.sds[-1]))
         return times_msds, msds
     
-    def NEW_simulate_kmc(self, t_final):
+    def NEW_simulate_kmc(self, t_final, qd_array_refresh = 100):
 
         times_msds = np.linspace(0, t_final, int(t_final * 100))    # time ranges to use for computation of msds
                                                                     # note: can adjust the coarseness of time grid (here: 1000)
@@ -622,28 +635,32 @@ class KMCRunner():
             self.trajectory_start = np.zeros(self.dims)         # initialize trajectory start point
             self.trajectory_current = np.zeros(self.dims)       # initialize current trajectopry state
             self.sds = np.zeros(len(times_msds))                # store sq displacements on times_msd time grid
+            
+            comp_time = time.time()
             time_idx = 0
-
+            sq_displacement = 0
+            
             # re-initialize Hamiltonian (i.e. different realizations of noise)
-            self.make_qd_array()
-            self.set_temp(self.temp)
+            if n % qd_array_refresh == 0:
+                self.make_qd_array()
+                self.set_temp(self.temp)
             
             while self.time < t_final:
 
-                # (1) determine what site we construct the box around
+                # (1) determine what polaron site we are at currently
                 if self.step_counter == 0:
                     # draw initial center of the box (here: 'uniform') in the exciton site basis
                     # TODO : might want to add other initializations
                     start_site = self.qd_locations[np.random.randint(0, self.n-1)]
-                    start_polaron = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
+                    start_pol = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
                     #self.times.append(self.time)
                     self.new_diagonalization = True
                 else:
                     # start_site is final_site from previous step
-                    start_site = end_site
+                    start_pol = end_pol
             
                 # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
-                start_pol, end_pol = self.NEW_make_kmc_step(start_polaron)
+                start_pol, end_pol = self.NEW_make_kmc_step(start_pol)
                 
                 # (3) update trajectory and compute squared displacements 
                 if self.step_counter == 0:
@@ -651,7 +668,7 @@ class KMCRunner():
                     self.trajectory_current = start_pol
                 if self.time < t_final:
                     # get current location in trajectory and compute squared displacement
-                    self.trajectory_current = self.trajectory_current + end_pol-start_pol
+                    self.trajectory_current = self.trajectory_current + end_pol - start_pol
                     sq_displacement = np.linalg.norm(self.trajectory_current-self.trajectory_start)**2 
                 
                     # add squared displacement at correct position in times_msd grid
@@ -660,7 +677,7 @@ class KMCRunner():
                         
                 # (4) find lattice site closest to end_pol position and only diagonalize again if start_site != final_site 
                 end_site = self.qd_locations[self.get_closest_idx(end_pol, self.qd_locations)]
-                self.new_diagonalization = not (start_site == end_site).all()
+                self.new_diagonalization = not (start_pol == end_pol).all()
                 
                 self.step_counter += 1 # update step counter
                 
@@ -668,9 +685,9 @@ class KMCRunner():
             msds = n/(n+1)*msds + 1/(n+1)*self.sds
             
             # return progress
-            print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached!". format(n+1, self.step_counter, self.sds[-1]))
-            if self.sds[-1] > 10000:
-                print("uh oh {}".format(self.sds[-1]))
+            print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached! Computed in {} s". format(n+1, self.step_counter, self.sds[-1], time.time()-comp_time))
+            # if self.sds[-1] > 10000:
+            #    print("uh oh {}".format(self.sds[-1]))
         return times_msds, msds
 
     
