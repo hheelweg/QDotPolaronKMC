@@ -104,7 +104,7 @@ utils.plot_lattice(polaron_states ,kmc_setup.qd_locations, label = 'polaron stat
 plt.legend()
 plt.show()
 
-center_test = [5 5]
+center_test = [5, 5]
 
 # get polaron locations (abs. and rel)
 kmc_setup.NEW_get_box(center_test)

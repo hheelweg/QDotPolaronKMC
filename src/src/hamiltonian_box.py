@@ -96,7 +96,7 @@ class SpecDens():
                 self.getBathCorrFTFit(max_energy_diff)
                 self.correlationFT = self.bathCorrFTFitReal
                 kappaSetupTime = time.time() - kappaSetupTime
-                # print("kappa setup time: %f" % kappaSetupTime)
+                print("kappa setup time: %f" % kappaSetupTime)
         elif self.bath_method == 'first-order':
             self.correlationFT = self.firstOrderFT
         else:

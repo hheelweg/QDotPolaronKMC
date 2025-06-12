@@ -312,7 +312,7 @@ class RedfieldFull(Unitary):
                 bath_integrals_new.append(matrix_new)
 
         end = time.time()
-        # print('time difference1', end - start)
+        print('time difference1', end - start)
         #print(bath_integrals[1].T[center_idx].shape, bath_integrals[2].T[center_idx].shape, bath_integrals[3].T[center_idx].shape)
         #print(bath_integrals_new[1].shape, bath_integrals_new[2].shape, bath_integrals_new[3].shape)
 
@@ -323,7 +323,7 @@ class RedfieldFull(Unitary):
             for b in range(ns):
                 Gs[a][b] = self.ham.site2eig( self.ham.sysbath[a][b] )
         end = time.time()
-        # print('time difference2', end - start)
+        print('time difference2', end - start)
         
         #gamma_plus = np.zeros((ns, ns), dtype = np.complex128)
         start = time.time()
@@ -336,14 +336,14 @@ class RedfieldFull(Unitary):
                 gamma_plus_new += np.multiply(bath_integrals_new[lamda + 2], 
                                   np.multiply(Gs[abcd[2]][abcd[3]].T[center_idx], Gs[abcd[0]][abcd[1]][center_idx]))
         end = time.time()
-        # print('time difference3', end - start)
+        print('time difference3', end - start)
         # compute population transfer matrix (reduced Redfield tensor)
         # rates computation (all information kept)
 
         # onlyoutgoin rates are relevant
         #self.red_R_tensor = 2 * np.real(gamma_plus.T)
         self.red_R_tensor1 = 2 * np.real(gamma_plus_new)
-        # print(self.red_R_tensor1)
+        print(self.red_R_tensor1)
         # print(self.red_R_tensor[center_idx])
         # print(2 * np.real(gamma_plus_new))
         # np.fill_diagonal(self.red_R_tensor, np.zeros(ns))

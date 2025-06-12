@@ -35,15 +35,15 @@ class KMCRunner():
 
         # get box information based on r_hop and r_ove (in units of the lattice spacing)
         self.make_box_dimensions(r_hop, r_ove, r_box)
-        # print('box side length', self.box_length)
+        print('box side length', self.box_length)
         
         # make QD lattice
         self.make_qd_array()
-        # print('qd_spacing', self.qd_spacing)
+        print('qd_spacing', self.qd_spacing)
 
         # dimensions of the lattice
         self.lattice_dimension = np.array([sidelength] * dims) * self.qd_spacing
-        # print('lattice dim', self.lattice_dimension)
+        print('lattice dim', self.lattice_dimension)
         
         # get temperature and Hamiltonian
         self.temp = temp
@@ -616,9 +616,9 @@ class KMCRunner():
             msds = n/(n+1)*msds + 1/(n+1)*self.sds
             
             # return progress
-            # print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached!". format(n+1, self.step_counter, self.sds[-1]))
-            # if self.sds[-1] > 10000:
-                # print("uh oh {}".format(self.sds[-1]))
+            print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached!". format(n+1, self.step_counter, self.sds[-1]))
+            if self.sds[-1] > 10000:
+                print("uh oh {}".format(self.sds[-1]))
         return times_msds, msds
     
     def NEW_simulate_kmc(self, t_final, qd_array_refresh = 100):
@@ -686,7 +686,7 @@ class KMCRunner():
             msds = n/(n+1)*msds + 1/(n+1)*self.sds
             
             # return progress
-            # print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached! Computed in {} s". format(n+1, self.step_counter, self.sds[-1], time.time()-comp_time))
+            print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached! Computed in {} s". format(n+1, self.step_counter, self.sds[-1], time.time()-comp_time))
             # if self.sds[-1] > 10000:
             #    print("uh oh {}".format(self.sds[-1]))
         return times_msds, msds
@@ -722,10 +722,7 @@ class KMCRunner():
         # obtain error on diffusvity as from error on slope parameter 
         diff_err = np.sqrt(np.diag(cov))[0]/(2*dims)
         return diff, diff_err
-    def get_ipr(self):
-        # returns ipr of one column vector, or mean ipr of multiple column vectors
-        return np.mean(1/np.sum(self.eigstates ** 4, axis = 0))
-    
+
 
 
 
