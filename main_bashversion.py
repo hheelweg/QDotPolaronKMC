@@ -112,7 +112,7 @@ def run_sim(args, dummy = 1):
         
         filenamebase = ("J_c_%f,sigma_i_%f,reorg_nrg_%f,w_c_%f,r_hop_%f,r_ove_%f")%(J_c, inhomog_sd, reorg_nrg, w_c, r_hop, r_ove)
         results_txt = open("results_" + filenamebase + ".txt", "a")
-        results_txt.write(str(diff) + "," + str(diff_err))
+        results_txt.write(str(diff) + "," + str(diff_err) + "\n")
         results_txt.close()
         
         ipr = kmc_setup.get_ipr()
