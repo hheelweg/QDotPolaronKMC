@@ -8,4 +8,4 @@
 #SBATCH --cpus-per-task=48                  # Number of CPU cores per task
 #SBATCH --time=500:00:00                    # Time limit hrs:min:sec
 # #SBATCH --mem=1gb                           # Job memory request
-srun /home/tsheehan/.conda/envs/pythenv/bin/python3 main_bashversion_spat_disorder.py %1 %20%
+srun /home/tsheehan/.conda/envs/pythenv/bin/python3 main_bashversion_spat_disorder.py 20
