@@ -10,8 +10,10 @@ import math
 import matplotlib.pyplot as plt
 from multiprocessing import Pool, cpu_count
 import os
+import sys
 
-def main(N):
+def main():
+    N = int(sys.argv[1])
     ndims = np.array([1]).astype(int)
     J_cs = np.array([0.3, 3, 30])
     inhomog_sds = np.array([0, 0.001, 0.01])
