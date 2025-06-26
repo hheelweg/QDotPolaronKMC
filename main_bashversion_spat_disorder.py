@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from multiprocessing import Pool, cpu_count
 import os
 
-def main():
+def main(N):
     ndims = np.array([1]).astype(int)
     J_cs = np.array([0.3, 3, 30])
     inhomog_sds = np.array([0, 0.001, 0.01])
@@ -40,14 +40,14 @@ def main():
                     for l in range(len(w_cs)):
                         for m in range(len(rel_spatial_disorders)):
                             params = [ndims[h], J_cs[i], inhomog_sds[j], reorg_nrgs[k], w_cs[l], rel_spatial_disorders[m]]
-                            args.append((params, 1))
+                            args.append((params, N))
     
     with Pool(numPara) as pool:
         results = pool.starmap(run_sim, args)
     # print(results)
 
 
-def run_sim(args, dummy = 1):
+def run_sim(args, N):
     print("run started", flush = True)
     ndim = args[0]
     J_c = args[1]
