@@ -14,7 +14,7 @@ import os
 def main():
     ndims = np.array([1]).astype(int)
     J_cs = np.array([0.3, 3, 30])
-    inhomog_sds = np.array([0.001, 0.01])
+    inhomog_sds = np.array([0, 0.001, 0.01])
     reorg_nrgs = np.array([0.03, 0.1, 0.3])
     w_cs = np.array([0.01, 0.03, 0.1])
     temps = np.linspace(1, 1000, 20)
@@ -38,8 +38,8 @@ def main():
             for j in range(len(inhomog_sds)):
                 for k in range(len(reorg_nrgs)):
                     for l in range(len(w_cs)):
-                        for n in range(len(rel_spatial_disorders)):
-                            params = [ndims[h], J_cs[i], inhomog_sds[j], reorg_nrgs[k], w_cs[l], 0, rel_spatial_disorders[n]]
+                        for m in range(len(rel_spatial_disorders)):
+                            params = [ndims[h], J_cs[i], inhomog_sds[j], reorg_nrgs[k], w_cs[l], rel_spatial_disorders[m]]
                             args.append((params, 1))
     
     with Pool(numPara) as pool:
