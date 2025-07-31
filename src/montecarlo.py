@@ -221,7 +221,21 @@ class KMCRunner():
             self.polaron_locs = eigstate_positions
         else:
             self.polaron_locs = np.transpose(np.matmul(np.transpose(self.qd_locations), self.eigstates**2))
-
+        
+        # does ham_sysbath do anything
+        J = self.hamil - np.diag(np.diag(self.hamil)) 
+        ham_sysbath = []
+        for i in range(self.n):
+            ham_list=[]
+            for j in range(self.n):
+                ham_coupl=np.zeros((self.n, self.n))
+                ham_coupl[i,j]=J[i,j]
+                ham_list.append(ham_coupl)
+            ham_sysbath.append(ham_list)
+            
+        full_ham = hamiltonian_box.Hamiltonian(self.eignrgs, self.eigstates, self.qd_locations,
+                                             ham_sysbath, self.spectrum, const.kB * self.temp)
+        self.spectrum_calc = full_ham.spec
 
     def make_kmatrix_box(self, center):
         
@@ -268,7 +282,7 @@ class KMCRunner():
             ham_sysbath.append(ham_list)   
         
         my_ham = hamiltonian_box.Hamiltonian(self.eignrgs_box, self.eigstates_box, self.sites_locs_rel,
-                                             ham_sysbath, self.spectrum, const.kB * self.temp)
+                                             ham_sysbath, self.spectrum_calc, const.kB * self.temp)
         my_redfield = redfield_box.NewRedfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
 
         # get rates and indices of the potential final polaron states we can jump to

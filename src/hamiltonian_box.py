@@ -41,7 +41,7 @@ class HamiltonianSystem():
 class Hamiltonian(HamiltonianSystem):
 
     def __init__(self, evals, eigstates, qd_lattice,
-                 ham_sysbath, spec_density, kT, max_energy_diff = np.nan):
+                 ham_sysbath, spec_density, kT):
         # Set these shared constants
         const.kT = kT
         
@@ -51,7 +51,11 @@ class Hamiltonian(HamiltonianSystem):
         self.sysbath = ham_sysbath
 
         # sepctral density
-        self.spec=SpecDens(spec_density, max_energy_diff)
+        if type(spec_density) != SpecDens:
+            max_energy_diff = np.max(evals) - np.min(evals)
+            self.spec = SpecDens(spec_density, max_energy_diff)
+        else:
+            self.spec = spec_density
         
 
 class SpecDens():
@@ -87,7 +91,7 @@ class SpecDens():
             self.Phi = self.PhiFit  # use fit
             self.correlationFT = self.bathCorrFT
         elif self.bath_method == 'cheby-fit':
-            self.getChebyFit()
+            self.getChebyPhiFit()
             self.Phi = self.chebyPhiFit
             if np.isnan(max_energy_diff):
                 self.correlationFT = self.bathCorrFT
@@ -96,7 +100,7 @@ class SpecDens():
                 self.getBathCorrFTFit(max_energy_diff)
                 self.correlationFT = self.bathCorrFTFitReal
                 kappaSetupTime = time.time() - kappaSetupTime
-                # print("kappa setup time: %f" % kappaSetupTime)
+                print("kappa setup time: %f" % kappaSetupTime)
         elif self.bath_method == 'first-order':
             self.correlationFT = self.firstOrderFT
         else:
@@ -259,7 +263,7 @@ class SpecDens():
         self.expParam_imag = biexpFit(self.taus[idx_imag:]-self.cutoff_imag, self.integral_imag[idx_imag:])
         
         
-    def getChebyFit(self):
+    def getChebyPhiFit(self):
         degree = 100
         self.chebyphi_real = np.polynomial.chebyshev.Chebyshev.interpolate(lambda tau: np.real(self.phi(tau)), degree, [0, self.cheby_tau_cutoff])
         self.chebyphi_im = np.polynomial.chebyshev.Chebyshev.interpolate(lambda tau: np.imag(self.phi(tau)), degree, [0, self.cheby_tau_cutoff])

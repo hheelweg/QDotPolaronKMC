@@ -14,7 +14,7 @@ import os
 def main():
     ndims = np.array([1]).astype(int)
     J_cs = np.array([0.03, 0.3, 3, 30])
-    inhomog_sds = np.array([0.001, 0.01])
+    inhomog_sds = np.array([0.05, 0.1])
     reorg_nrgs = np.array([0.03, 0.1, 0.3])
     w_cs = np.array([0.01, 0.03, 0.1])
     temps = np.concatenate((np.linspace(1, 300, 10), np.linspace(500, 20000, 10)))
