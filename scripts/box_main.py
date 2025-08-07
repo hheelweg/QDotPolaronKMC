@@ -53,11 +53,11 @@ def main():
     kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box)
     
-    # end time
-    end = time.time()
-    
     # perform a KMC simulation
     times, msds = kmc_setup.simulate_kmc(t_final)
+
+    # end time
+    end = time.time()
     
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds, times, ndim)
     
