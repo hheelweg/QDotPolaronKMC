@@ -72,9 +72,10 @@ if __name__ == '__main__':
     profiler = Profiler()
     profiler.start()
 
-    main()
-
-    profiler.stop()
-    output_path = os.path.join(os.getcwd(), "pyinstrument_output.txt")
-    with open(output_path, "w") as f:
-        f.write(profiler.output_text(unicode=True, color=False))
+    try:
+        main()
+    finally:
+        profiler.stop()
+        output_path = os.path.join(os.getcwd(), "pyinstrument_output.txt")
+        with open(output_path, "w") as f:
+            f.write(profiler.output_text(unicode=True, color=False))
