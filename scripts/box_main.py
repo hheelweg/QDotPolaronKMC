@@ -76,6 +76,7 @@ if __name__ == '__main__':
         main()
     finally:
         profiler.stop()
-        output_path = os.path.join(os.getcwd(), "pyinstrument_output.txt")
+        submit_dir = os.environ.get("SLURM_SUBMIT_DIR", os.getcwd()) 
+        output_path = os.path.join(submit_dir, "pyinstrument_output.txt")
         with open(output_path, "w") as f:
             f.write(profiler.output_text(unicode=True, color=False))
