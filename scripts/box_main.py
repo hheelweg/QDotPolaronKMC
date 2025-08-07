@@ -3,6 +3,7 @@ from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
 import math
 import time
+import os
 # track performance bottlenecks
 from pyinstrument import Profiler
 
@@ -74,5 +75,6 @@ if __name__ == '__main__':
     main()
 
     profiler.stop()
-    with open("pyinstrument_output.txt", "w") as f:
+    output_path = os.path.join(os.getcwd(), "pyinstrument_output.txt")
+    with open(output_path, "w") as f:
         f.write(profiler.output_text(unicode=True, color=False))
