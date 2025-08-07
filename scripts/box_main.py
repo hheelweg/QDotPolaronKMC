@@ -2,9 +2,11 @@ import matplotlib.pyplot as plt
 from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
 import math
+import time
 
 
 def main():
+
 
     ndim = 1                                    # number of dimensions
     N = 20                                      # number of QDs in each dimension
@@ -42,25 +44,27 @@ def main():
     # specify the bath
     spectrum = [spec_density, reorg_nrg, w_c, method]
 
+    # start time
+    start = time.time()
 
     # greate instance of MC class to run KMC simulation
     kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box)
+    
+    # end time
+    end = time.time()
     
     # perform a KMC simulation
     times, msds = kmc_setup.simulate_kmc(t_final)
     
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds, times, ndim)
     
+    # -------------------------------------------------------------------------
     # without taking into account units:
     print('diffusivity ', diff)
     print('diffusivity error', diff_err)
+    print(f'elapsed time {end-start:.3f}')
     
-    # test plot of the msds
-    plt.xlabel(r'$t$')
-    plt.ylabel('MSD')
-    plt.plot(times, msds)
-    plt.show()
 
 
 if __name__ == '__main__':
