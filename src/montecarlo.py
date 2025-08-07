@@ -629,8 +629,8 @@ class KMCRunner():
             
             while self.time < t_final:
 
-                print(f'---------------TRAJ {n}----------------', flush = True)
-                print(f'time step: {self.step_counter}', flush = True)
+                #print(f'---------------TRAJ {n}----------------', flush = True)
+                #print(f'time step: {self.step_counter}', flush = True)
 
                 # (1) determine what polaron site we are at currently
                 if self.step_counter == 0:
