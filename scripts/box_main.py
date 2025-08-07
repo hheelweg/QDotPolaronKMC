@@ -8,8 +8,8 @@ import time
 def main():
 
 
-    ndim = 2                                    # number of dimensions
-    N = 100                                      # number of QDs in each dimension
+    ndim = 1                                    # number of dimensions
+    N = 50                                      # number of QDs in each dimension
     nc_edgelength = 8                           # length of each QD (units?)
     ligand_length = 1                           # length of ligands on QD (units?)
 
