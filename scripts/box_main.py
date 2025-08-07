@@ -3,6 +3,11 @@ from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
 import math
 import time
+from pyinstrument import Profiler
+
+profiler = Profiler()
+profiler.start()
+
 
 
 def main():
@@ -65,4 +70,12 @@ def main():
 
 
 if __name__ == '__main__':
+
+    profiler = Profiler()
+    profiler.start()
+
     main()
+
+    profiler.stop()
+    with open("pyinstrument_output.txt", "w") as f:
+        f.write(profiler.output_text(unicode=True, color=False))
