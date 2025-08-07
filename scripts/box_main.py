@@ -44,8 +44,6 @@ def main():
     # specify the bath
     spectrum = [spec_density, reorg_nrg, w_c, method]
 
-    # start time
-    start = time.time()
 
     # greate instance of MC class to run KMC simulation
     print('parameter check:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
@@ -56,8 +54,6 @@ def main():
     # perform a KMC simulation
     times, msds = kmc_setup.NEW_simulate_kmc(t_final)
 
-    # end time
-    end = time.time()
     
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds, times, ndim)
     
@@ -65,7 +61,6 @@ def main():
     # without taking into account units:
     print('diffusivity ', diff)
     print('diffusivity error', diff_err)
-    #print(f'elapsed time {end-start:.3f}')
     
 
 

@@ -286,12 +286,13 @@ class KMCRunner():
         my_redfield = redfield_box.NewRedfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
 
         # get rates and indices of the potential final polaron states we can jump to
-        self.rates, self.final_states = my_redfield.make_redfield_box(center)
+        self.rates, self.final_states, tot_time = my_redfield.make_redfield_box(center)
         overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[center], self.polaron_locs)
         self.stored_npolarons_box[overall_idx_start] = len(self.hamil_box)
         self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
         self.stored_rate_vectors[overall_idx_start] = np.copy(self.rates)
-        pass
+        
+        return tot_time
 
 
     # make box around center position where we are currently at
@@ -393,7 +394,7 @@ class KMCRunner():
         
         # (3) get rates from this polaron (box center) to potential final states
         if self.stored_npolarons_box[overall_idx_start] == 0:
-            self.NEW_kmatrix_box(box_idx_start)
+            tot_time = self.NEW_kmatrix_box(box_idx_start)
         else:
             self.final_states = self.stored_polaron_sites[overall_idx_start]
             self.rates = self.stored_rate_vectors[overall_idx_start]
@@ -411,7 +412,7 @@ class KMCRunner():
         # (5) obtain spatial coordinates of final polaron state j
         end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
         
-        return start_pol, end_pol
+        return start_pol, end_pol, tot_time
     
     
     
@@ -605,6 +606,8 @@ class KMCRunner():
         times_msds = np.linspace(0, t_final, int(t_final * 100))    # time ranges to use for computation of msds
                                                                     # note: can adjust the coarseness of time grid (here: 1000)
         msds = np.zeros(len(times_msds))                            # mean squared displacements
+
+        self.simulated_time = 0
         
         for n in range(self.ntrajs):
                 
@@ -641,7 +644,8 @@ class KMCRunner():
                     start_pol = end_pol
             
                 # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
-                start_pol, end_pol = self.NEW_make_kmc_step(start_pol)
+                start_pol, end_pol, tot_time = self.NEW_make_kmc_step(start_pol)
+                self.simulated_time += tot_time
                 
                 # (3) update trajectory and compute squared displacements 
                 if self.step_counter == 0:
@@ -671,6 +675,10 @@ class KMCRunner():
             # print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached! Computed in {} s". format(n+1, self.step_counter, self.sds[-1], time.time()-comp_time))
             # if self.sds[-1] > 10000:
             #    print("uh oh {}".format(self.sds[-1]))
+        
+        print('----------------------------------')
+        print('---- SIMULATED TIME SUMMARY -----')
+        print(f'total simulated time {tot_time:.3f}')
         return times_msds, msds
 
     

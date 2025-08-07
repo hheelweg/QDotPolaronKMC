@@ -200,7 +200,7 @@ class NewRedfield(Unitary):
 
 
         # return (outgoing) rates and corresponding polaron idxs (final sites)
-        return rates, final_site_idxs
+        return rates, final_site_idxs, end_tot - start_tot
 
 # HH : disregard this unless you want to compute the full Redfield rate matrix
 class RedfieldFull(Unitary):
