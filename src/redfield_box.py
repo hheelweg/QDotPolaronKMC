@@ -164,7 +164,7 @@ class NewRedfield(Unitary):
 
         end = time.time()
         if self.time_verbose:
-            print('time difference1', end - start)
+            print('time difference1', end - start, flush=True)
 
         # transform sysbath operators to eigenbasis
         start = time.time()
@@ -174,7 +174,7 @@ class NewRedfield(Unitary):
                 Gs[a][b] = self.ham.site2eig( self.ham.sysbath[a_idx][b_idx] )[pol_idxs, :][:, pol_idxs]
         end = time.time()
         if self.time_verbose:
-            print('time difference2', end - start)
+            print('time difference2', end - start, flush=True)
         
         #gamma_plus = np.zeros((ns, ns), dtype = np.complex128)
         start = time.time()
@@ -186,7 +186,7 @@ class NewRedfield(Unitary):
                                   np.multiply(Gs[abcd[2]][abcd[3]].T[center_i], Gs[abcd[0]][abcd[1]][center_i]))
         end = time.time()
         if self.time_verbose:
-            print('time difference3', end - start)
+            print('time difference3', end - start, flush=True)
 
         # only outgoing rates are relevant so we can disregard the delta-function
         # term in Eq. (19), we also need to remove the starting state (center_idx)

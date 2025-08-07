@@ -9,7 +9,7 @@ def main():
 
 
     ndim = 2                                    # number of dimensions
-    N = 10                                      # number of QDs in each dimension
+    N = 100                                      # number of QDs in each dimension
     nc_edgelength = 8                           # length of each QD (units?)
     ligand_length = 1                           # length of ligands on QD (units?)
 
@@ -48,6 +48,8 @@ def main():
     start = time.time()
 
     # greate instance of MC class to run KMC simulation
+    print('parameter check:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
+                                J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box)
     kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box)
     
