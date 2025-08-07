@@ -11,8 +11,8 @@ from pyinstrument import Profiler
 def main():
 
 
-    ndim = 1                                    # number of dimensions
-    N = 200                                     # number of QDs in each dimension
+    ndim = 2                                    # number of dimensions
+    N = 5                                       # number of QDs in each dimension
     nc_edgelength = 8                           # length of each QD (units?)
     ligand_length = 1                           # length of ligands on QD (units?)
 
