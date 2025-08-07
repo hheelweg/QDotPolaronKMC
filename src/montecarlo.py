@@ -396,6 +396,7 @@ class KMCRunner():
         if self.stored_npolarons_box[overall_idx_start] == 0:
             tot_time = self.NEW_kmatrix_box(box_idx_start)
         else:
+            tot_time = 0
             self.final_states = self.stored_polaron_sites[overall_idx_start]
             self.rates = self.stored_rate_vectors[overall_idx_start]
         
