@@ -281,7 +281,6 @@ class KMCRunner():
                 ham_list.append(ham_coupl)
             ham_sysbath.append(ham_list)   
         
-        print('num called', flush = True)
         my_ham = hamiltonian_box.Hamiltonian(self.eignrgs_box, self.eigstates_box, self.sites_locs_rel,
                                              ham_sysbath, self.spectrum_calc, const.kB * self.temp)
         my_redfield = redfield_box.NewRedfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
