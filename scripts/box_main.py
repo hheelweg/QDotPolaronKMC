@@ -35,7 +35,7 @@ def main():
     r_box = math.ceil(min(r_hop, r_ove))
     
     ntrajs = 10                                 # number of trajectories to compute MSDs over
-    t_final = 1                                 # final time for each trajectory (units?)
+    t_final = 5                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
 
     # lattice spacing
