@@ -3,11 +3,8 @@ from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
 import math
 import time
+# track performance bottlenecks
 from pyinstrument import Profiler
-
-profiler = Profiler()
-profiler.start()
-
 
 
 def main():
