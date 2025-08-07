@@ -45,7 +45,7 @@ spacing = nc_edgelength + 2 * ligand_length
 spectrum = [spec_density, reorg_nrg, w_c, method]
 
 # %% [markdown]
-# This is me playin around with the interplay between $J_c$ and `inhomog_sd` and looking at the effect it has on the location of the
+# This is me playing around with the interplay between $J_c$ and `inhomog_sd` and looking at the effect it has on the location of the
 # polaron eigenstates. It looks like the bigger $J_c$ gets as compared to `inhomog_sd`, the more clamped the polaron states become in
 # the middle of the lattice.
 # %%

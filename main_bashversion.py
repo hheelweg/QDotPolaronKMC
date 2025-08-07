@@ -12,6 +12,8 @@ from multiprocessing import Pool, cpu_count
 import os
 
 def main():
+
+    
     ndims = np.array([1]).astype(int)
     J_cs = np.array([0.03, 0.3, 3, 30])
     inhomog_sds = np.array([0.05, 0.1])

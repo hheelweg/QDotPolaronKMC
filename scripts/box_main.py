@@ -1,6 +1,4 @@
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from mpl_toolkits.mplot3d import Axes3D  
 from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
 import math

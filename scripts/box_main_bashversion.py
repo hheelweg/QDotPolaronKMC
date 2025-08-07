@@ -18,6 +18,7 @@ import const
 import math
 
 def main():
+    
     ndims = np.array([1]).astype(int)
     J_cs = np.array([30, 300])
     inhomog_sds = np.array([0.001, 0.01])
@@ -25,8 +26,6 @@ def main():
     r_hops = np.array([3,4,5]).astype(int)
     r_oves = np.array([3.5, 4.5, 6.5])
     r_boxes = np.array([4, 6, 8, 10])
-    
-    
     
     # reorg_nrgs = np.array([0.01, 0.03, 0.1])
     # w_cs = np.array([0.05, 0.1])
@@ -57,6 +56,7 @@ def main():
 
 
 def run_sim(args, dummy = 1):
+
     ndim = args[0]
     J_c = args[1]
     inhomog_sd = args[2]
