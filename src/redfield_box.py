@@ -149,6 +149,7 @@ class NewRedfield(Unitary):
         
         # compute integral of bath correlation function
         start = time.time()
+        start_tot = start
         lamdalist = [-2.0, -1.0, 0.0, 1.0, 2.0]
         bath_integrals = []
         for lam in lamdalist:
@@ -192,6 +193,11 @@ class NewRedfield(Unitary):
         self.red_R_tensor = 2 * np.real(gamma_plus)
         rates = np.delete(self.red_R_tensor, center_i) / const.hbar
         final_site_idxs = np.delete(pol_idxs, center_i)
+
+        end_tot = time.time()
+        if self.time_verbose:
+            print('time difference (tot)', end - start, flush=True)
+
 
         # return (outgoing) rates and corresponding polaron idxs (final sites)
         return rates, final_site_idxs

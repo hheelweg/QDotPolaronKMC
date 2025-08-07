@@ -570,6 +570,8 @@ class KMCRunner():
                     start_site = end_site
             
                 # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
+                print(f'---------------TRAJ {n}----------------')
+                print(f'time step: {self.step_counter}')
                 start_pol, end_pol = self.make_kmc_step(start_site)
                 
                 # (3) update trajectory and compute squared displacements 
