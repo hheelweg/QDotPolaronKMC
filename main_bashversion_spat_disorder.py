@@ -27,7 +27,6 @@ def main():
     
     
     
-    
     # number of cores you have allocated for your SLURM task:
     number_of_cores = int(os.environ['SLURM_CPUS_PER_TASK'])
     

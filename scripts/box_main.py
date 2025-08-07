@@ -54,7 +54,7 @@ def main():
                                 J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box)
     
     # perform a KMC simulation
-    times, msds = kmc_setup.simulate_kmc(t_final)
+    times, msds = kmc_setup.NEW_simulate_kmc(t_final)
 
     # end time
     end = time.time()

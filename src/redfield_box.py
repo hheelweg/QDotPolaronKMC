@@ -121,7 +121,6 @@ class NewRedfield(Unitary):
         self.time_verbose = time_verbose
         
  
-    
     def get_idxs(self, center_idx):
         # location of center polaron i (given by idx center_idx) around which we have constructed the box
         center_coord = self.polaron_locations[center_idx]

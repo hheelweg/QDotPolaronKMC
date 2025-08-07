@@ -514,41 +514,6 @@ class KMCRunner():
         cum_three_biggest_norm = np.sum(three_biggest)
         return mean_final, three_biggest, cum_three_biggest_norm   
 
-    # HH : compute the full rate matrix for the entire grid (just as a sanity check
-    # otherwise takes way too long to compute)
-    def make_kmatrix_tensorFull(self, center):
-        # create list of system_bath Hamiltonians
-        J = self.hamil - np.diag(np.diag(self.hamil))  # diagonal elements need to be 0
-        dim = len(self.hamil)
-        ham_sysbath = []
-        for i in range(dim):
-            ham_list=[]
-            for j in range(dim):
-                ham_coupl=np.zeros((dim,dim))
-                ham_coupl[i,j]=J[i,j]
-                ham_list.append(ham_coupl)
-            ham_sysbath.append(ham_list)   
-        my_ham_full = hamiltonian_box.Hamiltonian(self.eignrgs, self.eigstates, self.qd_locations,
-                                             ham_sysbath, self.spectrum, const.kB * self.temp)
-        my_fullredfield = redfield_box.RedfieldFull(my_ham_full, self.kappa_polaron)
-
-        # make Redfield rates for final polaron states in box
-        self.ratesFull = my_fullredfield.make_redfield_tensor(center)
-    
-    # HH : see above only for sanity check
-    def test_full_rates(self, start_site):
-        # convert coordinate to index
-        eig_state_locs = np.matmul(self.eigstates ** 2, self.qd_locations)
-        start_idx = self.get_closest_idx(start_site, eig_state_locs)
-        # print(rates)
-        #self.make_kmatrix_full(start_idx)
-        start = time.time()
-        self.make_kmatrix_tensorFull(start_idx)
-        end = time.time()
-        print('time taken to compute rates', end - start)
-        print('full rates', self.ratesFull)
-        print('length rate vector', len(self.ratesFull))
-        print('cum rates', np.sum(self.ratesFull))
         
     # HH : helper function that prints you the rates from start_site coordinate   
     def test_box_rates(self, start_site, rates_verbose = True):
@@ -736,6 +701,7 @@ class KMCRunner():
         # obtain error on diffusvity as from error on slope parameter 
         diff_err = np.sqrt(np.diag(cov))[0]/(2*dims)
         return diff, diff_err
+    
     def get_ipr(self):
         # returns ipr of one column vector, or mean ipr of multiple column vectors
         return np.mean(1/np.sum(self.eigstates ** 4, axis = 0))
