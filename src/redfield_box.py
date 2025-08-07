@@ -38,7 +38,8 @@ class Redfield(Unitary):
         # (2) get indices of the site basis states that are within r_ove of the center polaron
         site_idxs = np.where(np.array([np.linalg.norm(site_pos - center_coord) for site_pos in self.ham.qd_lattice_rel]) < self.r_ove )[0]
         return polaron_idxs, site_idxs
-        
+    
+    
     def make_redfield_box(self, center_idx):
 
         # find polaron and site states r_hop and r_ove, respectively, away from center_idx

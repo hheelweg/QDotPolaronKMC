@@ -12,7 +12,7 @@ def main():
 
 
     ndim = 2                                    # number of dimensions
-    N = 9                                       # number of QDs in each dimension
+    N = 7                                       # number of QDs in each dimension
     nc_edgelength = 8                           # length of each QD (units?)
     ligand_length = 1                           # length of ligands on QD (units?)
 
@@ -54,16 +54,16 @@ def main():
     kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box)
     
-    # # perform a KMC simulation
-    # times, msds = kmc_setup.NEW_simulate_kmc(t_final)
+    # perform a KMC simulation
+    times, msds = kmc_setup.NEW_simulate_kmc(t_final)
 
     
-    # diff, diff_err = kmc_setup.get_diffusivity_hh(msds, times, ndim)
+    diff, diff_err = kmc_setup.get_diffusivity_hh(msds, times, ndim)
     
-    # # -------------------------------------------------------------------------
-    # # without taking into account units:
-    # print('diffusivity ', diff)
-    # print('diffusivity error', diff_err)
+    # -------------------------------------------------------------------------
+    # without taking into account units:
+    print('diffusivity ', diff)
+    print('diffusivity error', diff_err)
     
 
 if __name__ == '__main__':
