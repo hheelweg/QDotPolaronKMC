@@ -1,6 +1,8 @@
 import numpy as np
 from scipy import integrate
 from scipy import optimize
+from scipy.signal import hilbert
+from scipy.interpolate import interp1d
 from . import const
 from . import utils
 import warnings
@@ -69,39 +71,30 @@ class SpecDens():
             self.omega_c = spec_dens_list[2]
             self.J = self.cubic_exp
             self.low_freq_cutoff = self.omega_c/200
-            self.omega_inf = 10*self.omega_c
-            self.cheby_tau_cutoff = 40/self.omega_c
-        elif sd_type == 'gauss-sum':
-            self.heights = spec_dens_list[1]
-            self.peak_nrgs = spec_dens_list[2]
-            self.sds = spec_dens_list[3]
-            self.J = self.gauss_sum
-            self.low_freq_cutoff = max(0, np.min(self.peak_nrgs - 7 * self.sds))
-            self.omega_inf = max(self.peak_nrgs + 7 * self.sds)
-            self.cheby_tau_cutoff = self.omega_inf
-        else:
-            raise SystemExit
-        
-        if self.bath_method == 'exact':
-            self.Phi = self.phi     # use exact phi
-            self.correlationFT = self.bathCorrFT
-        elif self.bath_method == 'fit':
-            self.getPhiFit()        # perform phi fit
-            self.qualityFit()       # assess quality of getPhiFit
-            self.Phi = self.PhiFit  # use fit
-            self.correlationFT = self.bathCorrFT
-        elif self.bath_method == 'cheby-fit':
-            self.getChebyPhiFit()
-            self.Phi = self.chebyPhiFit
-            if np.isnan(max_energy_diff):
-                self.correlationFT = self.bathCorrFT
-            else:
-                kappaSetupTime = time.time()
-                self.getBathCorrFTFit(max_energy_diff)
-                self.correlationFT = self.bathCorrFTFitReal
-                kappaSetupTime = time.time() - kappaSetupTime
-                print("kappa setup time: %f" % kappaSetupTime)
-        elif self.bath_method == 'first-order':
+            self.omega_inf = 20*self.omega_c
+            #self.cheby_tau_cutoff = 40/self.omega_c
+            omega_grid = np.linspace(1e-6, 20 * self.omega_c, 5000)
+
+            # real part of bath correlation function 
+            def re_bath_corr(omega):
+                def coth(x):
+                    return 1.0/np.tanh(x)
+
+                beta = 1.0/const.kT
+                omega += 1e-14
+                n_omega = 0.5*(coth(beta*omega/2) - 1.0)
+                return (self.J(omega)*(n_omega+1))/omega**2
+            
+            re_vals = re_bath_corr(omega_grid)
+            print('vectorized real bath correlation function', re_vals.shape, flush = True)
+
+            hilb = np.imag(hilbert(re_vals))
+            # Interpolators
+            re_interp = interp1d(omega_grid, re_vals, kind='cubic', bounds_error=False, fill_value=0.0)
+            hilb_interp = interp1d(omega_grid, hilb, kind='cubic', bounds_error=False, fill_value=0.0)
+
+    
+        if self.bath_method == 'first-order':
             self.correlationFT = self.firstOrderFT
         else:
             raise SystemExit
@@ -356,13 +349,13 @@ class SpecDens():
             n_omega = 0.5*(coth(beta*omega/2) - 1.0)
             return (self.J(omega)*(n_omega+1))/omega**2
         
+        # quad integration (expensive)
         omega = -omega
         ppv = integrate.quad(re_bath_corr, 
                              -self.omega_inf, self.omega_inf,
                              limit=1000, weight='cauchy', wvar=omega)
         ppv = -ppv[0]
         return -kappa**2*lamda*(re_bath_corr(omega) + (1j/np.pi)*ppv)
-        
 
 
 
