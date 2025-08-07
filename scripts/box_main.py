@@ -65,7 +65,7 @@ def main():
     # without taking into account units:
     print('diffusivity ', diff)
     print('diffusivity error', diff_err)
-    print(f'elapsed time {end-start:.3f}')
+    #print(f'elapsed time {end-start:.3f}')
     
 
 
