@@ -93,9 +93,9 @@ class SpecDens():
             self.re_interp = interp1d(omega_grid, re_vals, kind='cubic', bounds_error=False, fill_value=0.0)
             self.hilb_interp = interp1d(omega_grid, hilb, kind='cubic', bounds_error=False, fill_value=0.0)
 
-    
         if self.bath_method == 'first-order':
-            self.correlationFT = self.firstOrderFT
+            #self.correlationFT = self.firstOrderFT
+            self.correlationFT = self.fastfirstOrderFT
         else:
             raise SystemExit
 
@@ -176,7 +176,6 @@ class SpecDens():
             return bathCorrFT_real1+bathCorrFT_real2+1j*bathCorrFT_imag1-1j*bathCorrFT_imag2
 
 
-        
     # first order approximation to the bath correlation function in Eq. (16)
     def firstOrderFT(self, omega, lamda, kappa):
         
@@ -196,6 +195,14 @@ class SpecDens():
                              limit=1000, weight='cauchy', wvar=omega)
         ppv = -ppv[0]
         return -kappa**2*lamda*(re_bath_corr(omega) + (1j/np.pi)*ppv)
+    
+
+    def fastfirstOrderFT(self, omega, lamda, kappa):
+        
+        omega = np.abs(omega)
+        real_part = self.re_interp(omega)
+        imag_part = self.hilb_interp(omega)
+        return -kappa**2 * lamda * (real_part + 1j * imag_part / np.pi)
 
 
 
