@@ -196,7 +196,7 @@ class NewRedfield(Unitary):
 
         end_tot = time.time()
         if self.time_verbose:
-            print('time difference (tot)', end - start, flush=True)
+            print('time difference (tot)', end_tot - start_tot, flush=True)
 
 
         # return (outgoing) rates and corresponding polaron idxs (final sites)
