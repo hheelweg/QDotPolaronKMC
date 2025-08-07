@@ -32,7 +32,8 @@ def main():
 
     # PTRE and KMC related parameters
     numtrials = 1                               # number of trials to average over (here: 1)
-    method = 'first-order'                      # method for computing bath integrals 
+    # method = 'first-order'                      # method for computing bath integrals 
+    method = 'cheby-fit'
     r_hop = 3                                   # hopping radius (see Kassal) (in units of lattice spacing)
     r_ove = 3.5                                 # overlap radius (see Kassal) (in units of lattice spacing)
     r_box = math.ceil(min(r_hop, r_ove))
@@ -65,7 +66,6 @@ def main():
     print('diffusivity ', diff)
     print('diffusivity error', diff_err)
     
-
 
 if __name__ == '__main__':
 
