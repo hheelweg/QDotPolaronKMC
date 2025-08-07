@@ -114,6 +114,7 @@ class SpecDens():
         w = abs(omega)
         Jw = (self.lamda/(2*self.omega_c**3))*w**3*np.exp(-w/self.omega_c)
         return Jw*(omega >= 0) - Jw*(omega < 0)
+    
     def gauss_sum(self, omega):
         """Evaluage a spectral density that approximates the sum of several gaussian peaks"""
         if type(omega) == float or type(omega) == int or type(omega) == np.float64:
