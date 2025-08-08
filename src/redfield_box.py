@@ -64,7 +64,7 @@ class NewRedfield(Unitary):
 
         return polaron_idxs, site_idxs
         
-   def make_redfield_box(self, center_idx):
+    def make_redfield_box(self, center_idx):
         # --- setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
         npols, nsites = len(pol_idxs), len(site_idxs)
