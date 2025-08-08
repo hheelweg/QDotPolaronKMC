@@ -170,7 +170,7 @@ class NewRedfield(Unitary):
 
     def make_redfield_box(self, center_idx):
         # --- neighborhoods from the new function
-        pol_idxs, site_idxs_list = self.get_idxsNew(center_idx)   # NEW
+        pol_idxs, site_idxs_list = self.get_idxs(center_idx)   # NEW
         npols = len(pol_idxs)
         if self.time_verbose:
             print('npols', npols)
