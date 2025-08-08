@@ -265,7 +265,7 @@ class NewRedfield(Unitary):
 
         # --- outgoing rates (drop self term, divide by ħ)
         self.red_R_tensor = 2.0 * np.real(gamma_plus)
-        rates = np.delete(self.red_R_tensor, center_i) / const.hbar *1e15
+        rates = abs(np.delete(self.red_R_tensor, center_i) / const.hbar *1e15)
         final_pol_idxs = np.delete(pol_idxs, center_i)
 
         if self.time_verbose:
