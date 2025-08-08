@@ -266,7 +266,7 @@ class NewRedfield(Unitary):
         if self.time_verbose:
             print('time(total)', time.time() - start_tot, flush=True)
         
-        print('rates', len(rates))
+        print('rates', rates)
 
         return rates, final_pol_idxs, time.time() - start_tot
 
