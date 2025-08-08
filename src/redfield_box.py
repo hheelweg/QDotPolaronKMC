@@ -65,11 +65,116 @@ class NewRedfield(Unitary):
 
         return polaron_idxs, site_idxs
 
-        
+    # VERION 1 (08/08/2025) this seems to work but maybe we can still improve this
+    # def make_redfield_box(self, center_idx):
+    #     # --- setup
+    #     pol_idxs, site_idxs = self.get_idxs(center_idx)
+    #     print('site_idxs', site_idxs)
+    #     npols = len(pol_idxs); nsites = len(site_idxs)
+    #     if self.time_verbose:
+    #         print('npols, nsites', npols, nsites)
+    #     start_tot = time.time()
+    #     center_i = int(np.where(pol_idxs == center_idx)[0][0])
+
+    #     # --- cache λ-index sets for this nsites
+    #     if not hasattr(self, "_lam_idx_cache"):
+    #         self._lam_idx_cache = {}
+    #     lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
+    #     if nsites not in self._lam_idx_cache:
+    #         ident = np.identity(nsites)
+    #         ones  = np.ones((nsites, nsites, nsites, nsites))
+    #         lamdas = (np.einsum('ac, abcd->abcd', ident, ones)
+    #                 + np.einsum('bd, abcd->abcd', ident, ones)
+    #                 - np.einsum('ad, abcd->abcd', ident, ones)
+    #                 - np.einsum('bc, abcd->abcd', ident, ones))
+    #         idx_dict = {}
+    #         for lam in lamdalist:
+    #             idxs = np.argwhere(lamdas == lam)
+    #             if idxs.size == 0:
+    #                 idx_dict[lam] = (np.array([], dtype=int),
+    #                                 np.array([], dtype=int),
+    #                                 np.array([], dtype=int),
+    #                                 np.array([], dtype=int))
+    #             else:
+    #                 a_idx, b_idx, c_idx, d_idx = idxs.T
+    #                 idx_dict[lam] = (a_idx, b_idx, c_idx, d_idx)
+    #         del lamdas
+    #         self._lam_idx_cache[nsites] = idx_dict
+    #     idx_dict = self._lam_idx_cache[nsites]
+
+    #     # --- (optional) cache flattened (a,b) indices to avoid recomputing each call
+    #     if not hasattr(self, "_flat_idx_cache"):
+    #         self._flat_idx_cache = {}
+    #     if nsites not in self._flat_idx_cache:
+    #         flat = {}
+    #         for lam in lamdalist:
+    #             a_idx, b_idx, c_idx, d_idx = idx_dict[lam]
+    #             flat[lam] = ((a_idx * nsites + b_idx).astype(np.intp),
+    #                         (c_idx * nsites + d_idx).astype(np.intp))
+    #         self._flat_idx_cache[nsites] = flat
+    #     flat = self._flat_idx_cache[nsites]
+
+    #     # --- bath integrals (KEEP your exact local indexing)
+    #     t0 = time.time()
+    #     bath_integrals = []
+    #     for lam in lamdalist:
+    #         vec = np.zeros(npols, dtype=np.complex128)
+    #         if lam != 0.0:
+    #             for i in range(npols):  # local index on purpose
+    #                 omega_ij = self.ham.omega_diff[i, center_idx]
+    #                 vec[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
+    #         bath_integrals.append(vec)
+    #     if self.time_verbose:
+    #         print('time(bath integrals)', time.time() - t0, flush=True)
+
+    #     # --- transform sysbath operators to eigenbasis (same slicing as before)
+    #     t1 = time.time()
+    #     Gs = np.empty((nsites, nsites, npols, npols), dtype=np.complex128)
+    #     for aa, a_idx in enumerate(site_idxs):
+    #         for bb, b_idx in enumerate(site_idxs):
+    #             G_full = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])
+    #             Gs[aa, bb] = G_full[np.ix_(pol_idxs, pol_idxs)]
+    #     if self.time_verbose:
+    #         print('time(site→eig)', time.time() - t1, flush=True)
+
+    #     # --- PREP: make center row/col contiguous and flatten (a,b)→ab
+    #     AB = nsites * nsites
+    #     # center row: Gs[:, :, center_i, :] -> (ns,ns,npols) -> (AB,npols)
+    #     Gs_c_row_flat = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))
+    #     # center col: Gs[:, :, :, center_i] -> (ns,ns,npols) -> (AB,npols)
+    #     Gs_c_col_flat = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))
+
+    #     # --- vectorized accumulation over λ using flattened takes + einsum
+    #     t2 = time.time()
+    #     gamma_plus = np.zeros(npols, dtype=np.complex128)
+
+    #     for lam_idx, lam in enumerate(lamdalist):
+    #         ab_flat, cd_flat = flat[lam]
+    #         if ab_flat.size == 0:
+    #             continue
+    #         rows = Gs_c_row_flat.take(ab_flat, axis=0)  # (K, npols)
+    #         cols = Gs_c_col_flat.take(cd_flat, axis=0)  # (K, npols)
+    #         # contrib[n] = sum_k rows[k,n]*cols[k,n]
+    #         contrib = np.einsum('kn,kn->n', rows, cols, optimize=True)
+    #         gamma_plus += bath_integrals[lam_idx] * contrib
+
+    #     if self.time_verbose:
+    #         print('time(gamma accumulation)', time.time() - t2, flush=True)
+
+    #     # --- outgoing rates (unchanged)
+    #     self.red_R_tensor = 2.0 * np.real(gamma_plus)
+    #     rates = np.delete(self.red_R_tensor, center_i) / const.hbar
+    #     final_site_idxs = np.delete(pol_idxs, center_i)
+
+    #     if self.time_verbose:
+    #         print('time(total)', time.time() - start_tot, flush=True)
+
+    #     return rates, final_site_idxs, time.time() - start_tot
+
+    # VERSION 2: Trying to make VERSION 1 even faster
     def make_redfield_box(self, center_idx):
         # --- setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
-        print('site_idxs', site_idxs)
         npols = len(pol_idxs); nsites = len(site_idxs)
         if self.time_verbose:
             print('npols, nsites', npols, nsites)
@@ -102,17 +207,44 @@ class NewRedfield(Unitary):
             self._lam_idx_cache[nsites] = idx_dict
         idx_dict = self._lam_idx_cache[nsites]
 
-        # --- (optional) cache flattened (a,b) indices to avoid recomputing each call
-        if not hasattr(self, "_flat_idx_cache"):
-            self._flat_idx_cache = {}
-        if nsites not in self._flat_idx_cache:
-            flat = {}
+        # --- cache grouping info per λ so we can sum columns by repeated ab_flat
+        #     For each λ, we precompute:
+        #       - ab_sorted: ab_flat sorted
+        #       - cd_sorted: cd_flat permuted by same order
+        #       - seg_starts, seg_counts: segment boundaries for unique ab values
+        if not hasattr(self, "_lam_group_cache"):
+            self._lam_group_cache = {}
+        if nsites not in self._lam_group_cache:
+            group = {}
+            AB = nsites * nsites
             for lam in lamdalist:
                 a_idx, b_idx, c_idx, d_idx = idx_dict[lam]
-                flat[lam] = ((a_idx * nsites + b_idx).astype(np.intp),
-                            (c_idx * nsites + d_idx).astype(np.intp))
-            self._flat_idx_cache[nsites] = flat
-        flat = self._flat_idx_cache[nsites]
+                if a_idx.size == 0:
+                    group[lam] = None
+                    continue
+                ab_flat = (a_idx * nsites + b_idx).astype(np.intp)
+                cd_flat = (c_idx * nsites + d_idx).astype(np.intp)
+
+                order = np.argsort(ab_flat, kind='mergesort')  # stable
+                ab_sorted = ab_flat[order]
+                cd_sorted = cd_flat[order]
+
+                # segment boundaries for unique ab
+                if ab_sorted.size:
+                    # find starts of segments
+                    seg_starts = np.flatnonzero(np.r_[True, ab_sorted[1:] != ab_sorted[:-1]])
+                    # counts per segment
+                    seg_counts = np.diff(np.r_[seg_starts, ab_sorted.size]).astype(np.intp)
+                    # unique ab indices (once per segment)
+                    ab_unique = ab_sorted[seg_starts]
+                else:
+                    seg_starts = np.array([], dtype=np.intp)
+                    seg_counts = np.array([], dtype=np.intp)
+                    ab_unique  = np.array([], dtype=np.intp)
+
+                group[lam] = (ab_unique, cd_sorted, seg_starts, seg_counts)
+            self._lam_group_cache[nsites] = group
+        group = self._lam_group_cache[nsites]
 
         # --- bath integrals (KEEP your exact local indexing)
         t0 = time.time()
@@ -139,24 +271,33 @@ class NewRedfield(Unitary):
 
         # --- PREP: make center row/col contiguous and flatten (a,b)→ab
         AB = nsites * nsites
-        # center row: Gs[:, :, center_i, :] -> (ns,ns,npols) -> (AB,npols)
-        Gs_c_row_flat = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))
-        # center col: Gs[:, :, :, center_i] -> (ns,ns,npols) -> (AB,npols)
-        Gs_c_col_flat = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))
+        Gs_c_row_flat = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))  # (AB, N)
+        Gs_c_col_flat = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))  # (AB, N)
 
-        # --- vectorized accumulation over λ using flattened takes + einsum
+        # --- vectorized accumulation over λ using group-summed columns
         t2 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
 
         for lam_idx, lam in enumerate(lamdalist):
-            ab_flat, cd_flat = flat[lam]
-            if ab_flat.size == 0:
+            info = group[lam]
+            if info is None:
                 continue
-            rows = Gs_c_row_flat.take(ab_flat, axis=0)  # (K, npols)
-            cols = Gs_c_col_flat.take(cd_flat, axis=0)  # (K, npols)
-            # contrib[n] = sum_k rows[k,n]*cols[k,n]
-            contrib = np.einsum('kn,kn->n', rows, cols, optimize=True)
-            #contrib = _accumulate_contrib(rows, cols)
+            ab_unique, cd_sorted, seg_starts, seg_counts = info
+            if ab_unique.size == 0:
+                continue
+
+            # Gather all needed cols in sorted order, then reduce within segments
+            cols_sorted = Gs_c_col_flat.take(cd_sorted, axis=0)              # (K, N)
+            # Sum columns within each segment (per unique ab)
+            # -> shape (U, N) where U = number of unique ab pairs
+            cols_group_sum = np.add.reduceat(cols_sorted, seg_starts, axis=0)
+
+            # Gather each unique row exactly once
+            rows_unique = Gs_c_row_flat.take(ab_unique, axis=0)              # (U, N)
+
+            # contrib[n] = sum_groups rows_unique[g,n] * cols_group_sum[g,n]
+            contrib = np.einsum('gn,gn->n', rows_unique, cols_group_sum, optimize=True)
+
             gamma_plus += bath_integrals[lam_idx] * contrib
 
         if self.time_verbose:
@@ -172,6 +313,7 @@ class NewRedfield(Unitary):
 
         return rates, final_site_idxs, time.time() - start_tot
 
+    
     # def make_redfield_box(self, center_idx):
     #     """
     #     General path using get_idxsNew(center_idx).
@@ -314,19 +456,6 @@ class NewRedfield(Unitary):
 
 
 
-
-
-@njit(cache=True, fastmath=False)
-def _accumulate_contrib(rows, cols):
-    # rows, cols are (K, npols), return (npols,)
-    K, N = rows.shape
-    out = np.zeros(N, dtype=np.complex128)
-    for n in range(N):
-        s = 0.0 + 0.0j
-        for k in range(K):
-            s += rows[k, n] * cols[k, n]
-        out[n] = s
-    return out
 
 
 
