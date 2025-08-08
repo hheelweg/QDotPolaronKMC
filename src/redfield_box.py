@@ -154,7 +154,7 @@ class NewRedfield(Unitary):
         if self.time_verbose:
             print('time(total) =', time.time() - t0, flush=True)
         
-        print('rates shape', rates.shape)
+        print('rates', rates)
 
         return rates, final_pol_idxs, time.time() - t0
 
