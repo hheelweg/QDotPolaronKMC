@@ -67,6 +67,8 @@ class NewRedfield(Unitary):
     def make_redfield_box(self, center_idx):
         # --- setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
+        pol1_idx, _ = self.get_idxsNew(center_idx)
+        print('npols new', len(pol1_idx))
         npols = len(pol_idxs); nsites = len(site_idxs)
         if self.time_verbose:
             print('npols, nsites', npols, nsites)
