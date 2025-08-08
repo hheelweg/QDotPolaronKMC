@@ -65,98 +65,85 @@ class NewRedfield(Unitary):
         return polaron_idxs, site_idxs
         
     def make_redfield_box(self, center_idx):
-        # get local polaron/site indices and locate the local index of the center state
+        # --- (0) setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
         npols, nsites = len(pol_idxs), len(site_idxs)
-        center_i = int(np.where(pol_idxs == center_idx)[0][0])
-
         if self.time_verbose:
             print('npols, nsites', npols, nsites)
-
         t0 = time.time()
 
-        # ---- (1) Build G_ab(ν,ν') = <ν| V_ab |ν'> in eigenbasis, restricted to the polaron box
-        #     Store as a dense array: Gs[a,b,ν,ν']
-        Gs = np.empty((nsites, nsites, npols, npols), dtype=np.complex128)
-        U = self.ham.Umat  # if you have it handy; otherwise site2eig does the transform
+        # local index of the center eigenstate within the polaron subspace
+        center_i = int(np.where(pol_idxs == center_idx)[0][0])
+
+        # --- (1) Bath integrals: use linear-in-λ shortcut
+        # Build B1(ω_{ν'ν}) for all ν' (global index for ω!)
+        B1 = np.zeros(npols, dtype=np.complex128)
+        for i in range(npols):
+            g = pol_idxs[i]                              # global ν'
+            omega = self.ham.omega_diff[g, center_idx]   # ω_{ν'ν} = E_{ν'} - E_ν
+            B1[i] = self.ham.spec.correlationFT(omega, 1, self.kappa)
+        # If you ever switch bath method, you can fall back to a slower path by checking linearity:
+        # assert np.allclose(self.ham.spec.correlationFT(omega, 2, self.kappa), 2*B1[i])
+
+        if self.time_verbose:
+            print('time(bath) =', time.time() - t0, flush=True)
+
+        # --- (2) Build only the row/column you actually use from each G_ab
+        # Row[a,b,:] = G_ab[center_i, :]    (your Gs[ab][center_i])
+        # Col[c,d,:] = G_cd[:, center_i]    (your Gs[cd].T[center_i] == G_cd[:, center_i])
+        Row = np.empty((nsites, nsites, npols), dtype=np.complex128)
+        Col = np.empty((nsites, nsites, npols), dtype=np.complex128)
+
         for ai, a in enumerate(site_idxs):
             for bi, b in enumerate(site_idxs):
-                # site-basis system-bath operator block V_ab
                 Vab_site = self.ham.sysbath[a][b]
-                # eigenbasis block (full)
-                Vab_eig = self.ham.site2eig(Vab_site)
-                # restrict to local polaron indices
-                Gs[ai, bi, :, :] = Vab_eig[np.ix_(pol_idxs, pol_idxs)]
+                Vab_eig  = self.ham.site2eig(Vab_site)    # full eigenbasis operator
+                # grab only needed slices w.r.t. global eigen indices
+                Row[ai, bi, :] = Vab_eig[center_idx, pol_idxs]   # row at ν=center
+                Col[ai, bi, :] = Vab_eig[pol_idxs,   center_idx] # column at ν=center
 
         if self.time_verbose:
-            print('time(G build) =', time.time() - t0, flush=True)
+            print('time(G-slices) =', time.time() - t0, flush=True)
 
-        # ---- (2) Precompute bath integrals B_λ(ω_{ν'ν}) for λ ∈ {-2,-1,0,1,2}
-        lamvals = (-2, -1, 0, 1, 2)
-        B = {lam: np.zeros(npols, dtype=np.complex128) for lam in lamvals}
-        for i in range(npols):
-            g = pol_idxs[i]                               # global ν'
-            omega = self.ham.omega_diff[g, center_idx]    # ω_{ν'ν} = E_{ν'}-E_ν
-            for lam in lamvals:
-                if lam == 0:
-                    B[lam][i] = 0.0
-                else:
-                    B[lam][i] = self.ham.spec.correlationFT(omega, lam, self.kappa)
+        # --- (3) Contract λ-structure WITHOUT building λ_{abcd}
+        # term1: +δ_ac     ->  (sum_a Col[a,*,:]) dot (sum_b Row[*,b,:]) but only along the diagonals a==c
+        # In practice: use ONLY diagonals for δ_ac and δ_bd
+        diag_Row = Row[np.arange(nsites), np.arange(nsites), :]  # shape (nsites, npols)
+        diag_Col = Col[np.arange(nsites), np.arange(nsites), :]
 
-        if self.time_verbose:
-            print('time(B integrals) =', time.time() - t0, flush=True)
+        sum_diag_row = np.sum(diag_Row, axis=0)   # shape (npols,)
+        sum_diag_col = np.sum(diag_Col, axis=0)   # shape (npols,)
 
-        # ---- (3) Build the needed rows/columns at the initial state ν=center_i
-        # A[a,b,:] = row vector over ν' of G_ab(ν,ν')
-        A = Gs[:, :, center_i, :]                         # shape (nsites, nsites, npols)
+        term1 = sum_diag_col.conj() * sum_diag_row    # +δ_ac
+        term2 = term1                                 # +δ_bd  (same algebraic form)
 
-        # Diagonals A[a,a,:] (we’ll need sums of them)
-        diagA = A[np.arange(nsites), np.arange(nsites), :]  # shape (nsites, npols)
-
-        # ---- (4) Contract λ-structure without forming λ_{..} explicitly
-        # term1:  +δ_{mn}     ->  (sum_m A_mm^*) * (sum_n A_nn)
-        sum_diag_conj = np.sum(diagA.conj(), axis=0)      # shape (npols,)
-        sum_diag      = np.sum(diagA,       axis=0)       # shape (npols,)
-        term1 = sum_diag_conj * sum_diag                  # npols-vector
-
-        # term2:  +δ_{m'n'}   ->  identical structure as term1
-        term2 = term1
-
-        # term3:  -δ_{mn'}    ->  sum_{n'} (sum_n A_{n'n}^*) * (sum_m A_{mn'})
-        # implement by summing rows/cols at fixed n'
+        # term3: -δ_ad  ->  sum_{d} (sum_n A_{dn}^*) * (sum_m A_{md})
         term3 = np.zeros(npols, dtype=np.complex128)
-        for nprime in range(nsites):
-            row_star = np.sum(A[nprime, :, :].conj(), axis=0)  # sum over n
-            col      = np.sum(A[:, nprime, :],       axis=0)  # sum over m
-            term3 += row_star * col
+        for d in range(nsites):
+            row_star = np.sum(Row[d, :, :], axis=0).conj()
+            col_sum  = np.sum(Col[:, d, :], axis=0)
+            term3 += row_star * col_sum
 
-        # term4:  -δ_{m'n}    ->  symmetric to term3
+        # term4: -δ_bc  ->  sum_{c} (sum_{n'} A_{cn'}^*) * (sum_{m'} A_{m'c})
         term4 = np.zeros(npols, dtype=np.complex128)
-        for n_ in range(nsites):
-            row_star = np.sum(A[:, n_, :].conj(), axis=0)      # sum over n'
-            col      = np.sum(A[n_, :, :],       axis=0)       # sum over m'
-            term4 += row_star * col
+        for c in range(nsites):
+            row_star = np.sum(Row[c, :, :], axis=0).conj()
+            col_sum  = np.sum(Col[:, c, :], axis=0)
+            term4 += row_star * col_sum
 
-        # Structure factor S(ν') after λ-combination (all four pieces share same G-combination)
-        S = (term1 + term2) - (term3 + term4)                  # shape (npols,)
+        S = (term1 + term2) - (term3 + term4)          # structure factor (npols,)
 
-        # ---- (5) Assemble Γ^+ (ν'←ν) by summing over λ≠0
-        gamma_plus = np.zeros(npols, dtype=np.complex128)
-        for lam in lamvals:
-            if lam != 0:
-                gamma_plus += B[lam] * S
-
-        # ---- (6) Outgoing rates: R_{ν'ν} = 2 Re[γ^+] / ħ, drop ν'=ν
-        R_out = 2.0 * np.real(gamma_plus)
+        # --- (4) Assemble γ⁺ and outgoing rates
+        gamma_plus = B1 * S                             # uses linear-in-λ identity
+        R_out = 2.0 * np.real(gamma_plus)              # Eq. (19) real part
         rates = np.delete(R_out, center_i) / const.hbar
-        final_pol_idxs = np.delete(pol_idxs, center_i)
+        final_site_idxs = np.delete(pol_idxs, center_i)
 
         if self.time_verbose:
             print('time(total) =', time.time() - t0, flush=True)
-        
-        print('rates', rates)
 
-        return rates, final_pol_idxs, time.time() - t0
+        return rates, final_site_idxs, time.time() - t0
+
 
 
 
