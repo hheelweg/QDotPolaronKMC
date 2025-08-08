@@ -123,6 +123,9 @@ class NewRedfield(Unitary):
             for abcd in indices:
                 gamma_plus += np.multiply(bath_integrals[lamda + 2], 
                                   np.multiply(Gs[abcd[2]][abcd[3]].T[center_i], Gs[abcd[0]][abcd[1]][center_i]))
+        
+        print('gamma_plus shape', gamma_plus.shape)
+        
         end = time.time()
         if self.time_verbose:
             print('time difference3', end - start, flush=True)
