@@ -34,7 +34,7 @@ def main():
     numtrials = 1                               # number of trials to average over (here: 1)
     method = 'first-order'                      # method for computing bath integrals 
     r_hop = 3                                   # hopping radius (see Kassal) (in units of lattice spacing)
-    r_ove = 100                                   # overlap radius (see Kassal) (in units of lattice spacing)
+    r_ove = 5                                   # overlap radius (see Kassal) (in units of lattice spacing)
     r_box = math.ceil(min(r_hop, r_ove))
     
     ntrajs = 10                                 # number of trajectories to compute MSDs over
