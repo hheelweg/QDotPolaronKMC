@@ -155,8 +155,8 @@ class NewRedfield(Unitary):
             rows = Gs_c_row_flat.take(ab_flat, axis=0)  # (K, npols)
             cols = Gs_c_col_flat.take(cd_flat, axis=0)  # (K, npols)
             # contrib[n] = sum_k rows[k,n]*cols[k,n]
-            #contrib = np.einsum('kn,kn->n', rows, cols, optimize=True)
-            contrib = _accumulate_contrib(rows, cols)
+            contrib = np.einsum('kn,kn->n', rows, cols, optimize=True)
+            #contrib = _accumulate_contrib(rows, cols)
             gamma_plus += bath_integrals[lam_idx] * contrib
 
         if self.time_verbose:
