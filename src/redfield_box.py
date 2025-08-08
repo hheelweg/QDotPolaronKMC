@@ -139,6 +139,8 @@ class NewRedfield(Unitary):
         rates = np.delete(R_out, center_i) / const.hbar
         final_site_idxs = np.delete(pol_idxs, center_i)
 
+        print('rates', rates)
+
         if self.time_verbose:
             print('time(total) =', time.time() - t0, flush=True)
 
