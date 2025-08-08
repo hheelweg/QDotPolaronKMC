@@ -169,20 +169,31 @@ class NewRedfield(Unitary):
     #     return rates, final_site_idxs, time.time() - start_tot
 
     def make_redfield_box(self, center_idx):
-        # --- neighborhoods (new)
+        """
+        General path: per-destination site subsets S_i from get_idxsNew(center_idx).
+        Keeps local-omega indexing (omega_diff[i, center_idx]) and the same
+        row/col orientation as your baseline.
+
+        Returns:
+            rates : 1D float array of outgoing rates from center -> other polarons
+            final_pol_idxs : 1D int array of GLOBAL eigenstate indices (destinations)
+            walltime : float
+        """
+        t_start = time.time()
+
+        # --- neighborhoods (per-destination site subsets)
         pol_idxs, site_idxs_list = self.get_idxsNew(center_idx)
         npols = len(pol_idxs)
         if self.time_verbose:
             print('npols', npols, [len(arr) for arr in site_idxs_list])
-        start_tot = time.time()
         if npols == 0:
-            return np.array([], float), np.array([], int), 0.0
+            return np.array([], dtype=float), np.array([], dtype=int), time.time() - t_start
 
-        # local index of center within this polaron subset
+        # local index of center within THIS polaron subset
         center_i = int(np.where(pol_idxs == center_idx)[0][0])
 
-        # union of all sites that appear in any S_i, and map site->position
-        if site_idxs_list:
+        # union of all sites used by any S_i, and a site->position map into [0..Nunion)
+        if len(site_idxs_list):
             union_sites = np.unique(np.concatenate(site_idxs_list))
         else:
             union_sites = np.array([], dtype=int)
@@ -190,70 +201,80 @@ class NewRedfield(Unitary):
         site_pos = -np.ones(len(self.ham.qd_lattice_rel), dtype=int)
         site_pos[union_sites] = np.arange(Nunion, dtype=int)
 
-        # --- bath integrals (KEEP the **local** omega indexing to match your baseline)
+        # --- bath integrals (KEEP your original LOCAL omega indexing to match baseline)
         lamdalist = (-2, -1, 0, 1, 2)
-        t0 = time.time()
+        t_bath = time.time()
         B = []
         for lam in lamdalist:
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0:
-                for i in range(npols):             # i is LOCAL 0..npols-1
+                for i in range(npols):  # i is LOCAL (0..npols-1) on purpose
                     omega_ij = self.ham.omega_diff[i, center_idx]
                     vec[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             B.append(vec)
         if self.time_verbose:
-            print('time(bath integrals)', time.time() - t0, flush=True)
+            print('time(bath integrals)', time.time() - t_bath, flush=True)
 
-        # --- build only the needed G_ab slices over the union sites
-        # Row[a,b,i] = G_ab[center_i, i];  Col[a,b,i] = G_ab[i, center_i]
-        t1 = time.time()
+        # --- build only needed G slices over the union sites
+        # Row[a,b,i] = G_ab[center_i, i] ;  Col[a,b,i] = G_ab[i, center_i]
+        t_g = time.time()
         Row = np.empty((Nunion, Nunion, npols), dtype=np.complex128)
         Col = np.empty((Nunion, Nunion, npols), dtype=np.complex128)
         for ai, a in enumerate(union_sites):
             for bi, b in enumerate(union_sites):
-                Vab_eig = self.ham.site2eig(self.ham.sysbath[a][b])   # full eig-basis operator
-                G_loc   = Vab_eig[np.ix_(pol_idxs, pol_idxs)]          # restrict to this polaron box
-                Row[ai, bi, :] = G_loc[center_i, :]                    # row at ν=center
-                Col[ai, bi, :] = G_loc[:, center_i]                    # col at ν=center
+                Vab_eig = self.ham.site2eig(self.ham.sysbath[a][b])     # full eig-basis op
+                G_loc   = Vab_eig[np.ix_(pol_idxs, pol_idxs)]            # restrict to local polaron box
+                Row[ai, bi, :] = G_loc[center_i, :]                      # row at ν=center
+                Col[ai, bi, :] = G_loc[:, center_i]                      # col at ν=center
         if self.time_verbose:
-            print('time(site→eig slices)', time.time() - t1, flush=True)
+            print('time(site→eig slices)', time.time() - t_g, flush=True)
 
-        # --- δ-reduced contraction per destination i over its overlap S_i
+        # --- δ-reduced contraction per destination i over its S_i
         # S(i) = 2 * [ (Σ_{a∈S_i} Col[a,a,i]) (Σ_{b∈S_i} Row[b,b,i])
         #              − Σ_{d∈S_i} (Σ_{n∈S_i} Row[d,n,i]) (Σ_{m∈S_i} Col[m,d,i]) ]
-        t2 = time.time()
+        t_acc = time.time()
         S_struct = np.zeros(npols, dtype=np.complex128)
+
         for i in range(npols):
             Sg = site_idxs_list[i]
             if Sg.size == 0:
                 continue
-            S = site_pos[Sg]     # map to 0..Nunion-1
+            S = site_pos[Sg]  # map global site ids in S_i to 0..Nunion-1
 
+            # diagonals over S
             diag_row = Row[S, S, i]                      # (|S|,)
             diag_col = Col[S, S, i]                      # (|S|,)
-            Rs = Row[np.ix_(S, S, [i])][:, :, 0]         # (|S|, |S|)
-            Cs = Col[np.ix_(S, S, [i])][:, :, 0]         # (|S|, |S|)
-            term_ac = diag_col.sum() * diag_row.sum()
-            term_ad = (Rs.sum(axis=1) * Cs.sum(axis=0)).sum()
-            S_struct[i] = 2.0 * (term_ac - term_ad)
-        if self.time_verbose:
-            print('time(δ-accumulation)', time.time() - t2, flush=True)
 
-        # --- assemble γ⁺ and rates (identical post-processing)
+            # sums over S for each fixed d ∈ S
+            Rs = Row[np.ix_(S, S, [i])]  # (|S|, |S|, 1)
+            Cs = Col[np.ix_(S, S, [i])]  # (|S|, |S|, 1)
+            row_sum = Rs[:, :, 0].sum(axis=1)   # (|S|,)
+            col_sum = Cs[:, :, 0].sum(axis=0)   # (|S|,)
+
+            term_ac = diag_col.sum() * diag_row.sum()
+            term_ad = (row_sum * col_sum).sum()
+            S_struct[i] = 2.0 * (term_ac - term_ad)
+
+        if self.time_verbose:
+            print('time(δ-reduced accumulation)', time.time() - t_acc, flush=True)
+
+        # --- assemble γ⁺(i) = Σ_λ B_λ(i) * S_struct(i)
         gamma_plus = np.zeros(npols, dtype=np.complex128)
         for k in range(len(lamdalist)):
             gamma_plus += B[k] * S_struct
 
+        # --- outgoing rates (drop self term, divide by ħ)
         self.red_R_tensor = 2.0 * np.real(gamma_plus)
         rates = np.delete(self.red_R_tensor, center_i) / const.hbar
         final_pol_idxs = np.delete(pol_idxs, center_i)
 
         if self.time_verbose:
-            print('time(total)', time.time() - start_tot, flush=True)
+            print('time(total)', time.time() - t_start, flush=True)
         
         print('rates', rates)
 
-        return rates, final_pol_idxs, time.time() - start_tot
+        return rates, final_pol_idxs, time.time() - t_start
+
 
 
 
