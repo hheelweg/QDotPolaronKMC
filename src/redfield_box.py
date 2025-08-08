@@ -70,9 +70,11 @@ class NewRedfield(Unitary):
         pol_idxs, site_idxs = self.get_idxs(center_idx)
         npols = len(pol_idxs)
         nsites = len(site_idxs)
+        # new way of obtaining overlap
         pol_idxs1, site_idxs1 = self.get_idxsNew(center_idx)
+        site_idx1_length = [len(arr) for arr in site_idxs1]
         print('npols, nsites', npols, nsites)
-        print('npols1, nsites1', len(pol_idxs1), site_idxs1)
+        print('npols1, nsites1', len(pol_idxs1), site_idx1_length)
         # center idx in pol_idxs
         center_i = np.where(pol_idxs == center_idx)[0][0]
 
