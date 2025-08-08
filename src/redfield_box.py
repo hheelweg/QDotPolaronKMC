@@ -66,7 +66,7 @@ class NewRedfield(Unitary):
         return polaron_idxs, site_idxs
 
     @njit(cache=True, fastmath=False)
-    def _accumulate_contrib(rows, cols):
+    def _accumulate_contrib(self, rows, cols):
         # rows, cols are (K, npols), return (npols,)
         K, N = rows.shape
         out = np.zeros(N, dtype=np.complex128)
