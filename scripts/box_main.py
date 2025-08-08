@@ -33,8 +33,8 @@ def main():
     # PTRE and KMC related parameters
     numtrials = 1                               # number of trials to average over (here: 1)
     method = 'first-order'                      # method for computing bath integrals 
-    r_hop = 4                                   # hopping radius (see Kassal) (in units of lattice spacing)
-    r_ove = 3                                   # overlap radius (see Kassal) (in units of lattice spacing)
+    r_hop = 3                                   # hopping radius (see Kassal) (in units of lattice spacing)
+    r_ove = 3.5                                   # overlap radius (see Kassal) (in units of lattice spacing)
     r_box = math.ceil(min(r_hop, r_ove))
     
     ntrajs = 10                                 # number of trajectories to compute MSDs over

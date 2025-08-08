@@ -39,7 +39,7 @@ class Redfield(Unitary):
         site_idxs = np.where(np.array([np.linalg.norm(site_pos - center_coord) for site_pos in self.ham.qd_lattice_rel]) < self.r_ove )[0]
         return polaron_idxs, site_idxs
     
-    
+
     def make_redfield_box(self, center_idx):
 
         # find polaron and site states r_hop and r_ove, respectively, away from center_idx
@@ -137,6 +137,7 @@ class NewRedfield(Unitary):
         pol_idxs, site_idxs = self.get_idxs(center_idx)
         npols = len(pol_idxs)
         nsites = len(site_idxs)
+        print('npols, nsites', npols, nsites)
         # center idx in pol_idxs
         center_i = np.where(pol_idxs == center_idx)[0][0]
 
