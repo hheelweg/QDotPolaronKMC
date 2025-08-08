@@ -250,6 +250,8 @@ class Redfield(Unitary):
         rates = np.delete(self.red_R_tensor, center_i) / const.hbar
         final_site_idxs = np.delete(pol_idxs, center_i)
 
+        print('rates', rates)
+
         end_tot = time.time()
         if self.time_verbose:
             print('time difference (tot)', end_tot - start_tot, flush=True)
