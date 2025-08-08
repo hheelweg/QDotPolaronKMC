@@ -110,7 +110,7 @@ class NewRedfield(Unitary):
     """ New class to compute the Redfield tensor
     """
 
-    def __init__(self, hamiltonian, polaron_locations, kappa, r_hop, r_ove, time_verbose = False):
+    def __init__(self, hamiltonian, polaron_locations, kappa, r_hop, r_ove, time_verbose = True):
 
         self.ham = hamiltonian
         self.polaron_locations = polaron_locations         # polaron locations (in relative frame)
