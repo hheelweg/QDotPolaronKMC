@@ -67,17 +67,20 @@ class NewRedfield(Unitary):
     def make_redfield_box(self, center_idx):
         # --- setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
-        npols, nsites = len(pol_idxs), len(site_idxs)
+        npols = len(pol_idxs)
+        nsites = len(site_idxs)
         if self.time_verbose:
             print('npols, nsites', npols, nsites)
         start_tot = time.time()
         center_i = int(np.where(pol_idxs == center_idx)[0][0])
 
-        # --- cache λ-index sets once per nsites (identical to your original λ-structure)
+        # --- cache λ-index sets for this nsites
+        # We reproduce your lamdas construction ONCE, then only reuse compact indices.
         if not hasattr(self, "_lam_idx_cache"):
             self._lam_idx_cache = {}
+        cache_key = nsites
         lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
-        if nsites not in self._lam_idx_cache:
+        if cache_key not in self._lam_idx_cache:
             ident = np.identity(nsites)
             ones  = np.ones((nsites, nsites, nsites, nsites))
             lamdas = (np.einsum('ac, abcd->abcd', ident, ones)
@@ -86,6 +89,7 @@ class NewRedfield(Unitary):
                     - np.einsum('bc, abcd->abcd', ident, ones))
             idx_dict = {}
             for lam in lamdalist:
+                # store as 4 separate arrays to enable fast fancy indexing
                 idxs = np.argwhere(lamdas == lam)
                 if idxs.size == 0:
                     idx_dict[lam] = (np.array([], dtype=int),
@@ -95,60 +99,61 @@ class NewRedfield(Unitary):
                 else:
                     a_idx, b_idx, c_idx, d_idx = idxs.T
                     idx_dict[lam] = (a_idx, b_idx, c_idx, d_idx)
+            # free the big tensor
             del lamdas
-            self._lam_idx_cache[nsites] = idx_dict
-        idx_dict = self._lam_idx_cache[nsites]
+            self._lam_idx_cache[cache_key] = idx_dict
+        idx_dict = self._lam_idx_cache[cache_key]
 
-        # --- bath integrals: vectorized over local final-state index (exact same indexing as before)
+        # --- bath integrals (KEEPING your exact indexing: local i on omega_diff)
         t0 = time.time()
-        omegas_local = self.ham.omega_diff[:npols, center_idx]  # preserves your local-i convention
         bath_integrals = []
         for lam in lamdalist:
-            if lam == 0.0:
-                bath_integrals.append(np.zeros(npols, dtype=np.complex128))
-            else:
-                bath_integrals.append(self.ham.spec.correlationFT(omegas_local, lam, self.kappa))
+            vec = np.zeros(npols, dtype=np.complex128)
+            if lam != 0.0:
+                for i in range(npols):  # i is LOCAL index (to match your original)
+                    omega_ij = self.ham.omega_diff[i, center_idx]
+                    vec[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
+            bath_integrals.append(vec)
         if self.time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
 
-        # --- build only the needed slices Gs[a,b][center_i,:] and Gs[a,b][:,center_i]
-        #     cache per (site_idxs, pol_idxs, center_idx) box
+        # --- transform sysbath operators to eigenbasis (same slicing as your code)
         t1 = time.time()
-        key = (tuple(site_idxs.tolist()), tuple(pol_idxs.tolist()), int(center_idx))
-        if not hasattr(self, "_Gslice_cache"):
-            self._Gslice_cache = {}
-        cached = self._Gslice_cache.get(key, None)
-        if cached is not None:
-            Row, Col = cached
-        else:
-            Row = np.empty((nsites, nsites, npols), dtype=np.complex128)  # rows: G[a,b][center_i,:]
-            Col = np.empty((nsites, nsites, npols), dtype=np.complex128)  # cols: G[a,b][:,center_i]
-            for aa, a_idx in enumerate(site_idxs):
-                for bb, b_idx in enumerate(site_idxs):
-                    G_full = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])   # full eig op
-                    G_loc  = G_full[np.ix_(pol_idxs, pol_idxs)]                   # restrict to box
-                    Row[aa, bb, :] = G_loc[center_i, :]                           # exact row as before
-                    Col[aa, bb, :] = G_loc[:, center_i]                           # exact col as before
-            self._Gslice_cache[key] = (Row, Col)
+        # Pack into a 4D array for fast row/col grabs later
+        Gs = np.empty((nsites, nsites, npols, npols), dtype=np.complex128)
+        for aa, a_idx in enumerate(site_idxs):
+            for bb, b_idx in enumerate(site_idxs):
+                G_full = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])  # full eig-op
+                Gs[aa, bb] = G_full[np.ix_(pol_idxs, pol_idxs)]             # restrict
         if self.time_verbose:
-            print('time(site→eig slices)', time.time() - t1, flush=True)
+            print('time(site→eig)', time.time() - t1, flush=True)
 
-        # --- vectorized accumulation over λ (identical algebra/order to your original)
+        # --- vectorized accumulation over λ without Python loops over abcd
+        # NOTE: we replicate your exact factors: Gs[c][d].T[center_i] * Gs[a][b][center_i]
+        # That is: col = Gs[c,d,:,center_i], row = Gs[a,b,center_i,:]
         t2 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
+
         for lam_idx, lam in enumerate(lamdalist):
             a_idx, b_idx, c_idx, d_idx = idx_dict[lam]
             if a_idx.size == 0:
                 continue
-            rows = Row[a_idx, b_idx, :]      # shape (K, npols)  == Gs[a][b][center_i]
-            cols = Col[c_idx, d_idx, :]      # shape (K, npols)  == Gs[c][d].T[center_i]
-            contrib = np.sum(rows * cols, axis=0)   # (npols,)
+
+            # rows: shape (K, npols)
+            rows = Gs[a_idx, b_idx, center_i, :]          # matches Gs[a][b][center_i]
+            # cols: shape (K, npols)
+            cols = Gs[c_idx, d_idx, :, center_i]          # matches Gs[c][d].T[center_i]
+
+            # elementwise product over K, then sum over K → (npols,) vector
+            contrib = np.sum(rows * cols, axis=0)
+
+            # multiply by your bath_integrals[lam+2] (a length-npols vector) and add
             gamma_plus += bath_integrals[lam_idx] * contrib
 
         if self.time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
-        # --- outgoing rates (unchanged)
+        # --- outgoing rates (exactly as you do)
         self.red_R_tensor = 2.0 * np.real(gamma_plus)
         rates = np.delete(self.red_R_tensor, center_i) / const.hbar
         final_site_idxs = np.delete(pol_idxs, center_i)
@@ -159,7 +164,6 @@ class NewRedfield(Unitary):
         print('rates', rates)
 
         return rates, final_site_idxs, time.time() - start_tot
-
 
 
 
