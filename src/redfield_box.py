@@ -65,86 +65,106 @@ class NewRedfield(Unitary):
         return polaron_idxs, site_idxs
         
     def make_redfield_box(self, center_idx):
-        # --- (0) setup
+        # --- setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
-        npols, nsites = len(pol_idxs), len(site_idxs)
+        npols = len(pol_idxs)
+        nsites = len(site_idxs)
         if self.time_verbose:
             print('npols, nsites', npols, nsites)
-        t0 = time.time()
-
-        # local index of the center eigenstate within the polaron subspace
+        start_tot = time.time()
         center_i = int(np.where(pol_idxs == center_idx)[0][0])
 
-        # --- (1) Bath integrals: use linear-in-λ shortcut
-        # Build B1(ω_{ν'ν}) for all ν' (global index for ω!)
-        B1 = np.zeros(npols, dtype=np.complex128)
-        for i in range(npols):
-            g = pol_idxs[i]                              # global ν'
-            omega = self.ham.omega_diff[g, center_idx]   # ω_{ν'ν} = E_{ν'} - E_ν
-            B1[i] = self.ham.spec.correlationFT(omega, 1, self.kappa)
-        # If you ever switch bath method, you can fall back to a slower path by checking linearity:
-        # assert np.allclose(self.ham.spec.correlationFT(omega, 2, self.kappa), 2*B1[i])
+        # --- cache λ-index sets for this nsites
+        # We reproduce your lamdas construction ONCE, then only reuse compact indices.
+        if not hasattr(self, "_lam_idx_cache"):
+            self._lam_idx_cache = {}
+        cache_key = nsites
+        lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
+        if cache_key not in self._lam_idx_cache:
+            ident = np.identity(nsites)
+            ones  = np.ones((nsites, nsites, nsites, nsites))
+            lamdas = (np.einsum('ac, abcd->abcd', ident, ones)
+                    + np.einsum('bd, abcd->abcd', ident, ones)
+                    - np.einsum('ad, abcd->abcd', ident, ones)
+                    - np.einsum('bc, abcd->abcd', ident, ones))
+            idx_dict = {}
+            for lam in lamdalist:
+                # store as 4 separate arrays to enable fast fancy indexing
+                idxs = np.argwhere(lamdas == lam)
+                if idxs.size == 0:
+                    idx_dict[lam] = (np.array([], dtype=int),
+                                    np.array([], dtype=int),
+                                    np.array([], dtype=int),
+                                    np.array([], dtype=int))
+                else:
+                    a_idx, b_idx, c_idx, d_idx = idxs.T
+                    idx_dict[lam] = (a_idx, b_idx, c_idx, d_idx)
+            # free the big tensor
+            del lamdas
+            self._lam_idx_cache[cache_key] = idx_dict
+        idx_dict = self._lam_idx_cache[cache_key]
+
+        # --- bath integrals (KEEPING your exact indexing: local i on omega_diff)
+        t0 = time.time()
+        bath_integrals = []
+        for lam in lamdalist:
+            vec = np.zeros(npols, dtype=np.complex128)
+            if lam != 0.0:
+                for i in range(npols):  # i is LOCAL index (to match your original)
+                    omega_ij = self.ham.omega_diff[i, center_idx]
+                    vec[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
+            bath_integrals.append(vec)
+        if self.time_verbose:
+            print('time(bath integrals)', time.time() - t0, flush=True)
+
+        # --- transform sysbath operators to eigenbasis (same slicing as your code)
+        t1 = time.time()
+        # Pack into a 4D array for fast row/col grabs later
+        Gs = np.empty((nsites, nsites, npols, npols), dtype=np.complex128)
+        for aa, a_idx in enumerate(site_idxs):
+            for bb, b_idx in enumerate(site_idxs):
+                G_full = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])  # full eig-op
+                Gs[aa, bb] = G_full[np.ix_(pol_idxs, pol_idxs)]             # restrict
+        if self.time_verbose:
+            print('time(site→eig)', time.time() - t1, flush=True)
+
+        # --- vectorized accumulation over λ without Python loops over abcd
+        # NOTE: we replicate your exact factors: Gs[c][d].T[center_i] * Gs[a][b][center_i]
+        # That is: col = Gs[c,d,:,center_i], row = Gs[a,b,center_i,:]
+        t2 = time.time()
+        gamma_plus = np.zeros(npols, dtype=np.complex128)
+
+        for lam_idx, lam in enumerate(lamdalist):
+            a_idx, b_idx, c_idx, d_idx = idx_dict[lam]
+            if a_idx.size == 0:
+                continue
+
+            # rows: shape (K, npols)
+            rows = Gs[a_idx, b_idx, center_i, :]          # matches Gs[a][b][center_i]
+            # cols: shape (K, npols)
+            cols = Gs[c_idx, d_idx, :, center_i]          # matches Gs[c][d].T[center_i]
+
+            # elementwise product over K, then sum over K → (npols,) vector
+            contrib = np.sum(rows * cols, axis=0)
+
+            # multiply by your bath_integrals[lam+2] (a length-npols vector) and add
+            gamma_plus += bath_integrals[lam_idx] * contrib
 
         if self.time_verbose:
-            print('time(bath) =', time.time() - t0, flush=True)
+            print('time(gamma accumulation)', time.time() - t2, flush=True)
 
-        # --- (2) Build only the row/column you actually use from each G_ab
-        # Row[a,b,:] = G_ab[center_i, :]    (your Gs[ab][center_i])
-        # Col[c,d,:] = G_cd[:, center_i]    (your Gs[cd].T[center_i] == G_cd[:, center_i])
-        Row = np.empty((nsites, nsites, npols), dtype=np.complex128)
-        Col = np.empty((nsites, nsites, npols), dtype=np.complex128)
-
-        for ai, a in enumerate(site_idxs):
-            for bi, b in enumerate(site_idxs):
-                Vab_site = self.ham.sysbath[a][b]
-                Vab_eig  = self.ham.site2eig(Vab_site)    # full eigenbasis operator
-                # grab only needed slices w.r.t. global eigen indices
-                Row[ai, bi, :] = Vab_eig[center_idx, pol_idxs]   # row at ν=center
-                Col[ai, bi, :] = Vab_eig[pol_idxs,   center_idx] # column at ν=center
-
-        if self.time_verbose:
-            print('time(G-slices) =', time.time() - t0, flush=True)
-
-        # --- (3) Contract λ-structure WITHOUT building λ_{abcd}
-        # term1: +δ_ac     ->  (sum_a Col[a,*,:]) dot (sum_b Row[*,b,:]) but only along the diagonals a==c
-        # In practice: use ONLY diagonals for δ_ac and δ_bd
-        diag_Row = Row[np.arange(nsites), np.arange(nsites), :]  # shape (nsites, npols)
-        diag_Col = Col[np.arange(nsites), np.arange(nsites), :]
-
-        sum_diag_row = np.sum(diag_Row, axis=0)   # shape (npols,)
-        sum_diag_col = np.sum(diag_Col, axis=0)   # shape (npols,)
-
-        term1 = sum_diag_col.conj() * sum_diag_row    # +δ_ac
-        term2 = term1                                 # +δ_bd  (same algebraic form)
-
-        # term3: -δ_ad  ->  sum_{d} (sum_n A_{dn}^*) * (sum_m A_{md})
-        term3 = np.zeros(npols, dtype=np.complex128)
-        for d in range(nsites):
-            row_star = np.sum(Row[d, :, :], axis=0).conj()
-            col_sum  = np.sum(Col[:, d, :], axis=0)
-            term3 += row_star * col_sum
-
-        # term4: -δ_bc  ->  sum_{c} (sum_{n'} A_{cn'}^*) * (sum_{m'} A_{m'c})
-        term4 = np.zeros(npols, dtype=np.complex128)
-        for c in range(nsites):
-            row_star = np.sum(Row[c, :, :], axis=0).conj()
-            col_sum  = np.sum(Col[:, c, :], axis=0)
-            term4 += row_star * col_sum
-
-        S = (term1 + term2) - (term3 + term4)          # structure factor (npols,)
-
-        # --- (4) Assemble γ⁺ and outgoing rates
-        gamma_plus = B1 * S                             # uses linear-in-λ identity
-        R_out = 2.0 * np.real(gamma_plus)              # Eq. (19) real part
-        rates = np.delete(R_out, center_i) / const.hbar
+        # --- outgoing rates (exactly as you do)
+        self.red_R_tensor = 2.0 * np.real(gamma_plus)
+        rates = np.delete(self.red_R_tensor, center_i) / const.hbar
         final_site_idxs = np.delete(pol_idxs, center_i)
 
+        if self.time_verbose:
+            print('time(total)', time.time() - start_tot, flush=True)
+        
         print('rates', rates)
 
-        if self.time_verbose:
-            print('time(total) =', time.time() - t0, flush=True)
+        return rates, final_site_idxs, time.time() - start_tot
 
-        return rates, final_site_idxs, time.time() - t0
 
 
 
