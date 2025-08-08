@@ -64,7 +64,7 @@ class NewRedfield(Unitary):
 
         return polaron_idxs, site_idxs
         
-    def make_redfield_box(self, center_idx):
+   def make_redfield_box(self, center_idx):
         # --- setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
         npols, nsites = len(pol_idxs), len(site_idxs)
@@ -72,82 +72,93 @@ class NewRedfield(Unitary):
             print('npols, nsites', npols, nsites)
         t0 = time.time()
 
-        # local index of center in the polaron subspace (same as your code)
+        # local index of center eigenstate in the polaron subspace (unchanged)
         center_i = int(np.where(pol_idxs == center_idx)[0][0])
 
-        # --- bath integrals (keep your original local-indexing of omega_diff)
+        # pointers into eigenvector matrix
+        U = self.ham.Umat                      # shape (Nsite_total, Neig)
+        u_c = U[:, center_idx]                 # site-space vector for center state
+        U_P = U[:, pol_idxs]                   # site→local polaron subspace
+
+        # --- bath integrals (keep your original local-ω indexing exactly)
         lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
         bath_integrals = []
         for lam in lamdalist:
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0.0:
-                # NOTE: preserve your i -> omega_diff[i, center_idx] indexing
+                # WARNING: preserves your original local i → omega_diff[i, center_idx]
                 for i in range(npols):
                     omega_ij = self.ham.omega_diff[i, center_idx]
                     vec[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
-        if self.time_verbose:
-            print('time(bath)', time.time() - t0, flush=True)
 
-        # --- transform operators: store only row/col you actually use (exactly your selections)
-        # Row[a,b,:] = G_ab[center_i, :]         (your Gs[a][b][center_i])
-        # Col[a,b,:] = G_ab[:, center_i]         (your Gs[a][b].T[center_i])
+        if self.time_verbose:
+            print('time(bath) =', time.time() - t0, flush=True)
+
+        # --- build just the needed Row/Col slices using re-association
+        # Row[a,b,:] = u_c^† V_ab U_P         (1 × npols)
+        # Col[a,b,:] = U_P^† (V_ab u_c)       (npols × 1)
         Row = np.empty((nsites, nsites, npols), dtype=np.complex128)
         Col = np.empty((nsites, nsites, npols), dtype=np.complex128)
+
+        t1 = time.time()
+        # To help BLAS, ensure contiguity
+        u_cC = np.ascontiguousarray(u_c)
+        U_PC = np.ascontiguousarray(U_P)
+
         for ai, a in enumerate(site_idxs):
             for bi, b in enumerate(site_idxs):
-                Vab_eig = self.ham.site2eig(self.ham.sysbath[a][b])  # full eigenbasis op
-                Row[ai, bi, :] = Vab_eig[center_idx, pol_idxs]        # row at ν=center (global)
-                Col[ai, bi, :] = Vab_eig[pol_idxs,   center_idx]      # col at ν=center (global)
+                Vab = self.ham.sysbath[a][b]                    # site×site
+                # Compute once per (a,b):
+                #   T1 = Vab @ U_P      (site × npols)
+                #   t2 = Vab @ u_c      (site,)
+                T1 = Vab @ U_PC
+                t2 = Vab @ u_cC
+                # Row: (u_c^†) @ T1  -> shape (npols,)
+                Row[ai, bi, :] = u_cC.conj().T @ T1
+                # Col: (U_P^†) @ t2  -> shape (npols,)
+                Col[ai, bi, :] = U_PC.conj().T @ t2
 
         if self.time_verbose:
-            print('time(site→eig slices)', time.time() - t0, flush=True)
+            print('time(Row/Col) =', time.time() - t1, flush=True)
 
-        # --- EXACT δ-reduction (no conjugates added, same row/col order as original)
-        # S(ν') =  Σ_{a,b,c,d} λ_{ab,cd} * Col[c,d,ν'] * Row[a,b,ν']
-        # with λ_{ab,cd} = δ_{ac} + δ_{bd} - δ_{ad} - δ_{bc}
-        # Expand and rearrange to four terms:
+        # --- EXACT λ (Kronecker-delta) reduction, identical algebra to your lamdas tensor
+        # S(ν') =  Σ_{ab,cd} (δ_ac + δ_bd - δ_ad - δ_bc) * Col[c,d,ν'] * Row[a,b,ν']
+        # Expand to four aggregated terms (no extra conj, same order as your code):
 
-        # Diagonals for δ_ac and δ_bd:
-        diag_Row = Row[np.arange(nsites), np.arange(nsites), :]     # shape (nsites, npols)
+        diag_Row = Row[np.arange(nsites), np.arange(nsites), :]     # (nsites, npols)
         diag_Col = Col[np.arange(nsites), np.arange(nsites), :]
 
-        # term(+ δ_ac): (∑_a Col[a,a,:]) * (∑_b Row[b,b,:])
-        sum_diag_col = np.sum(diag_Col, axis=0)                     # (npols,)
-        sum_diag_row = np.sum(diag_Row, axis=0)                     # (npols,)
-        term_ac = sum_diag_col * sum_diag_row                       # (npols,)
+        term_ac = np.sum(diag_Col, axis=0) * np.sum(diag_Row, axis=0)   # +δ_ac
+        term_bd = term_ac                                               # +δ_bd (same shape)
 
-        # term(+ δ_bd): identical algebraically
-        term_bd = term_ac
+        # -δ_ad: sum_d ( sum_b Row[d,b,:] ) * ( sum_a Col[a,d,:] )
+        sum_row_over_b = np.sum(Row, axis=1)    # (nsites, npols)  collapse b
+        sum_col_over_a = np.sum(Col, axis=0)    # (nsites, npols)  collapse a
+        term_ad = np.sum(sum_row_over_b * sum_col_over_a, axis=0)
 
-        # term(- δ_ad): ∑_d (∑_n Row[d,n,:]) * (∑_m Col[m,d,:])
-        sum_row_over_second = np.sum(Row, axis=1)                   # shape (nsites, npols), sums over b
-        sum_col_over_first  = np.sum(Col, axis=0)                   # shape (nsites, npols), sums over a
-        term_ad = np.sum(sum_row_over_second * sum_col_over_first, axis=0)  # (npols,)
-
-        # term(- δ_bc): ∑_c (∑_{n'} Row[c,n',:]) * (∑_{m'} Col[m',c,:])
-        # same tensors as above, just sum over c index instead of d (identical arrays),
-        # so this equals term_ad exactly.
+        # -δ_bc: symmetric to above (same tensors), so identical:
         term_bc = term_ad
 
-        S = (term_ac + term_bd) - (term_ad + term_bc)               # (npols,)
+        S = (term_ac + term_bd) - (term_ad + term_bc)                 # (npols,)
 
-        # --- assemble gamma_plus exactly like your loop over lamdas
+        # --- assemble γ⁺ exactly like your original lamda loop
         gamma_plus = np.zeros(npols, dtype=np.complex128)
         for k, lam in enumerate(lamdalist):
             gamma_plus += bath_integrals[k] * S
 
-        # --- outgoing rates (identical post-processing)
+        # --- outgoing rates (unchanged)
         self.red_R_tensor = 2.0 * np.real(gamma_plus)
         rates = np.delete(self.red_R_tensor, center_i) / const.hbar
         final_site_idxs = np.delete(pol_idxs, center_i)
 
         if self.time_verbose:
-            print('time(total)', time.time() - t0, flush=True)
+            print('time(total) =', time.time() - t0, flush=True)
         
         print('rates', rates)
 
         return rates, final_site_idxs, time.time() - t0
+
 
 
 
