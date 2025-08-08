@@ -65,17 +65,6 @@ class NewRedfield(Unitary):
 
         return polaron_idxs, site_idxs
 
-    @njit(cache=True, fastmath=False)
-    def _accumulate_contrib(self, rows, cols):
-        # rows, cols are (K, npols), return (npols,)
-        K, N = rows.shape
-        out = np.zeros(N, dtype=np.complex128)
-        for n in range(N):
-            s = 0.0 + 0.0j
-            for k in range(K):
-                s += rows[k, n] * cols[k, n]
-            out[n] = s
-        return out
         
     def make_redfield_box(self, center_idx):
         # --- setup
@@ -167,7 +156,7 @@ class NewRedfield(Unitary):
             cols = Gs_c_col_flat.take(cd_flat, axis=0)  # (K, npols)
             # contrib[n] = sum_k rows[k,n]*cols[k,n]
             #contrib = np.einsum('kn,kn->n', rows, cols, optimize=True)
-            contrib = self._accumulate_contrib(rows, cols)
+            contrib = _accumulate_contrib(rows, cols)
             gamma_plus += bath_integrals[lam_idx] * contrib
 
         if self.time_verbose:
@@ -327,11 +316,17 @@ class NewRedfield(Unitary):
 
 
 
-
-
-
-
-
+@njit(cache=True, fastmath=False)
+def _accumulate_contrib(rows, cols):
+    # rows, cols are (K, npols), return (npols,)
+    K, N = rows.shape
+    out = np.zeros(N, dtype=np.complex128)
+    for n in range(N):
+        s = 0.0 + 0.0j
+        for k in range(K):
+            s += rows[k, n] * cols[k, n]
+        out[n] = s
+    return out
 
 
 
