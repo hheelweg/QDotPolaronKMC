@@ -173,10 +173,9 @@ class NewRedfield(Unitary):
     def make_redfield_box(self, center_idx):
         # --- neighborhoods from the new function
         pol_idxs, site_idxs_list = self.get_idxsNew(center_idx)   # NEW
-        pol, _ = self.get_idxs(center_idx)
         npols = len(pol_idxs)
         if self.time_verbose:
-            print('npols', npols, len(pol))
+            print('npols', npols)
         start_tot = time.time()
         if npols == 0:
             return np.array([], dtype=float), np.array([], dtype=int), 0.0
