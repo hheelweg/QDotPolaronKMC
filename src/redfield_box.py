@@ -184,7 +184,7 @@ class NewRedfield(Unitary):
         # --- cache λ-index sets for this nsites
         if not hasattr(self, "_lam_idx_cache"):
             self._lam_idx_cache = {}
-        lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
+        lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)  # keep your exact ordering/types
         if nsites not in self._lam_idx_cache:
             ident = np.identity(nsites)
             ones  = np.ones((nsites, nsites, nsites, nsites))
@@ -207,46 +207,26 @@ class NewRedfield(Unitary):
             self._lam_idx_cache[nsites] = idx_dict
         idx_dict = self._lam_idx_cache[nsites]
 
-        # --- cache grouping info per λ so we can sum columns by repeated ab_flat
-        #     For each λ, we precompute:
-        #       - ab_sorted: ab_flat sorted
-        #       - cd_sorted: cd_flat permuted by same order
-        #       - seg_starts, seg_counts: segment boundaries for unique ab values
-        if not hasattr(self, "_lam_group_cache"):
-            self._lam_group_cache = {}
-        if nsites not in self._lam_group_cache:
-            group = {}
+        # --- (optional) cache flattened pairs and build sparse A_λ once per nsites
+        if not hasattr(self, "_A_lambda_cache"):
+            self._A_lambda_cache = {}  # key: nsites -> { lam -> csr_matrix or None }
+        if nsites not in self._A_lambda_cache:
+            from scipy import sparse
             AB = nsites * nsites
+            A_map = {}
             for lam in lamdalist:
                 a_idx, b_idx, c_idx, d_idx = idx_dict[lam]
                 if a_idx.size == 0:
-                    group[lam] = None
-                    continue
-                ab_flat = (a_idx * nsites + b_idx).astype(np.intp)
-                cd_flat = (c_idx * nsites + d_idx).astype(np.intp)
-
-                order = np.argsort(ab_flat, kind='mergesort')  # stable
-                ab_sorted = ab_flat[order]
-                cd_sorted = cd_flat[order]
-
-                # segment boundaries for unique ab
-                if ab_sorted.size:
-                    # find starts of segments
-                    seg_starts = np.flatnonzero(np.r_[True, ab_sorted[1:] != ab_sorted[:-1]])
-                    # counts per segment
-                    seg_counts = np.diff(np.r_[seg_starts, ab_sorted.size]).astype(np.intp)
-                    # unique ab indices (once per segment)
-                    ab_unique = ab_sorted[seg_starts]
+                    A_map[lam] = None
                 else:
-                    seg_starts = np.array([], dtype=np.intp)
-                    seg_counts = np.array([], dtype=np.intp)
-                    ab_unique  = np.array([], dtype=np.intp)
+                    ab_flat = (a_idx * nsites + b_idx).astype(np.intp)
+                    cd_flat = (c_idx * nsites + d_idx).astype(np.intp)
+                    data = np.ones_like(ab_flat, dtype=np.float64)  # 1.0 weights
+                    A_map[lam] = sparse.csr_matrix((data, (ab_flat, cd_flat)), shape=(AB, AB))
+            self._A_lambda_cache[nsites] = A_map
+        A_map = self._A_lambda_cache[nsites]
 
-                group[lam] = (ab_unique, cd_sorted, seg_starts, seg_counts)
-            self._lam_group_cache[nsites] = group
-        group = self._lam_group_cache[nsites]
-
-        # --- bath integrals (KEEP your exact local indexing)
+        # --- bath integrals (KEEP your exact local indexing to match baseline)
         t0 = time.time()
         bath_integrals = []
         for lam in lamdalist:
@@ -271,33 +251,37 @@ class NewRedfield(Unitary):
 
         # --- PREP: make center row/col contiguous and flatten (a,b)→ab
         AB = nsites * nsites
-        Gs_c_row_flat = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))  # (AB, N)
-        Gs_c_col_flat = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))  # (AB, N)
+        # row R: G[a,b][center_i,:]  -> shape (AB, npols)
+        R = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))
+        # col C: G[a,b][:,center_i]  -> shape (AB, npols)
+        C = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))
 
-        # --- vectorized accumulation over λ using group-summed columns
+        # --- (optional) prune all-zero rows/cols once per call
+        #     (exactly zero only; safe and keeps physics identical)
+        row_mask = np.any(R != 0, axis=1)
+        col_mask = np.any(C != 0, axis=1)
+        ab_keep = row_mask | col_mask
+        if ab_keep.sum() < AB:
+            from scipy import sparse
+            R = R[ab_keep, :]
+            C = C[ab_keep, :]
+            # shrink A_map to kept rows/cols
+            A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
+                    for lam in lamdalist}
+            AB = ab_keep.sum()  # new size
+
+        # --- gamma accumulation via sparse–dense matmul per λ (identical algebra)
         t2 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
 
         for lam_idx, lam in enumerate(lamdalist):
-            info = group[lam]
-            if info is None:
+            A = A_map[lam]
+            if A is None:
                 continue
-            ab_unique, cd_sorted, seg_starts, seg_counts = info
-            if ab_unique.size == 0:
-                continue
-
-            # Gather all needed cols in sorted order, then reduce within segments
-            cols_sorted = Gs_c_col_flat.take(cd_sorted, axis=0)              # (K, N)
-            # Sum columns within each segment (per unique ab)
-            # -> shape (U, N) where U = number of unique ab pairs
-            cols_group_sum = np.add.reduceat(cols_sorted, seg_starts, axis=0)
-
-            # Gather each unique row exactly once
-            rows_unique = Gs_c_row_flat.take(ab_unique, axis=0)              # (U, N)
-
-            # contrib[n] = sum_groups rows_unique[g,n] * cols_group_sum[g,n]
-            contrib = np.einsum('gn,gn->n', rows_unique, cols_group_sum, optimize=True)
-
+            # Y = A @ C, shape (AB, npols), done in C/BLAS (SciPy CSR × dense)
+            Y = A.dot(C)  # real-valued A * complex C -> complex Y
+            # contrib[n] = sum_ab R[ab,n] * Y[ab,n]
+            contrib = np.einsum('an,an->n', R, Y, optimize=True)
             gamma_plus += bath_integrals[lam_idx] * contrib
 
         if self.time_verbose:
@@ -313,7 +297,8 @@ class NewRedfield(Unitary):
 
         return rates, final_site_idxs, time.time() - start_tot
 
-    
+
+    # VERSION 3 : this is actually doing it w.r.t. some overlap region (08/08/2025)
     # def make_redfield_box(self, center_idx):
     #     """
     #     General path using get_idxsNew(center_idx).
