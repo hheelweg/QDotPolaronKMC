@@ -17,7 +17,7 @@ def main():
     ligand_length = 1                           # length of ligands on QD (units?)
 
     # seed for randomness of Hamiltonian (if None, then Hamiltonian is randomly drawn for every instance of the class)
-    seed = None
+    seed = 12345
 
     # Hamiltonian and bath related parameters
     reorg_nrg = 0.01                            # reorganization energy (units?)
