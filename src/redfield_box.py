@@ -110,6 +110,7 @@ class NewRedfield(Unitary):
         Gs = np.zeros((nsites, nsites), dtype=object)
         for a, a_idx in enumerate(site_idxs):
             for b, b_idx in enumerate(site_idxs):
+                print('sysbath', self.ham.sysbath[a_idx][b_idx].shape)
                 Gs[a][b] = self.ham.site2eig( self.ham.sysbath[a_idx][b_idx] )[pol_idxs, :][:, pol_idxs]
         end = time.time()
         if self.time_verbose:
@@ -125,7 +126,7 @@ class NewRedfield(Unitary):
                                   np.multiply(Gs[abcd[2]][abcd[3]].T[center_i], Gs[abcd[0]][abcd[1]][center_i]))
         
         print('gamma_plus shape', gamma_plus.shape)
-        
+
         end = time.time()
         if self.time_verbose:
             print('time difference3', end - start, flush=True)
