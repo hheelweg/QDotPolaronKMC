@@ -97,7 +97,8 @@ class SpecDens():
 
         if self.bath_method == 'first-order':
             #self.correlationFT = self.firstOrderFT
-            self.correlationFT = self.fastfirstOrderFT
+            #self.correlationFT = self.fastfirstOrderFT
+            self.correlationFT = self.bathCorrFT
         else:
             raise SystemExit
 
