@@ -55,9 +55,9 @@ class Hamiltonian(HamiltonianSystem):
         self.sysbath = ham_sysbath
 
         # sepctral density
-        if type(spec_density) != SpecDens:
+        if type(spec_density) != SpecDensOld:
             max_energy_diff = np.max(evals) - np.min(evals)
-            self.spec = SpecDens(spec_density, max_energy_diff)
+            self.spec = SpecDensOld(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
 
@@ -269,7 +269,8 @@ class SpecDensOld():
         
         if self.bath_method == 'exact':
             self.Phi = self.phi     # use exact phi
-            self.correlationFT = self.bathCorrFT
+            #self.correlationFT = self.bathCorrFT
+            self.correlationFT = self.correlationFT_ref
         
         elif self.bath_method == 'first-order':
             #self.correlationFT = self.firstOrderFT
@@ -354,6 +355,56 @@ class SpecDensOld():
                 bathCorrFT_imag2[i]=integrate.quad(integrandFT_real, lowLim, uppLim, limit=200, weight='sin', wvar=omega[i], limlst = 200)[0]
 
             return bathCorrFT_real1+bathCorrFT_real2+1j*bathCorrFT_imag1-1j*bathCorrFT_imag2
+        
+    def correlationFT_ref(self, omega, lamda, kappa, eta=None,
+                            epsabs=1e-9, epsrel=1e-7, limlst=500, limit=2000):
+        """
+        Reference implementation of Eq. (15) by direct quadrature on τ.
+        Correct signs, half-transform, small damping and η-extrapolation.
+        """
+        omega = np.atleast_1d(omega).astype(float)
+        out = np.empty_like(omega, dtype=complex)
+
+        if lamda == 0 or kappa == 0:
+            out[:] = 0.0
+            return out if out.shape != () else out[()]
+
+        if eta is None:
+            eta = 1e-3 * self.omega_c
+
+        # build C(τ) pieces with damping
+        def A(t):  # a(τ) = Re C(τ) · e^{-ητ}
+            z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
+            return np.real(z) * np.exp(-eta * t)
+
+        def B(t):  # b(τ) = Im C(τ) · e^{-ητ}
+            z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
+            return np.imag(z) * np.exp(-eta * t)
+
+        def K_eta(w):
+            A_cos = integrate.quad(A, 0.0, np.inf, weight='cos', wvar=w,
+                                limlst=limlst, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
+            B_sin = integrate.quad(B, 0.0, np.inf, weight='sin', wvar=w,
+                                limlst=limlst, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
+            A_sin = integrate.quad(A, 0.0, np.inf, weight='sin', wvar=w,
+                                limlst=limlst, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
+            B_cos = integrate.quad(B, 0.0, np.inf, weight='cos', wvar=w,
+                                limlst=limlst, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
+            Re = A_cos - B_sin         # <-- MINUS here
+            Im = A_sin + B_cos         # <-- PLUS here
+            return Re + 1j*Im
+
+        # Richardson extrapolation to η→0+
+        K1 = np.array([K_eta(w) for w in omega])
+        old_eta = eta
+        eta *= 2.0
+        def A2(t): return A(t) * np.exp(-(eta-old_eta)*t)
+        def B2(t): return B(t) * np.exp(-(eta-old_eta)*t)
+        A, B = A2, B2  # reuse in closures
+        K2 = np.array([K_eta(w) for w in omega])
+        K = 2*K1 - K2
+
+        return K if out.shape != () else K[()]
 
 
 
