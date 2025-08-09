@@ -209,6 +209,8 @@ class SpecDens:
             # API compatibility:
             self.Phi = self._phi_tr.phi
             self.correlationFT = self._correlationFT_fft
+            # verify
+            self.verify()
 
         elif self.bath_method == 'first-order':
             raise ValueError("Not implemented in this SpecDens class")
@@ -226,6 +228,79 @@ class SpecDens:
     def _correlationFT_fft(self, omega, lamda, kappa, eta=None, return_grid=False):
         # support scalar or array ω
         return self._fft.eval(omega, lamda=float(lamda), kappa=float(kappa), eta=eta, return_grid=return_grid)
+    
+
+    def verify(self, tol=1e-8, kappa_test=1.0, eta_factor=1e-3, verbose=True):
+        """
+        Run internal consistency checks for Eqs. (17)->(16)->(15).
+        Returns a dict with numerical errors and booleans.
+        """
+        out = {}
+
+        if getattr(self, 'bath_method', None) != 'exact' or not hasattr(self, '_phi_tr'):
+            raise RuntimeError("verify() requires bath_method='exact' with the fast transformers initialized.")
+
+        # --- Grab grids
+        tau = self._phi_tr.tau_grid
+        phi_grid = self._phi_tr.phi_grid
+        dt = self._phi_tr.dtau
+
+        # 1) Im φ(0) ≈ 0
+        im0 = float(abs(phi_grid.imag[0]))
+        out['imag_phi_at_0'] = im0
+        out['imag_phi_at_0_ok'] = (im0 < tol)
+
+        # 2) Symmetry φ(-τ) = φ(τ)* on the grid (discrete reversal)
+        sym_err = float(np.max(np.abs(phi_grid - np.conj(phi_grid[::-1]))))
+        out['phi_conj_sym_err'] = sym_err
+        out['phi_conj_sym_ok'] = (sym_err < 10*tol)
+
+        # 3) Slope at 0 for cubic-exp J: φ'(0) = -i * (lamda/π)
+        #    Numeric slope from first two samples
+        if hasattr(self, 'cubic_exp') and self.J == self.cubic_exp:
+            # forward diff (more stable here since tau[0]=0)
+            dphi_num = (phi_grid[1] - phi_grid[0]) / (tau[1] - tau[0])
+            dphi_target = -1j * (self.lamda / np.pi)
+            slope_err = complex(dphi_num - dphi_target)
+            out['phi_prime_num'] = dphi_num
+            out['phi_prime_target'] = dphi_target
+            out['phi_prime_abs_err'] = float(abs(slope_err))
+            out['phi_prime_rel_err'] = float(abs(slope_err) / max(1e-30, abs(dphi_target)))
+            out['phi_prime_ok'] = (abs(slope_err) < 100*tol)
+        else:
+            out['phi_prime_ok'] = None  # not applicable for non-cubic-exp J
+
+        # 4) λ=0 ⇒ C(τ)=0 ⇒ K(ω)=0 (Eq. 16->15)
+        omegas = np.linspace(0.0, min(10*self.omega_c, 0.5/ dt)*2*np.pi, 256)
+        K0 = self._fft.eval(omegas, lamda=0.0, kappa=kappa_test)
+        null_err = float(np.max(np.abs(K0)))
+        out['lambda0_K_maxabs'] = null_err
+        out['lambda0_ok'] = (null_err < 100*tol)
+
+        # 5) η-extrapolation consistency: ||K_η - K_{2η}||
+        eta = eta_factor * self.omega_c
+        K1 = self._fft._build(lamda=1.0, kappa=kappa_test, eta=eta)
+        K2 = self._fft._build(lamda=1.0, kappa=kappa_test, eta=2*eta)
+        # Evaluate on native grid to avoid interp noise:
+        diff_norm = float(np.linalg.norm(K1 - K2, ord=np.inf))
+        ref_norm = float(np.linalg.norm(K1, ord=np.inf) + 1e-30)
+        out['eta_diff_inf'] = diff_norm
+        out['eta_diff_rel'] = diff_norm / ref_norm
+        out['eta_consistent'] = (out['eta_diff_rel'] < 1e-2)  # heuristic; smaller is better
+
+        if verbose:
+            print("[SpecDens.verify] Eq.17: Im φ(0) =", im0, " OK?" , out['imag_phi_at_0_ok'])
+            print("[SpecDens.verify] Eq.17 symmetry ||φ - φ*rev||_∞ =", sym_err, " OK?" , out['phi_conj_sym_ok'])
+            if out['phi_prime_ok'] is not None:
+                print("[SpecDens.verify] φ'(0) num =", out['phi_prime_num'],
+                    " target =", out['phi_prime_target'],
+                    " |err| =", out['phi_prime_abs_err'],
+                    " rel =", out['phi_prime_rel_err'],
+                    " OK?", out['phi_prime_ok'])
+            print("[SpecDens.verify] Eq.16→15 λ=0 ⇒ K=0: max|K| =", null_err, " OK?" , out['lambda0_ok'])
+            print("[SpecDens.verify] η-consistency: rel ||K_η - K_{2η}||_∞ =", out['eta_diff_rel'],
+                " OK?" , out['eta_consistent'])
+        return out
 
 
 # previous version 
