@@ -56,9 +56,9 @@ class Hamiltonian(HamiltonianSystem):
         self.sysbath = ham_sysbath
 
         # sepctral density
-        if type(spec_density) != SpecDensOld:
+        if type(spec_density) != SpecDens:
             max_energy_diff = np.max(evals) - np.min(evals)
-            self.spec = SpecDensOld(spec_density, max_energy_diff)
+            self.spec = SpecDens(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
 
