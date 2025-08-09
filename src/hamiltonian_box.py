@@ -61,66 +61,79 @@ class Hamiltonian(HamiltonianSystem):
             self.spec = spec_density
 
 class _PhiTransformer:
-    """Fast Eq. (17) on a fixed (ω,τ) grid using DCT/DST + cubic splines."""
-    def __init__(self, J_callable, beta, W, N, omega_min=0.0):
+    """
+    Fast & accurate Eq. (17) via Gauss–Legendre quadrature on [0, W],
+    evaluated vectorially on a uniform τ-grid for later FFT use.
+      φ(τ) = ∫_0^W dω/π * J(ω)/ω^2 [ cos(ωτ) coth(βω/2) - i sin(ωτ) ].
+    """
+    def __init__(self, J_callable, beta, W, N_tau, Q=512):
+        """
+        J_callable(ω): spectral density (vectorized over ω≥0)
+        beta         : 1/(k_B T)
+        W            : frequency cutoff for the ω-integral
+        N_tau        : number of τ-grid points (use power of two for FFT friendliness, e.g. 16384)
+        Q            : number of GL nodes (accuracy knob; 256–1024 typical)
+        """
         self.J = J_callable
         self.beta = float(beta)
         self.W = float(W)
-        self.N = int(N)
-        self.dw = self.W / (self.N - 1)
-        w = np.arange(self.N) * self.dw
-        if omega_min > 0.0:
-            w = np.maximum(w, omega_min)
-        self.omega = w
+        self.N_tau = int(N_tau)
+        self.Q = int(Q)
 
-        def _coth_half_beta_w(w_):
-            x = 0.5 * self.beta * w_
-            out = np.empty_like(x)
-            small = np.abs(x) < 1e-6
-            out[~small] = 1.0 / np.tanh(x[~small])
-            xs = x[small]
-            out[small] = 1.0/xs + xs/3.0 - (xs**3)/45.0
-            return out
-
-        Jw = np.asarray(self.J(w), dtype=float)
-        eps = 1e-300
-        denom = np.maximum(w**2, eps)
-        GR = (Jw / (np.pi * denom)) * _coth_half_beta_w(w)
-        GI = (Jw / (np.pi * denom))
-        GI[0] = 0.0  # sin(0·τ)=0
-
-        cos_sum = dct(GR, type=1, norm=None)
-        sin_sum = dst(GI, type=1, norm=None)
-
-        phi_real_grid = self.dw * cos_sum
-        phi_imag_grid = self.dw * sin_sum
-        self.phi_grid = phi_real_grid - 1j * phi_imag_grid
-
+        # --- Build τ-grid for FFT step
         self.dtau = np.pi / self.W
-        self.tau_grid = np.arange(self.N) * self.dtau
+        self.tau_grid = np.arange(self.N_tau) * self.dtau
 
-        # light-weight cubic splines (manual) to avoid extra imports
-        # (SciPy CubicSpline OK too; here we use numpy polyfit chunked)
-        # For robustness/speed, we’ll just do linear interp; cubic gives tiny gains here.
-        self._phi_re = self.phi_grid.real
-        self._phi_im = self.phi_grid.imag
+        # --- Gauss–Legendre nodes ξ_j ∈ (-1,1) and weights w_j
+        xi, w = leggauss(self.Q)                   # exact for polynomials ≤ degree 2Q-1
+        # Map to ω ∈ (0, W): ω = (W/2)(ξ+1), dω = (W/2) dξ
+        omega = 0.5 * self.W * (xi + 1.0)
+        dω = 0.5 * self.W * w                      # GL weights on [0, W]
 
-    def _interp1(self, xq, x, y):
-        # vectorized piecewise-linear; out-of-range -> 0
-        xq = np.atleast_1d(xq)
-        idx = np.clip(np.searchsorted(x, xq) - 1, 0, x.size - 2)
-        x0 = x[idx]; x1 = x[idx + 1]
-        y0 = y[idx]; y1 = y[idx + 1]
-        w = (xq - x0) / np.maximum(x1 - x0, 1e-300)
-        out = y0 * (1 - w) + y1 * w
-        out[(xq < x[0]) | (xq > x[-1])] = 0.0
-        return out
+        # --- Build kernels G_R(ω), G_I(ω)
+        Jw = np.asarray(self.J(omega), dtype=float)
+        eps = 1e-300
+        denom = np.maximum(omega**2, eps)
+
+        x = 0.5 * self.beta * omega
+        # stable coth
+        coth = np.empty_like(x)
+        small = np.abs(x) < 1e-6
+        coth[~small] = 1.0 / np.tanh(x[~small])
+        xs = x[small]
+        coth[small] = 1.0/xs + xs/3.0 - (xs**3)/45.0
+
+        GR = (Jw / (np.pi * denom)) * coth       # real kernel multiplier
+        GI = (Jw / (np.pi * denom))              # imag kernel multiplier
+
+        # --- Vectorized evaluation on τ-grid: outer products of ω and τ
+        ωτ = np.outer(omega, self.tau_grid)      # shape (Q, N_tau)
+
+        cos_mat = np.cos(ωτ)
+        sin_mat = np.sin(ωτ)
+
+        # Integrals: sum_j dω_j * G(ω_j) * cos/sin(ω_j τ_n)
+        phi_real = (dω * GR) @ cos_mat           # shape (N_tau,)
+        phi_imag = (dω * GI) @ sin_mat
+
+        # Assemble φ(τ) on grid: Re − i * Im  (matches Eq. 17)
+        self.phi_grid = phi_real - 1j * phi_imag
 
     def phi(self, tau):
+        """
+        Interpolate φ(τ) from the precomputed τ-grid (piecewise linear).
+        (You can switch to PCHIP/CubicSpline if you prefer.)
+        """
         tau = np.atleast_1d(tau).astype(float)
-        re = self._interp1(tau, self.tau_grid, self._phi_re)
-        im = self._interp1(tau, self.tau_grid, self._phi_im)
-        out = re - 1j * im
+        # piecewise-linear interpolation with clamp-to-zero outside grid
+        t = self.tau_grid
+        idx = np.clip(np.searchsorted(t, tau) - 1, 0, t.size - 2)
+        t0 = t[idx]; t1 = t[idx + 1]
+        w = (tau - t0) / np.maximum(t1 - t0, 1e-300)
+        φ0 = self.phi_grid[idx]
+        φ1 = self.phi_grid[idx + 1]
+        out = (1 - w) * φ0 + w * φ1
+        out[(tau < t[0]) | (tau > t[-1])] = 0.0
         return out if out.ndim else out[()]
 
 
@@ -203,8 +216,10 @@ class SpecDens:
             beta = 1.0 / const.kT
             # knobs: W and N; adjust if you need tighter accuracy
             W = 40.0 * self.omega_c
-            N = 16385  # ~2^14+1
-            self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
+            #N = 16385  # ~2^14+1
+            N_tau = 16384             # power of two recommended
+            Q = 512                   # try 512; bump to 1024 if you need tighter φ
+            self._phi_tr = _PhiTransformer(self.J, beta, W, N_tau, Q=Q)
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c, window=None)
             # API compatibility:
             self.Phi = self._phi_tr.phi
