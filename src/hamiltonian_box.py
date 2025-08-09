@@ -3,7 +3,7 @@ from scipy import integrate
 from scipy import optimize
 from scipy.signal import hilbert
 from scipy.interpolate import interp1d
-from scipy.fft import dct, dst, rfft, rfftfreq
+from scipy.fft import dct, dst
 from . import const
 from . import utils
 import warnings
@@ -124,7 +124,7 @@ class _PhiTransformer:
         return out if out.ndim else out[()]
     
 class _BathCorrFFT:
-    """Fast Eq. (15) via rFFT on τ-grid from _PhiTransformer with caching."""
+    """Fast Eq. (15) via complex FFT on τ-grid from _PhiTransformer with caching."""
     def __init__(self, phi_tr, omega_c, default_eta=None, window=None, win_beta=8.0):
         self.tr = phi_tr
         self.omega_c = float(omega_c)
@@ -134,27 +134,41 @@ class _BathCorrFFT:
         self.window = window
         self.win_beta = float(win_beta)
         self.default_eta = (1e-3 * self.omega_c) if default_eta is None else float(default_eta)
-        self.omega_grid = 2.0 * np.pi * rfftfreq(self.tau.size, d=self.dt)
-        self._cache = {}  # (lamda, kappa, eta, window, win_beta) -> K_grid
+
+        # Full FFT frequency grid (positive & negative)
+        omega_full = 2.0 * np.pi * np.fft.fftfreq(self.tau.size, d=self.dt)
+        self._pos_mask = omega_full >= 0
+        self.omega_grid = omega_full[self._pos_mask]   # keep non-negative ω only
+
+        # Cache: (lamda, kappa, eta, window, win_beta) -> K_grid (non-negative ω)
+        self._cache = {}
 
     def _build(self, lamda, kappa, eta):
         key = (float(lamda), float(kappa), float(eta), self.window, self.win_beta)
         if key in self._cache:
             return self._cache[key]
+
         if kappa == 0.0 or lamda == 0.0:
-            K = np.zeros_like(self.omega_grid, dtype=complex)
-            self._cache[key] = K
-            return K
-        C = (kappa**2) * (np.exp(lamda * self.phi_tau) - 1.0)  # Eq. (16)
+            K_pos = np.zeros_like(self.omega_grid, dtype=complex)
+            self._cache[key] = K_pos
+            return K_pos
+
+        # C(τ) (Eq. 16) and damping
+        C = (kappa**2) * (np.exp(lamda * self.phi_tau) - 1.0)
         f = C * np.exp(-eta * self.tau)
         if self.window == 'kaiser':
             f = f * np.kaiser(self.tau.size, self.win_beta)
         elif self.window == 'hann':
             f = f * np.hanning(self.tau.size)
-        F = self.dt * rfft(f)
-        K = np.conj(F)  # +iωτ convention
-        self._cache[key] = K
-        return K
+
+        # Complex FFT; our convention needs +iωτ, numpy uses -iωτ → conjugate
+        F_full = self.dt * np.fft.fft(f)
+        K_full = np.conj(F_full)
+
+        # Keep non-negative frequencies
+        K_pos = K_full[self._pos_mask]
+        self._cache[key] = K_pos
+        return K_pos
 
     def eval(self, omega, lamda, kappa, eta=None, return_grid=False):
         if eta is None:
@@ -162,10 +176,11 @@ class _BathCorrFFT:
         Kgrid = self._build(lamda, kappa, eta)
         if return_grid:
             return self.omega_grid, Kgrid
+
         omega = np.atleast_1d(omega).astype(float)
         Re = np.interp(omega, self.omega_grid, Kgrid.real, left=0.0, right=0.0)
         Im = np.interp(omega, self.omega_grid, Kgrid.imag, left=0.0, right=0.0)
-        out = Re + 1j * Im
+        out = Re + 1j*Im
         return out if out.ndim else out[()]
 
 
