@@ -684,42 +684,42 @@ class KMCRunner():
         return times_msds, msds
 
     
-    def get_closest_idx(self, pos, array):
-        """
-        auxiliary function: find index of array of coordinates that is closest to pos
-        """
-        pos = pos.copy()
-        array= array.copy()
-        
-        # account for periodic boundary conditions in pos
-        for j in range(self.dims):
-            if pos[j] > self.boundary - 1/2*self.qd_spacing: pos[j] = pos[j] - self.boundary
-            elif pos[j] < -1/2*self.qd_spacing: pos[j] = pos[j] + self.boundary
-        
-        # account for periodic boundary conditions in array
-        for i, coords in enumerate(array):
-            for j in range(self.dims):
-                if coords[j] > self.boundary - 1/2*self.qd_spacing: coords[j] = coords[j] - self.boundary
-                elif coords[j] <-1/2*self.qd_spacing: coords[j] = coords[j] + self.boundary
-        
-        # find closest index
-        idx = np.argmin([np.linalg.norm(pos - coord) for coord in array])
-        return idx
-    
     # def get_closest_idx(self, pos, array):
     #     """
-    #     Find the index in `array` closest to `pos` under periodic boundary conditions.
+    #     auxiliary function: find index of array of coordinates that is closest to pos
     #     """
-    #     # Vectorized periodic displacement
-    #     delta = array - pos  # shape (N, dims)
+    #     pos = pos.copy()
+    #     array= array.copy()
+        
+    #     # account for periodic boundary conditions in pos
+    #     for j in range(self.dims):
+    #         if pos[j] > self.boundary - 1/2*self.qd_spacing: pos[j] = pos[j] - self.boundary
+    #         elif pos[j] < -1/2*self.qd_spacing: pos[j] = pos[j] + self.boundary
+        
+    #     # account for periodic boundary conditions in array
+    #     for i, coords in enumerate(array):
+    #         for j in range(self.dims):
+    #             if coords[j] > self.boundary - 1/2*self.qd_spacing: coords[j] = coords[j] - self.boundary
+    #             elif coords[j] <-1/2*self.qd_spacing: coords[j] = coords[j] + self.boundary
+        
+    #     # find closest index
+    #     idx = np.argmin([np.linalg.norm(pos - coord) for coord in array])
+    #     return idx
+    
+    def get_closest_idx(self, pos, array):
+        """
+        Find the index in `array` closest to `pos` under periodic boundary conditions.
+        """
+        # Vectorized periodic displacement
+        delta = array - pos  # shape (N, dims)
 
-    #     # Apply periodic boundary condition (minimum image convention)
-    #     delta -= np.round(delta / self.boundary) * self.boundary
+        # Apply periodic boundary condition (minimum image convention)
+        delta -= np.round(delta / self.boundary) * self.boundary
 
-    #     # Compute squared distances
-    #     dists_squared = np.sum(delta**2, axis=1)
+        # Compute squared distances
+        dists_squared = np.sum(delta**2, axis=1)
 
-    #     return np.argmin(dists_squared)
+        return np.argmin(dists_squared)
     
 
     def get_diffusivity_hh(self, msds, times, dims):
