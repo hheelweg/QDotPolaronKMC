@@ -270,7 +270,7 @@ class SpecDensOld():
         if self.bath_method == 'exact':
             self.Phi = self.phi     # use exact phi
             #self.correlationFT = self.bathCorrFT
-            self.correlationFT = self.correlationFT_ref
+            self.correlationFT = self.bathCorrFT_new
         
         elif self.bath_method == 'first-order':
             #self.correlationFT = self.firstOrderFT
@@ -356,23 +356,33 @@ class SpecDensOld():
 
             return bathCorrFT_real1+bathCorrFT_real2+1j*bathCorrFT_imag1-1j*bathCorrFT_imag2
         
-    def correlationFT_ref(self, omega, lamda, kappa, eta=None,
-                            epsabs=1e-9, epsrel=1e-7, limlst=500, limit=2000):
+    # perform half-sided Fourier transform of bath correlation function based on Eq. (15)
+    # K(ω) = ∫_0^∞ e^{iωτ} C(τ) dτ with C(τ) = κ^2 (exp(λ φ(τ)) - 1)
+    def bathCorrFT_new(self, omega, lamda, kappa, eta=None,
+               epsabs=1e-9, epsrel=1e-7, limlst=None, limit=2000, maxp1=256):
         """
-        Reference implementation of Eq. (15) by direct quadrature on τ.
-        Correct signs, half-transform, small damping and η-extrapolation.
+        Fixes vs original:
+        • uses +lamda in exp (Eq.16),
+        • corrects recombination: Re = ∫(a cos − b sin), Im = ∫(a sin + b cos),
+        • integrates τ∈[0,∞) with small damping e^{-ητ} (η>0),
+        • supports scalar or array omega.
         """
-        omega = np.atleast_1d(omega).astype(float)
-        out = np.empty_like(omega, dtype=complex)
+        # normalize omega to array
+        if isinstance(omega, (float, int, np.floating)):
+            omega = np.array([float(omega)], dtype=float)
+        else:
+            omega = np.asarray(omega, dtype=float)
 
+        # trivial cases
         if lamda == 0 or kappa == 0:
-            out[:] = 0.0
-            return out if out.shape != () else out[()]
+            return np.zeros_like(omega, dtype=complex)
 
+        # small positive damping for numerical stability
         if eta is None:
             eta = 1e-3 * self.omega_c
 
-        # build C(τ) pieces with damping
+        # Build C(τ) pieces with damping
+        # NOTE: self.Phi must return φ(τ); in your __init__ you already set self.Phi = self.phi for 'exact'
         def A(t):  # a(τ) = Re C(τ) · e^{-ητ}
             z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
             return np.real(z) * np.exp(-eta * t)
@@ -381,18 +391,62 @@ class SpecDensOld():
             z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
             return np.imag(z) * np.exp(-eta * t)
 
+        # choose number of oscillatory cycles adaptively from ω and damping window T≈12/η
         def K_eta(w):
+            T = 12.0 / max(eta, 1e-30)                 # effective window where e^{-ητ}≈0
+            ncycles = int(np.ceil(abs(w) * T / np.pi)) # ~ number of half-periods in [0,T]
+            _limlst = max(1000, min(20000, ncycles + 50)) if limlst is None else limlst
+
             A_cos = integrate.quad(A, 0.0, np.inf, weight='cos', wvar=w,
-                                limlst=limlst, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
+                                limlst=_limlst, limit=limit, maxp1=maxp1,
+                                epsabs=epsabs, epsrel=epsrel)[0]
             B_sin = integrate.quad(B, 0.0, np.inf, weight='sin', wvar=w,
-                                limlst=limlst, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
+                                limlst=_limlst, limit=limit, maxp1=maxp1,
+                                epsabs=epsabs, epsrel=epsrel)[0]
             A_sin = integrate.quad(A, 0.0, np.inf, weight='sin', wvar=w,
-                                limlst=limlst, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
+                                limlst=_limlst, limit=limit, maxp1=maxp1,
+                                epsabs=epsabs, epsrel=epsrel)[0]
             B_cos = integrate.quad(B, 0.0, np.inf, weight='cos', wvar=w,
-                                limlst=limlst, limit=limit, epsabs=epsabs, epsrel=epsrel)[0]
-            Re = A_cos - B_sin         # <-- MINUS here
-            Im = A_sin + B_cos         # <-- PLUS here
+                                limlst=_limlst, limit=limit, maxp1=maxp1,
+                                epsabs=epsabs, epsrel=epsrel)[0]
+
+            Re = A_cos - B_sin     # <-- minus on b·sin
+            Im = A_sin + B_cos     # <-- plus on a·sin + b·cos
             return Re + 1j*Im
+
+        # evaluate with η and 2η, then Richardson-extrapolate to reduce damping bias
+        K1 = np.array([K_eta(w) for w in omega])
+
+        eta2 = 2.0 * eta
+        def A2(t):
+            z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
+            return np.real(z) * np.exp(-eta2 * t)
+        def B2(t):
+            z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
+            return np.imag(z) * np.exp(-eta2 * t)
+
+        def K_2eta(w):
+            T = 12.0 / max(eta2, 1e-30)
+            ncycles = int(np.ceil(abs(w) * T / np.pi))
+            _limlst = max(1000, min(20000, ncycles + 50)) if limlst is None else limlst
+            A_cos = integrate.quad(A2, 0.0, np.inf, weight='cos', wvar=w,
+                                limlst=_limlst, limit=limit, maxp1=maxp1,
+                                epsabs=epsabs, epsrel=epsrel)[0]
+            B_sin = integrate.quad(B2, 0.0, np.inf, weight='sin', wvar=w,
+                                limlst=_limlst, limit=limit, maxp1=maxp1,
+                                epsabs=epsabs, epsrel=epsrel)[0]
+            A_sin = integrate.quad(A2, 0.0, np.inf, weight='sin', wvar=w,
+                                limlst=_limlst, limit=limit, maxp1=maxp1,
+                                epsabs=epsabs, epsrel=epsrel)[0]
+            B_cos = integrate.quad(B2, 0.0, np.inf, weight='cos', wvar=w,
+                                limlst=_limlst, limit=limit, maxp1=maxp1,
+                                epsabs=epsabs, epsrel=epsrel)[0]
+            return (A_cos - B_sin) + 1j*(A_sin + B_cos)
+
+        K2 = np.array([K_2eta(w) for w in omega])
+        K = 2*K1 - K2  # Richardson extrapolation
+
+        return K if K.shape != () else K[0]
 
         # Richardson extrapolation to η→0+
         K1 = np.array([K_eta(w) for w in omega])
