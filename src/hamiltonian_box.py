@@ -211,11 +211,7 @@ class SpecDens:
             self.correlationFT = self._correlationFT_fft
 
         elif self.bath_method == 'first-order':
-            # keep your existing fast-first-order path if you have it
-            self.correlationFT = self.fastfirstOrderFT
-            # optional: still expose Phi if others rely on it
-            self._phi_tr = None
-            self.Phi = self.phi  # falls back to slow quad if someone calls it
+            raise ValueError("Not implemented in this SpecDens class")
 
         else:
             raise SystemExit("Unknown bath_method")
@@ -225,24 +221,6 @@ class SpecDens:
         Jw = (self.lamda / (2 * self.omega_c**3)) * w**3 * np.exp(-w / self.omega_c)
         return Jw * (omega >= 0) - Jw * (omega < 0)
 
-    # legacy slow φ(τ) (kept only for compatibility; not used when 'exact')
-    def phi(self, tau):
-        from scipy import integrate
-        beta = 1.0 / const.kT
-        tau = np.atleast_1d(tau).astype(float)
-        wmax = 100.0 * self.omega_c
-        def fR(omega):
-            x = 0.5 * beta * omega
-            coth = 1.0/np.tanh(x) if x > 1e-6 else (1.0/x + x/3.0)
-            return (self.J(omega) / (np.pi * omega**2)) * coth
-        def fI(omega):
-            return self.J(omega) / (np.pi * omega**2)
-        out = np.empty_like(tau, dtype=complex)
-        for k, t in enumerate(tau):
-            R = integrate.quad(fR, 1e-14, wmax, weight='cos', wvar=t, limit=200)[0]
-            I = integrate.quad(fI, 1e-14, wmax, weight='sin', wvar=t, limit=200)[0]
-            out[k] = R - 1j * I
-        return out if out.ndim else out[()]
 
     # fast Eq. (15) via FFT using cached grids
     def _correlationFT_fft(self, omega, lamda, kappa, eta=None, return_grid=False):
