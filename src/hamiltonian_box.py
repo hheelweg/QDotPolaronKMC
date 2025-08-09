@@ -54,9 +54,9 @@ class Hamiltonian(HamiltonianSystem):
         self.sysbath = ham_sysbath
 
         # sepctral density
-        if type(spec_density) != SpecDens:
+        if type(spec_density) != SpecDensOld:
             max_energy_diff = np.max(evals) - np.min(evals)
-            self.spec = SpecDens(spec_density, max_energy_diff)
+            self.spec = SpecDensOld(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
 
@@ -250,7 +250,7 @@ class SpecDens:
         return - self._fft.eval(omega, lamda=float(lamda), kappa=float(kappa), eta=eta, return_grid=return_grid)
 
 
-
+# previous version 
 class SpecDensOld():
 
     def __init__(self, spec_dens_list, max_energy_diff):
@@ -268,23 +268,23 @@ class SpecDensOld():
             #omega_grid = np.linspace(1e-6, 20 * self.omega_c, 5000)
             omega_grid = np.linspace(1e-6, 20 * self.omega_c, 5000)
 
-            # # real part of bath correlation function 
-            # def re_bath_corr(omega):
-            #     def coth(x):
-            #         return 1.0/np.tanh(x)
+            # real part of bath correlation function 
+            def re_bath_corr(omega):
+                def coth(x):
+                    return 1.0/np.tanh(x)
 
-            #     beta = 1.0/const.kT
-            #     omega += 1e-14
-            #     n_omega = 0.5*(coth(beta*omega/2) - 1.0)
-            #     return (self.J(omega)*(n_omega+1))/omega**2
+                beta = 1.0/const.kT
+                omega += 1e-14
+                n_omega = 0.5*(coth(beta*omega/2) - 1.0)
+                return (self.J(omega)*(n_omega+1))/omega**2
             
-            # re_vals = re_bath_corr(omega_grid)
-            # print('vectorized real bath correlation function', re_vals.shape, flush = True)
+            re_vals = re_bath_corr(omega_grid)
+            print('vectorized real bath correlation function', re_vals.shape, flush = True)
 
-            # hilb = np.imag(hilbert(re_vals))
-            # # Interpolators
-            # self.re_interp = interp1d(omega_grid, re_vals, kind='cubic', bounds_error=False, fill_value=0.0)
-            # self.hilb_interp = interp1d(omega_grid, hilb, kind='cubic', bounds_error=False, fill_value=0.0)
+            hilb = np.imag(hilbert(re_vals))
+            # Interpolators
+            self.re_interp = interp1d(omega_grid, re_vals, kind='cubic', bounds_error=False, fill_value=0.0)
+            self.hilb_interp = interp1d(omega_grid, hilb, kind='cubic', bounds_error=False, fill_value=0.0)
 
         
         if self.bath_method == 'exact':
