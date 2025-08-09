@@ -480,10 +480,10 @@ class Redfield(Unitary):
         pol_idxs, _ = self.get_idxs(center_idx)
         omega_vec = self.ham.omega_diff[pol_idxs, center_idx]
 
-        for lam in (-2, -1, 0, 1, 2):
-            K = self.ham.spec.correlationFT(omega_vec, lam, self.kappa)  # shape (npols,)
-            S = 2.0 * np.real(K)  # symmetrized spectrum; should be >= 0 elementwise
-            print(f"λ={lam}: min 2Re[K]={S.min(): .3e}, max {S.max(): .3e}")
+        # for lam in (-2, -1, 0, 1, 2):
+        #     K = self.ham.spec.correlationFT(omega_vec, lam, self.kappa)  # shape (npols,)
+        #     S = 2.0 * np.real(K)  # symmetrized spectrum; should be >= 0 elementwise
+        #     print(f"λ={lam}: min 2Re[K]={S.min(): .3e}, max {S.max(): .3e}")
 
 
     def make_redfield_box(self, center_idx):
@@ -496,7 +496,7 @@ class Redfield(Unitary):
         # center idx in pol_idxs
         center_i = np.where(pol_idxs == center_idx)[0][0]
 
-        self.debug_bath(center_idx)
+        # self.debug_bath(center_idx)
 
 
         # compute lambda tensor (Eq. (16))

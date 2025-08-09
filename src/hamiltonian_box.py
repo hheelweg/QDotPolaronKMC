@@ -276,7 +276,7 @@ class SpecDensOld():
     def __init__(self, spec_dens_list, max_energy_diff):
         sd_type = spec_dens_list[0]
         self.bath_method = spec_dens_list[-1]
-        print('num called')
+        print('num called old')
         
         if sd_type == 'cubic-exp':
             self.lamda = spec_dens_list[1]
