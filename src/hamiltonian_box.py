@@ -54,9 +54,9 @@ class Hamiltonian(HamiltonianSystem):
         self.sysbath = ham_sysbath
 
         # sepctral density
-        if type(spec_density) != SpecDensOld:
+        if type(spec_density) != SpecDens:
             max_energy_diff = np.max(evals) - np.min(evals)
-            self.spec = SpecDensOld(spec_density, max_energy_diff)
+            self.spec = SpecDens(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
 
@@ -247,7 +247,7 @@ class SpecDens:
     # fast Eq. (15) via FFT using cached grids
     def _correlationFT_fft(self, omega, lamda, kappa, eta=None, return_grid=False):
         # support scalar or array ω
-        return - self._fft.eval(omega, lamda=float(lamda), kappa=float(kappa), eta=eta, return_grid=return_grid)
+        return self._fft.eval(omega, lamda=float(lamda), kappa=float(kappa), eta=eta, return_grid=return_grid)
 
 
 # previous version 
