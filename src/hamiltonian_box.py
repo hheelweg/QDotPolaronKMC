@@ -375,9 +375,9 @@ class SpecDensOld():
 
         # a(τ), b(τ) pieces of C(τ)
         def a_tau(tau):
-            return - kappa**2 * np.real(np.exp(lamda * self.Phi(tau)) - 1.0)  # SIGN in exponent fixed ( +λ )
+            return kappa**2 * np.real(np.exp(- lamda * self.Phi(tau)) - 1.0)  # SIGN in exponent fixed ( +λ )
         def b_tau(tau):
-            return - kappa**2 * np.imag(np.exp(lamda * self.Phi(tau)) - 1.0)
+            return kappa**2 * np.imag(np.exp(- lamda * self.Phi(tau)) - 1.0)
 
         lowLim = 1e-14
         uppLim = tmax_factor / self.omega_c   # finite time cutoff (≈∞ numerically)
