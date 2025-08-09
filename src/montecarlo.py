@@ -283,7 +283,7 @@ class KMCRunner():
         
         my_ham = hamiltonian_box.Hamiltonian(self.eignrgs_box, self.eigstates_box, self.sites_locs_rel,
                                              ham_sysbath, self.spectrum_calc, const.kB * self.temp)
-        my_redfield = redfield_box.NewRedfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
+        my_redfield = redfield_box.Redfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
 
         # get rates and indices of the potential final polaron states we can jump to
         self.rates, self.final_states, tot_time = my_redfield.make_redfield_box(center)
@@ -684,27 +684,6 @@ class KMCRunner():
         return times_msds, msds
 
     
-    # def get_closest_idx(self, pos, array):
-    #     """
-    #     auxiliary function: find index of array of coordinates that is closest to pos
-    #     """
-    #     pos = pos.copy()
-    #     array= array.copy()
-        
-    #     # account for periodic boundary conditions in pos
-    #     for j in range(self.dims):
-    #         if pos[j] > self.boundary - 1/2*self.qd_spacing: pos[j] = pos[j] - self.boundary
-    #         elif pos[j] < -1/2*self.qd_spacing: pos[j] = pos[j] + self.boundary
-        
-    #     # account for periodic boundary conditions in array
-    #     for i, coords in enumerate(array):
-    #         for j in range(self.dims):
-    #             if coords[j] > self.boundary - 1/2*self.qd_spacing: coords[j] = coords[j] - self.boundary
-    #             elif coords[j] <-1/2*self.qd_spacing: coords[j] = coords[j] + self.boundary
-        
-    #     # find closest index
-    #     idx = np.argmin([np.linalg.norm(pos - coord) for coord in array])
-    #     return idx
     
     # (08/09/2025) more efficient version
     def get_closest_idx(self, pos, array):
