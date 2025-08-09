@@ -2,6 +2,7 @@ import numpy as np
 from scipy import integrate
 from scipy import optimize
 from scipy.signal import hilbert
+from numpy.polynomial.legendre import leggauss
 from scipy.interpolate import interp1d
 from scipy.fft import dct, dst
 from . import const
