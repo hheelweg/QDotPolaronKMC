@@ -358,7 +358,7 @@ class SpecDensOld():
         
     # perform half-sided Fourier transform of bath correlation function based on Eq. (15)
     # K(ω) = ∫_0^∞ e^{iωτ} C(τ) dτ with C(τ) = κ^2 (exp(λ φ(τ)) - 1)
-    def bathCorrFT_new(self, omega, lamda, kappa, tmax_factor=50.0, sign='minus'):
+    def bathCorrFT_new(self, omega, lamda, kappa, tmax_factor=50.0, sign='plus'):
         """
         Half-sided FT of C(τ) = κ^2 (exp(λ Φ(τ)) - 1).
         sign='minus' implements K(ω)=∫_0^∞ e^{-iωτ} C(τ)dτ  (common in Redfield)
