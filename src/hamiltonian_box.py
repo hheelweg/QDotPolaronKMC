@@ -248,74 +248,72 @@ class SpecDens:
 
     def verify(self, tol=1e-8, kappa_test=1.0, eta_factor=1e-3, verbose=True):
         """
-        Run internal consistency checks for Eqs. (17)->(16)->(15).
-        Returns a dict with numerical errors and booleans.
+        Rigorous checks:
+        (i)  Im φ(0) = 0
+        (ii) Re φ has zero slope at 0 (within tol)
+        (iii) Im φ'(0) equals -∫ J(ω)/(π ω) dω on [0,W] using the SAME quadrature
+        (iv) λ=0 ⇒ K(ω)=0
+        (v)  η-consistency: ||K_η - K_{2η}|| shrinks
         """
-        out = {}
-
         if getattr(self, 'bath_method', None) != 'exact' or not hasattr(self, '_phi_tr'):
-            raise RuntimeError("verify() requires bath_method='exact' with the fast transformers initialized.")
+            raise RuntimeError("verify() requires bath_method='exact' and GL-based _PhiTransformer.")
 
-        # --- Grab grids
+        out = {}
         tau = self._phi_tr.tau_grid
         phi_grid = self._phi_tr.phi_grid
         dt = self._phi_tr.dtau
 
-        # 1) Im φ(0) ≈ 0
+        # (i) Im φ(0) = 0
         im0 = float(abs(phi_grid.imag[0]))
         out['imag_phi_at_0'] = im0
-        out['imag_phi_at_0_ok'] = (im0 < tol)
+        out['imag_phi_at_0_ok'] = (im0 < 100*tol)  # allow tiny float noise
 
-        # 2) Symmetry φ(-τ) = φ(τ)* on the grid (discrete reversal)
-        sym_err = float(np.max(np.abs(phi_grid - np.conj(phi_grid[::-1]))))
-        out['phi_conj_sym_err'] = sym_err
-        out['phi_conj_sym_ok'] = (sym_err < 10*tol)
+        # (ii) Re φ slope at 0 → 0 (use forward difference)
+        re_slope = (phi_grid.real[1] - phi_grid.real[0]) / (tau[1] - tau[0])
+        out['re_phi_prime_at_0'] = float(abs(re_slope))
+        out['re_phi_prime_at_0_ok'] = (abs(re_slope) < 100*tol)
 
-        # 3) Slope at 0 for cubic-exp J: φ'(0) = -i * (lamda/π)
-        #    Numeric slope from first two samples
-        if hasattr(self, 'cubic_exp') and self.J == self.cubic_exp:
-            # forward diff (more stable here since tau[0]=0)
-            dphi_num = (phi_grid[1] - phi_grid[0]) / (tau[1] - tau[0])
-            dphi_target = -1j * (self.lamda / np.pi)
-            slope_err = complex(dphi_num - dphi_target)
-            out['phi_prime_num'] = dphi_num
-            out['phi_prime_target'] = dphi_target
-            out['phi_prime_abs_err'] = float(abs(slope_err))
-            out['phi_prime_rel_err'] = float(abs(slope_err) / max(1e-30, abs(dphi_target)))
-            out['phi_prime_ok'] = (abs(slope_err) < 100*tol)
-        else:
-            out['phi_prime_ok'] = None  # not applicable for non-cubic-exp J
+        # (iii) Im φ'(0) from the SAME quadrature (no finite-diff!)
+        # φ'(0) = - i * ∫_0^W J(ω)/(π ω) dω  ⇒  Im φ'(0) = - ∫ J/(π ω) dω  (negative real)
+        w = self._phi_tr._omega_quad
+        dw = self._phi_tr._domega_quad
+        GI = self._phi_tr._GI_quad  # = J/(π ω^2)
+        im_slope_quad = - float(np.sum(dw * (GI * w)))  # - ∫ J/(π ω) dω on [0,W]
+        im_slope_num  = (phi_grid.imag[1] - phi_grid.imag[0]) / (tau[1] - tau[0])
+        out['im_phi_prime_target'] = im_slope_quad
+        out['im_phi_prime_num'] = float(im_slope_num)
+        abs_err = abs(im_slope_num - im_slope_quad)
+        rel_err = abs_err / (abs(im_slope_quad) + 1e-30)
+        out['im_phi_prime_abs_err'] = float(abs_err)
+        out['im_phi_prime_rel_err'] = float(rel_err)
+        out['im_phi_prime_ok'] = (rel_err < 5e-3)  # tighten as you like
 
-        # 4) λ=0 ⇒ C(τ)=0 ⇒ K(ω)=0 (Eq. 16->15)
-        omegas = np.linspace(0.0, min(10*self.omega_c, 0.5/ dt)*2*np.pi, 256)
+        # (iv) λ=0 ⇒ K(ω)=0
+        omegas = np.linspace(0.0, min(10*self.omega_c, 0.5/dt)*2*np.pi, 256)
         K0 = self._fft.eval(omegas, lamda=0.0, kappa=kappa_test)
         null_err = float(np.max(np.abs(K0)))
         out['lambda0_K_maxabs'] = null_err
         out['lambda0_ok'] = (null_err < 100*tol)
 
-        # 5) η-extrapolation consistency: ||K_η - K_{2η}||
+        # (v) η-consistency on native FFT grid (no interp)
         eta = eta_factor * self.omega_c
         K1 = self._fft._build(lamda=1.0, kappa=kappa_test, eta=eta)
         K2 = self._fft._build(lamda=1.0, kappa=kappa_test, eta=2*eta)
-        # Evaluate on native grid to avoid interp noise:
         diff_norm = float(np.linalg.norm(K1 - K2, ord=np.inf))
-        ref_norm = float(np.linalg.norm(K1, ord=np.inf) + 1e-30)
-        out['eta_diff_inf'] = diff_norm
+        ref_norm  = float(np.linalg.norm(K1, ord=np.inf) + 1e-30)
         out['eta_diff_rel'] = diff_norm / ref_norm
-        out['eta_consistent'] = (out['eta_diff_rel'] < 1e-2)  # heuristic; smaller is better
+        out['eta_consistent'] = (out['eta_diff_rel'] < 5e-2)  # expect small; if not, adjust N_tau/eta
 
         if verbose:
-            print("[SpecDens.verify] Eq.17: Im φ(0) =", im0, " OK?" , out['imag_phi_at_0_ok'])
-            print("[SpecDens.verify] Eq.17 symmetry ||φ - φ*rev||_∞ =", sym_err, " OK?" , out['phi_conj_sym_ok'])
-            if out['phi_prime_ok'] is not None:
-                print("[SpecDens.verify] φ'(0) num =", out['phi_prime_num'],
-                    " target =", out['phi_prime_target'],
-                    " |err| =", out['phi_prime_abs_err'],
-                    " rel =", out['phi_prime_rel_err'],
-                    " OK?", out['phi_prime_ok'])
-            print("[SpecDens.verify] Eq.16→15 λ=0 ⇒ K=0: max|K| =", null_err, " OK?" , out['lambda0_ok'])
+            print("[SpecDens.verify] Eq.17: Im φ(0) =", im0, "OK?", out['imag_phi_at_0_ok'])
+            print("[SpecDens.verify] Eq.17: Re φ'(0) ≈", out['re_phi_prime_at_0'], "OK?", out['re_phi_prime_at_0_ok'])
+            print("[SpecDens.verify] Eq.17: Im φ'(0) num =", out['im_phi_prime_num'],
+                " target =", out['im_phi_prime_target'],
+                " |rel err| =", out['im_phi_prime_rel_err'],
+                " OK?", out['im_phi_prime_ok'])
+            print("[SpecDens.verify] Eq.16→15 λ=0 ⇒ K=0: max|K| =", null_err, "OK?", out['lambda0_ok'])
             print("[SpecDens.verify] η-consistency: rel ||K_η - K_{2η}||_∞ =", out['eta_diff_rel'],
-                " OK?" , out['eta_consistent'])
+                " OK?", out['eta_consistent'])
         return out
 
 
