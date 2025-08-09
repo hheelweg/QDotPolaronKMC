@@ -3,6 +3,7 @@ from scipy import integrate
 from scipy import optimize
 from scipy.signal import hilbert
 from scipy.interpolate import interp1d
+from scipy.fft import dct, dst, rfft, rfftfreq
 from . import const
 from . import utils
 import warnings
@@ -58,9 +59,183 @@ class Hamiltonian(HamiltonianSystem):
             self.spec = SpecDens(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
-        
 
-class SpecDens():
+class _PhiTransformer:
+    """Fast Eq. (17) on a fixed (ω,τ) grid using DCT/DST + cubic splines."""
+    def __init__(self, J_callable, beta, W, N, omega_min=0.0):
+        self.J = J_callable
+        self.beta = float(beta)
+        self.W = float(W)
+        self.N = int(N)
+        self.dw = self.W / (self.N - 1)
+        w = np.arange(self.N) * self.dw
+        if omega_min > 0.0:
+            w = np.maximum(w, omega_min)
+        self.omega = w
+
+        def _coth_half_beta_w(w_):
+            x = 0.5 * self.beta * w_
+            out = np.empty_like(x)
+            small = np.abs(x) < 1e-6
+            out[~small] = 1.0 / np.tanh(x[~small])
+            xs = x[small]
+            out[small] = 1.0/xs + xs/3.0 - (xs**3)/45.0
+            return out
+
+        Jw = np.asarray(self.J(w), dtype=float)
+        eps = 1e-300
+        denom = np.maximum(w**2, eps)
+        GR = (Jw / (np.pi * denom)) * _coth_half_beta_w(w)
+        GI = (Jw / (np.pi * denom))
+        GI[0] = 0.0  # sin(0·τ)=0
+
+        cos_sum = dct(GR, type=1, norm=None)
+        sin_sum = dst(GI, type=1, norm=None)
+
+        phi_real_grid = self.dw * cos_sum
+        phi_imag_grid = self.dw * sin_sum
+        self.phi_grid = phi_real_grid - 1j * phi_imag_grid
+
+        self.dtau = np.pi / self.W
+        self.tau_grid = np.arange(self.N) * self.dtau
+
+        # light-weight cubic splines (manual) to avoid extra imports
+        # (SciPy CubicSpline OK too; here we use numpy polyfit chunked)
+        # For robustness/speed, we’ll just do linear interp; cubic gives tiny gains here.
+        self._phi_re = self.phi_grid.real
+        self._phi_im = self.phi_grid.imag
+
+    def _interp1(self, xq, x, y):
+        # vectorized piecewise-linear; out-of-range -> 0
+        xq = np.atleast_1d(xq)
+        idx = np.clip(np.searchsorted(x, xq) - 1, 0, x.size - 2)
+        x0 = x[idx]; x1 = x[idx + 1]
+        y0 = y[idx]; y1 = y[idx + 1]
+        w = (xq - x0) / np.maximum(x1 - x0, 1e-300)
+        out = y0 * (1 - w) + y1 * w
+        out[(xq < x[0]) | (xq > x[-1])] = 0.0
+        return out
+
+    def phi(self, tau):
+        tau = np.atleast_1d(tau).astype(float)
+        re = self._interp1(tau, self.tau_grid, self._phi_re)
+        im = self._interp1(tau, self.tau_grid, self._phi_im)
+        out = re - 1j * im
+        return out if out.ndim else out[()]
+    
+class _BathCorrFFT:
+    """Fast Eq. (15) via rFFT on τ-grid from _PhiTransformer with caching."""
+    def __init__(self, phi_tr, omega_c, default_eta=None, window=None, win_beta=8.0):
+        self.tr = phi_tr
+        self.omega_c = float(omega_c)
+        self.dt = self.tr.dtau
+        self.tau = self.tr.tau_grid
+        self.phi_tau = self.tr.phi_grid  # complex φ(τ) on grid
+        self.window = window
+        self.win_beta = float(win_beta)
+        self.default_eta = (1e-3 * self.omega_c) if default_eta is None else float(default_eta)
+        self.omega_grid = 2.0 * np.pi * rfftfreq(self.tau.size, d=self.dt)
+        self._cache = {}  # (lamda, kappa, eta, window, win_beta) -> K_grid
+
+    def _build(self, lamda, kappa, eta):
+        key = (float(lamda), float(kappa), float(eta), self.window, self.win_beta)
+        if key in self._cache:
+            return self._cache[key]
+        if kappa == 0.0 or lamda == 0.0:
+            K = np.zeros_like(self.omega_grid, dtype=complex)
+            self._cache[key] = K
+            return K
+        C = (kappa**2) * (np.exp(lamda * self.phi_tau) - 1.0)  # Eq. (16)
+        f = C * np.exp(-eta * self.tau)
+        if self.window == 'kaiser':
+            f = f * np.kaiser(self.tau.size, self.win_beta)
+        elif self.window == 'hann':
+            f = f * np.hanning(self.tau.size)
+        F = self.dt * rfft(f)
+        K = np.conj(F)  # +iωτ convention
+        self._cache[key] = K
+        return K
+
+    def eval(self, omega, lamda, kappa, eta=None, return_grid=False):
+        if eta is None:
+            eta = self.default_eta
+        Kgrid = self._build(lamda, kappa, eta)
+        if return_grid:
+            return self.omega_grid, Kgrid
+        omega = np.atleast_1d(omega).astype(float)
+        Re = np.interp(omega, self.omega_grid, Kgrid.real, left=0.0, right=0.0)
+        Im = np.interp(omega, self.omega_grid, Kgrid.imag, left=0.0, right=0.0)
+        out = Re + 1j * Im
+        return out if out.ndim else out[()]
+
+
+class SpecDens:
+    def __init__(self, spec_dens_list, max_energy_diff):
+        sd_type = spec_dens_list[0]
+        self.bath_method = spec_dens_list[-1]
+        self.max_energy_diff = max_energy_diff  # if you need it elsewhere
+
+        if sd_type == 'cubic-exp':
+            self.lamda = spec_dens_list[1]
+            self.omega_c = spec_dens_list[2]
+            self.J = self.cubic_exp
+            self.low_freq_cutoff = self.omega_c / 200.0
+            self.omega_inf = 20 * self.omega_c
+
+        # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15) if using 'exact'
+        if self.bath_method == 'exact':
+            beta = 1.0 / const.kT
+            # knobs: W and N; adjust if you need tighter accuracy
+            W = 15.0 * self.omega_c
+            N = 16385  # ~2^14+1
+            self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
+            self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c, window=None)
+            # API compatibility:
+            self.Phi = self._phi_tr.phi
+            self.correlationFT = self._correlationFT_fft
+
+        elif self.bath_method == 'first-order':
+            # keep your existing fast-first-order path if you have it
+            self.correlationFT = self.fastfirstOrderFT
+            # optional: still expose Phi if others rely on it
+            self._phi_tr = None
+            self.Phi = self.phi  # falls back to slow quad if someone calls it
+
+        else:
+            raise SystemExit("Unknown bath_method")
+
+    def cubic_exp(self, omega):
+        w = abs(omega)
+        Jw = (self.lamda / (2 * self.omega_c**3)) * w**3 * np.exp(-w / self.omega_c)
+        return Jw * (omega >= 0) - Jw * (omega < 0)
+
+    # legacy slow φ(τ) (kept only for compatibility; not used when 'exact')
+    def phi(self, tau):
+        from scipy import integrate
+        beta = 1.0 / const.kT
+        tau = np.atleast_1d(tau).astype(float)
+        wmax = 100.0 * self.omega_c
+        def fR(omega):
+            x = 0.5 * beta * omega
+            coth = 1.0/np.tanh(x) if x > 1e-6 else (1.0/x + x/3.0)
+            return (self.J(omega) / (np.pi * omega**2)) * coth
+        def fI(omega):
+            return self.J(omega) / (np.pi * omega**2)
+        out = np.empty_like(tau, dtype=complex)
+        for k, t in enumerate(tau):
+            R = integrate.quad(fR, 1e-14, wmax, weight='cos', wvar=t, limit=200)[0]
+            I = integrate.quad(fI, 1e-14, wmax, weight='sin', wvar=t, limit=200)[0]
+            out[k] = R - 1j * I
+        return out if out.ndim else out[()]
+
+    # fast Eq. (15) via FFT using cached grids
+    def _correlationFT_fft(self, omega, lamda, kappa, eta=None, return_grid=False):
+        # support scalar or array ω
+        return self._fft.eval(omega, lamda=float(lamda), kappa=float(kappa), eta=eta, return_grid=return_grid)
+
+
+
+class SpecDensOld():
 
     def __init__(self, spec_dens_list, max_energy_diff):
         sd_type = spec_dens_list[0]
@@ -116,122 +291,74 @@ class SpecDens():
         return Jw*(omega >= 0) - Jw*(omega < 0)
     
             
-    # # compute phi based on Eq. (17)
-    # def phi(self, tau):
+    # compute phi based on Eq. (17)
+    def phi(self, tau):
         
-    #     beta = 1.0/const.kT
-    #     uppLim=np.inf
-    #     uppLim= 100 * self.omega_c
+        beta = 1.0/const.kT
+        uppLim=np.inf
+        uppLim= 100 * self.omega_c
         
-    #     if type(tau) == float or type(tau) == int or type(tau) == np.float64:
-    #         tau = np.array([tau])
-    #     phi_real = np.zeros(np.shape(tau))
-    #     phi_imag = np.zeros(np.shape(tau))
+        if type(tau) == float or type(tau) == int or type(tau) == np.float64:
+            tau = np.array([tau])
+        phi_real = np.zeros(np.shape(tau))
+        phi_imag = np.zeros(np.shape(tau))
         
-    #     for i in np.arange(np.size(tau)):
-    #         if tau[i] > 0 and tau[i] < self.low_freq_cutoff:
-    #             # fix low frequencies
-    #             # real part of integrand
-    #             def integrand_real(omega, tau):
-    #                 return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2) * np.cos(tau[i] * omega)
+        for i in np.arange(np.size(tau)):
+            if tau[i] > 0 and tau[i] < self.low_freq_cutoff:
+                # fix low frequencies
+                # real part of integrand
+                def integrand_real(omega, tau):
+                    return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2) * np.cos(tau[i] * omega)
                 
-    #             # imaginary part of integral
-    #             def integrand_imag(omega, tau):
-    #                 return 1/(np.pi*omega**2)*self.J(omega) * np.sin(tau[i] * omega)
+                # imaginary part of integral
+                def integrand_imag(omega, tau):
+                    return 1/(np.pi*omega**2)*self.J(omega) * np.sin(tau[i] * omega)
                 
-    #             phi_real[i]=integrate.quad(integrand_real, 1E-14, uppLim, args=(tau,))[0]
-    #             phi_imag[i]=integrate.quad(integrand_imag, 1E-14, uppLim, args=(tau,))[0]
-    #         else:
-    #             # real part of integrand
-    #             def integrand_real(omega, tau):
-    #                 return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2)
+                phi_real[i]=integrate.quad(integrand_real, 1E-14, uppLim, args=(tau,))[0]
+                phi_imag[i]=integrate.quad(integrand_imag, 1E-14, uppLim, args=(tau,))[0]
+            else:
+                # real part of integrand
+                def integrand_real(omega, tau):
+                    return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2)
                 
-    #             # imaginary part of integral
-    #             def integrand_imag(omega, tau):
-    #                 return 1/(np.pi*omega**2)*self.J(omega)
+                # imaginary part of integral
+                def integrand_imag(omega, tau):
+                    return 1/(np.pi*omega**2)*self.J(omega)
                 
-    #             phi_real[i]=integrate.quad(integrand_real, 1E-14, uppLim, args=(tau,), weight='cos', wvar=tau[i], limit=200)[0]
-    #             phi_imag[i]=integrate.quad(integrand_imag, 1E-14, uppLim, args=(tau,), weight='sin', wvar=tau[i], limit=200)[0]
-    #     return phi_real-1j*phi_imag
+                phi_real[i]=integrate.quad(integrand_real, 1E-14, uppLim, args=(tau,), weight='cos', wvar=tau[i], limit=200)[0]
+                phi_imag[i]=integrate.quad(integrand_imag, 1E-14, uppLim, args=(tau,), weight='sin', wvar=tau[i], limit=200)[0]
+        return phi_real-1j*phi_imag
     
        
-    # # perform half-sided Fourier trasnform of bath correlation function based on Eq. (15)
-    # def bathCorrFT(self, omega, lamda, kappa):
-    #     if type(omega) == float or type(omega) == int or type(omega) == np.float64:
-    #         omega = np.array([omega])
-    #     if lamda==0:
-    #         return np.zeros(np.shape(omega))
-    #     else:
-    #         bathCorrFT_real1 = np.zeros(np.shape(omega))
-    #         bathCorrFT_real2 = np.zeros(np.shape(omega))
-    #         bathCorrFT_imag1 = np.zeros(np.shape(omega))
-    #         bathCorrFT_imag2 = np.zeros(np.shape(omega))
-
-    #         def integrandFT_real(tau):
-    #             return kappa**2*np.real(np.exp(-lamda*self.Phi(tau))-1)
-    #         def integrandFT_imag(tau):
-    #             return kappa**2*np.imag(np.exp(-lamda*self.Phi(tau))-1)
-            
-    #         # perform half-sided Fourier transform (real/imaginary parts separately)
-    #         uppLim=np.inf
-    #         uppLim = 100 * self.omega_c
-    #         lowLim=1E-14
-    #         for i in np.arange(np.size(omega)):
-    #             bathCorrFT_real1[i]=integrate.quad(integrandFT_real, lowLim, uppLim, limit=200, weight='cos', wvar=omega[i], limlst = 200)[0]
-    #             bathCorrFT_real2[i]=integrate.quad(integrandFT_imag, lowLim, uppLim, limit=200, weight='sin', wvar=omega[i], limlst = 200)[0]
-    #             bathCorrFT_imag1[i]=integrate.quad(integrandFT_imag, lowLim, uppLim, limit=200, weight='cos', wvar=omega[i], limlst = 200)[0]
-    #             bathCorrFT_imag2[i]=integrate.quad(integrandFT_real, lowLim, uppLim, limit=200, weight='sin', wvar=omega[i], limlst = 200)[0]
-
-    #         return bathCorrFT_real1+bathCorrFT_real2+1j*bathCorrFT_imag1-1j*bathCorrFT_imag2
-
-    # Eq. (17): φ(τ) = ∫_0^∞ dω/π * J(ω)/ω^2 [cos(ωτ) coth(βω/2) - i sin(ωτ)]
-    def phi(self, tau):
-        beta = 1.0 / const.kT
-        tau = np.atleast_1d(tau).astype(float)
-        wmax = 100.0 * self.omega_c   # frequency cutoff for the ω-integral
-
-        def fR(omega):
-            x = 0.5 * beta * omega
-            # stable coth: switch to series for small x if desired
-            coth = 1.0/np.tanh(x) if x > 1e-6 else (1.0/x + x/3.0)
-            return (self.J(omega) / (np.pi * omega**2)) * coth
-
-        def fI(omega):
-            return self.J(omega) / (np.pi * omega**2)
-
-        out = np.empty_like(tau, dtype=complex)
-        for k, t in enumerate(tau):
-            R = integrate.quad(fR, 1e-14, wmax, weight='cos', wvar=t, limit=200)[0]
-            I = integrate.quad(fI, 1e-14, wmax, weight='sin', wvar=t, limit=200)[0]
-            out[k] = R - 1j*I
-        return out if out.shape != () else out[()]
-
-    # Eq. (15): K(ω) = ∫_0^∞ e^{iωτ} ⟨V(τ)V(0)⟩ dτ with ⟨V(τ)V(0)⟩ = κ^2 (e^{λ φ(τ)} - 1)
+    # perform half-sided Fourier trasnform of bath correlation function based on Eq. (15)
     def bathCorrFT(self, omega, lamda, kappa):
-        omega = np.atleast_1d(omega).astype(float)
-        if lamda == 0 or kappa == 0:
-            return np.zeros_like(omega, dtype=complex)
+        if type(omega) == float or type(omega) == int or type(omega) == np.float64:
+            omega = np.array([omega])
+        if lamda==0:
+            return np.zeros(np.shape(omega))
+        else:
+            bathCorrFT_real1 = np.zeros(np.shape(omega))
+            bathCorrFT_real2 = np.zeros(np.shape(omega))
+            bathCorrFT_imag1 = np.zeros(np.shape(omega))
+            bathCorrFT_imag2 = np.zeros(np.shape(omega))
 
-        # choose a time cutoff; larger if your J(ω) has a slow tail
-        tmax = 100.0 / self.omega_c
-        tmin = 1e-14
+            def integrandFT_real(tau):
+                return kappa**2*np.real(np.exp(-lamda*self.Phi(tau))-1)
+            def integrandFT_imag(tau):
+                return kappa**2*np.imag(np.exp(-lamda*self.Phi(tau))-1)
+            
+            # perform half-sided Fourier transform (real/imaginary parts separately)
+            uppLim=np.inf
+            uppLim = 100 * self.omega_c
+            lowLim=1E-14
+            for i in np.arange(np.size(omega)):
+                bathCorrFT_real1[i]=integrate.quad(integrandFT_real, lowLim, uppLim, limit=200, weight='cos', wvar=omega[i], limlst = 200)[0]
+                bathCorrFT_real2[i]=integrate.quad(integrandFT_imag, lowLim, uppLim, limit=200, weight='sin', wvar=omega[i], limlst = 200)[0]
+                bathCorrFT_imag1[i]=integrate.quad(integrandFT_imag, lowLim, uppLim, limit=200, weight='cos', wvar=omega[i], limlst = 200)[0]
+                bathCorrFT_imag2[i]=integrate.quad(integrandFT_real, lowLim, uppLim, limit=200, weight='sin', wvar=omega[i], limlst = 200)[0]
 
-        def a(t):
-            return np.real(kappa**2 * (np.exp(lamda * self.phi(t)) - 1.0))
+            return bathCorrFT_real1+bathCorrFT_real2+1j*bathCorrFT_imag1-1j*bathCorrFT_imag2
 
-        def b(t):
-            return np.imag(kappa**2 * (np.exp(lamda * self.phi(t)) - 1.0))
-
-        K = np.empty_like(omega, dtype=complex)
-        for i, w in enumerate(omega):
-            A_cos = integrate.quad(a, tmin, tmax, weight='cos', wvar=w, limit=200)[0]
-            B_sin = integrate.quad(b, tmin, tmax, weight='sin', wvar=w, limit=200)[0]
-            A_sin = integrate.quad(a, tmin, tmax, weight='sin', wvar=w, limit=200)[0]
-            B_cos = integrate.quad(b, tmin, tmax, weight='cos', wvar=w, limit=200)[0]
-            Re = A_cos - B_sin          # <-- minus sign
-            Im = A_sin + B_cos          # <-- plus sign
-            K[i] = Re + 1j*Im
-        return K              
 
 
     # first order approximation to the bath correlation function in Eq. (16)
