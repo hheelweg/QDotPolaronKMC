@@ -144,7 +144,7 @@ class _BathCorrFFT:
         self.default_eta = (1e-3 * self.omega_c) if default_eta is None else float(default_eta)
 
         # Full FFT frequency grid (positive & negative)
-        omega_full = 2.0 * np.pi * np.fft.fftfreq(self.tau.size, d=self.dt)
+        omega_full =  np.fft.fftfreq(self.tau.size, d=self.dt)
         self._pos_mask = omega_full >= 0
         self.omega_grid = omega_full[self._pos_mask]   # keep non-negative ω only
 
