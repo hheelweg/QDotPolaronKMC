@@ -475,169 +475,181 @@ class Redfield(Unitary):
     
 
 
-    def make_redfield_box(self, center_idx):
-        # --- gather indices around center
-        pol_idxs, site_idxs = self.get_idxs(center_idx)        # global indices
-        npols = len(pol_idxs)
-        nsites = len(site_idxs)
-        if self.time_verbose:
-            print('npols, nsites', npols, nsites, flush=True)
-
-        # local index of center within pol_idxs
-        center_i = int(np.where(pol_idxs == center_idx)[0][0])
-
-        # --- build λ_{ab,cd} (= δ_ac + δ_bd − δ_ad − δ_bc)  (Eq. 16)
-        ident = np.identity(nsites)
-        ones = np.ones((nsites, nsites, nsites, nsites))
-        lamdas = ( np.einsum('ac,abcd->abcd', ident, ones)
-                + np.einsum('bd,abcd->abcd', ident, ones)
-                - np.einsum('ad,abcd->abcd', ident, ones)
-                - np.einsum('bc,abcd->abcd', ident, ones) )
-
-        # --- bath integrals K_{ab,cd}(ω_{ν'ν}) grouped by λ ∈ {-2,-1,0,1,2}
-        start = time.time()
-        lam_values = (-2, -1, 0, 1, 2)
-
-        # correct global ω vector for transitions from center ν to each ν'
-        # ω_{i,center} with i = pol_idxs[k] (global); produces shape (npols,)
-        omega_vec = self.ham.omega_diff[pol_idxs, center_idx]
-
-        # evaluate K(ω) for each λ in one vectorized call
-        bath_integrals = {}
-        for lam in lam_values:
-            if lam == 0:
-                bath_integrals[lam] = np.zeros(npols, dtype=np.complex128)
-            else:
-                bath_integrals[lam] = self.ham.spec.correlationFT(omega_vec, lam, self.kappa)
-        if self.time_verbose:
-            print('time difference1', time.time() - start, flush=True)
-
-        # --- transform V_{ab} to eigenbasis restricted to pol_idxs
-        start = time.time()
-        Gs = np.empty((nsites, nsites), dtype=object)
-        for a, a_idx in enumerate(site_idxs):
-            for b, b_idx in enumerate(site_idxs):
-                # V_{ab}^{νν'} = ⟨ν|a⟩⟨b|ν'⟩ on the polaron subspace (npols×npols)
-                Gs[a, b] = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])[pol_idxs, :][:, pol_idxs]
-        if self.time_verbose:
-            print('time difference2', time.time() - start, flush=True)
-
-        # --- build Γ_{ν'ν,νν'}(ω_{ν'ν}) as a vector over ν' (Eq. 14)
-        # For fixed center state ν, the ν' index is the vector index (length npols)
-        start = time.time()
-        gamma_plus = np.zeros(npols, dtype=np.complex128)
-
-        # loop over λ-groups and sum contributions with that λ
-        for lam in lam_values:
-            # indices of (a,b,c,d) with λ_{ab,cd} = lam
-            abcd_list = np.argwhere(lamdas == lam)
-            if abcd_list.size == 0:
-                continue
-            K_vec = bath_integrals[lam]  # shape (npols,)
-
-            # accumulate Σ_{a,b,c,d in group} K(ω) * V_{cd}^{ν',ν} * V_{ab}^{ν,ν'}
-            # Gs[c,d].T[center_i] -> column 'center_i' of Gs[c,d]: V_{cd}^{ν',ν}
-            # Gs[a,b][center_i]   -> row    'center_i' of Gs[a,b]: V_{ab}^{ν,ν'}
-            for a, b, c, d in abcd_list:
-                v_left  = Gs[c, d].T[center_i]    # shape (npols,)
-                v_right = Gs[a, b][center_i]      # shape (npols,)
-                gamma_plus += K_vec * (v_left * v_right)
-
-        if self.time_verbose:
-            print('time difference3', time.time() - start, flush=True)
-
-        # --- outgoing rates vector (Eq. 19, off-diagonal part only)
-        # For ν' ≠ ν: R_{ν→ν'} = 2 Re[ Γ_{ν'ν, νν'} ]
-        # The diagonal element (ν'=ν) would also have the -δ term; we drop that entry below.
-        self.red_R_tensor = 2.0 * np.real(gamma_plus)
-
-        # remove the starting state entry and convert to rates (divide by ħ)
-        rates = np.delete(self.red_R_tensor, center_i) / const.hbar
-        final_pol_idxs = np.delete(pol_idxs, center_i)
-
-        if self.time_verbose:
-            print('rates', rates, flush=True)
-            print('time difference (tot)', time.time() - start, flush=True)
-        
-        print('rates', rates)
-
-        return rates, final_pol_idxs, time.time() - start  # you can pass elapsed time if you like
-
-
     # def make_redfield_box(self, center_idx):
-
-    #     # find polaron and site states r_hop and r_ove, respectively, away from center_idx
-    #     pol_idxs, site_idxs = self.get_idxs(center_idx)
+    #     # --- gather indices around center
+    #     pol_idxs, site_idxs = self.get_idxs(center_idx)        # global indices
     #     npols = len(pol_idxs)
     #     nsites = len(site_idxs)
-    #     print('npols, nsites', npols, nsites)
-    #     # center idx in pol_idxs
-    #     center_i = np.where(pol_idxs == center_idx)[0][0]
+    #     if self.time_verbose:
+    #         print('npols, nsites', npols, nsites, flush=True)
 
+    #     # local index of center within pol_idxs
+    #     center_i = int(np.where(pol_idxs == center_idx)[0][0])
 
-    #     # compute lambda tensor (Eq. (16))
+    #     # --- build λ_{ab,cd} (= δ_ac + δ_bd − δ_ad − δ_bc)  (Eq. 16)
     #     ident = np.identity(nsites)
     #     ones = np.ones((nsites, nsites, nsites, nsites))
-    #     lamdas= (  np.einsum('ac, abcd->abcd', ident, ones) + np.einsum('bd, abcd->abcd', ident, ones)
-    #              - np.einsum('ad, abcd->abcd', ident, ones) - np.einsum('bc, abcd->abcd', ident, ones)
-    #             )
-        
-    #     # compute integral of bath correlation function
+    #     lamdas = ( np.einsum('ac,abcd->abcd', ident, ones)
+    #             + np.einsum('bd,abcd->abcd', ident, ones)
+    #             - np.einsum('ad,abcd->abcd', ident, ones)
+    #             - np.einsum('bc,abcd->abcd', ident, ones) )
+
+    #     # --- bath integrals K_{ab,cd}(ω_{ν'ν}) grouped by λ ∈ {-2,-1,0,1,2}
     #     start = time.time()
-    #     start_tot = start
-    #     lamdalist = [-2.0, -1.0, 0.0, 1.0, 2.0]
-    #     bath_integrals = []
-    #     for lam in lamdalist:
-    #         matrix = np.zeros(npols, dtype = np.complex128)
+    #     lam_values = (-2, -1, 0, 1, 2)
+
+    #     # correct global ω vector for transitions from center ν to each ν'
+    #     # ω_{i,center} with i = pol_idxs[k] (global); produces shape (npols,)
+    #     omega_vec = self.ham.omega_diff[pol_idxs, center_idx]
+
+    #     # evaluate K(ω) for each λ in one vectorized call
+    #     bath_integrals = {}
+    #     for lam in lam_values:
     #         if lam == 0:
-    #             bath_integrals.append(matrix)
+    #             bath_integrals[lam] = np.zeros(npols, dtype=np.complex128)
     #         else:
-    #             for i in range(npols):
-    #                 omega_ij = self.ham.omega_diff[i, center_idx]
-    #                 matrix[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
-    #             bath_integrals.append(matrix)
-
-    #     end = time.time()
+    #             bath_integrals[lam] = self.ham.spec.correlationFT(omega_vec, lam, self.kappa)
     #     if self.time_verbose:
-    #         print('time difference1', end - start, flush=True)
+    #         print('time difference1', time.time() - start, flush=True)
 
-    #     # transform sysbath operators to eigenbasis
+    #     # --- transform V_{ab} to eigenbasis restricted to pol_idxs
     #     start = time.time()
-    #     Gs = np.zeros((nsites, nsites), dtype=object)
+    #     Gs = np.empty((nsites, nsites), dtype=object)
     #     for a, a_idx in enumerate(site_idxs):
     #         for b, b_idx in enumerate(site_idxs):
-    #             Gs[a][b] = self.ham.site2eig( self.ham.sysbath[a_idx][b_idx] )[pol_idxs, :][:, pol_idxs]
-    #     end = time.time()
+    #             # V_{ab}^{νν'} = ⟨ν|a⟩⟨b|ν'⟩ on the polaron subspace (npols×npols)
+    #             Gs[a, b] = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])[pol_idxs, :][:, pol_idxs]
     #     if self.time_verbose:
-    #         print('time difference2', end - start, flush=True)
-        
-    #     #gamma_plus = np.zeros((ns, ns), dtype = np.complex128)
+    #         print('time difference2', time.time() - start, flush=True)
+
+    #     # --- build Γ_{ν'ν,νν'}(ω_{ν'ν}) as a vector over ν' (Eq. 14)
+    #     # For fixed center state ν, the ν' index is the vector index (length npols)
     #     start = time.time()
-    #     gamma_plus = np.zeros(npols, dtype = np.complex128)
-    #     for lamda in [-2, -1, 0, 1, 2]:
-    #         indices = np.argwhere(lamdas == lamda)
-    #         for abcd in indices:
-    #             gamma_plus += np.multiply(bath_integrals[lamda + 2], 
-    #                               np.multiply(Gs[abcd[2]][abcd[3]].T[center_i], Gs[abcd[0]][abcd[1]][center_i]))
-    #     end = time.time()
+    #     gamma_plus = np.zeros(npols, dtype=np.complex128)
+
+    #     # loop over λ-groups and sum contributions with that λ
+    #     for lam in lam_values:
+    #         # indices of (a,b,c,d) with λ_{ab,cd} = lam
+    #         abcd_list = np.argwhere(lamdas == lam)
+    #         if abcd_list.size == 0:
+    #             continue
+    #         K_vec = bath_integrals[lam]  # shape (npols,)
+
+    #         # accumulate Σ_{a,b,c,d in group} K(ω) * V_{cd}^{ν',ν} * V_{ab}^{ν,ν'}
+    #         # Gs[c,d].T[center_i] -> column 'center_i' of Gs[c,d]: V_{cd}^{ν',ν}
+    #         # Gs[a,b][center_i]   -> row    'center_i' of Gs[a,b]: V_{ab}^{ν,ν'}
+    #         for a, b, c, d in abcd_list:
+    #             v_left  = Gs[c, d].T[center_i]    # shape (npols,)
+    #             v_right = Gs[a, b][center_i]      # shape (npols,)
+    #             gamma_plus += K_vec * (v_left * v_right)
+
     #     if self.time_verbose:
-    #         print('time difference3', end - start, flush=True)
+    #         print('time difference3', time.time() - start, flush=True)
 
-    #     # only outgoing rates are relevant so we can disregard the delta-function
-    #     # term in Eq. (19), we also need to remove the starting state (center_idx)
-    #     self.red_R_tensor = 2 * np.real(gamma_plus)
+    #     # --- outgoing rates vector (Eq. 19, off-diagonal part only)
+    #     # For ν' ≠ ν: R_{ν→ν'} = 2 Re[ Γ_{ν'ν, νν'} ]
+    #     # The diagonal element (ν'=ν) would also have the -δ term; we drop that entry below.
+    #     self.red_R_tensor = 2.0 * np.real(gamma_plus)
+
+    #     # remove the starting state entry and convert to rates (divide by ħ)
     #     rates = np.delete(self.red_R_tensor, center_i) / const.hbar
-    #     final_site_idxs = np.delete(pol_idxs, center_i)
+    #     final_pol_idxs = np.delete(pol_idxs, center_i)
 
+    #     if self.time_verbose:
+    #         print('rates', rates, flush=True)
+    #         print('time difference (tot)', time.time() - start, flush=True)
+        
     #     print('rates', rates)
 
-    #     end_tot = time.time()
-    #     if self.time_verbose:
-    #         print('time difference (tot)', end_tot - start_tot, flush=True)
+    #     return rates, final_pol_idxs, time.time() - start  # you can pass elapsed time if you like
+
+    def debug_bath(self, center_idx):
+        # transitions from center ν to each ν'
+        pol_idxs, _ = self.get_idxs(center_idx)
+        omega_vec = self.ham.omega_diff[pol_idxs, center_idx]
+
+        for lam in (-2, -1, 0, 1, 2):
+            K = self.ham.spec.correlationFT(omega_vec, lam, self.kappa)  # shape (npols,)
+            S = 2.0 * np.real(K)  # symmetrized spectrum; should be >= 0 elementwise
+            print(f"λ={lam}: min 2Re[K]={S.min(): .3e}, max {S.max(): .3e}")
 
 
-    #     # return (outgoing) rates and corresponding polaron idxs (final sites)
-    #     return rates, final_site_idxs, end_tot - start_tot
+    def make_redfield_box(self, center_idx):
+
+        # find polaron and site states r_hop and r_ove, respectively, away from center_idx
+        pol_idxs, site_idxs = self.get_idxs(center_idx)
+        npols = len(pol_idxs)
+        nsites = len(site_idxs)
+        print('npols, nsites', npols, nsites)
+        # center idx in pol_idxs
+        center_i = np.where(pol_idxs == center_idx)[0][0]
+
+        self.debug_bath(center_idx)
+
+
+        # compute lambda tensor (Eq. (16))
+        ident = np.identity(nsites)
+        ones = np.ones((nsites, nsites, nsites, nsites))
+        lamdas= (  np.einsum('ac, abcd->abcd', ident, ones) + np.einsum('bd, abcd->abcd', ident, ones)
+                 - np.einsum('ad, abcd->abcd', ident, ones) - np.einsum('bc, abcd->abcd', ident, ones)
+                )
+        
+        # compute integral of bath correlation function
+        start = time.time()
+        start_tot = start
+        lamdalist = [-2.0, -1.0, 0.0, 1.0, 2.0]
+        bath_integrals = []
+        for lam in lamdalist:
+            matrix = np.zeros(npols, dtype = np.complex128)
+            if lam == 0:
+                bath_integrals.append(matrix)
+            else:
+                for i in range(npols):
+                    omega_ij = self.ham.omega_diff[i, center_idx]
+                    matrix[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
+                bath_integrals.append(matrix)
+
+        end = time.time()
+        if self.time_verbose:
+            print('time difference1', end - start, flush=True)
+
+        # transform sysbath operators to eigenbasis
+        start = time.time()
+        Gs = np.zeros((nsites, nsites), dtype=object)
+        for a, a_idx in enumerate(site_idxs):
+            for b, b_idx in enumerate(site_idxs):
+                Gs[a][b] = self.ham.site2eig( self.ham.sysbath[a_idx][b_idx] )[pol_idxs, :][:, pol_idxs]
+        end = time.time()
+        if self.time_verbose:
+            print('time difference2', end - start, flush=True)
+        
+        #gamma_plus = np.zeros((ns, ns), dtype = np.complex128)
+        start = time.time()
+        gamma_plus = np.zeros(npols, dtype = np.complex128)
+        for lamda in [-2, -1, 0, 1, 2]:
+            indices = np.argwhere(lamdas == lamda)
+            for abcd in indices:
+                gamma_plus += np.multiply(bath_integrals[lamda + 2], 
+                                  np.multiply(Gs[abcd[2]][abcd[3]].T[center_i], Gs[abcd[0]][abcd[1]][center_i]))
+        end = time.time()
+        if self.time_verbose:
+            print('time difference3', end - start, flush=True)
+
+        # only outgoing rates are relevant so we can disregard the delta-function
+        # term in Eq. (19), we also need to remove the starting state (center_idx)
+        self.red_R_tensor = 2 * np.real(gamma_plus)
+        rates = np.delete(self.red_R_tensor, center_i) / const.hbar
+        final_site_idxs = np.delete(pol_idxs, center_i)
+
+        print('rates', rates)
+
+        end_tot = time.time()
+        if self.time_verbose:
+            print('time difference (tot)', end_tot - start_tot, flush=True)
+
+
+        # return (outgoing) rates and corresponding polaron idxs (final sites)
+        return rates, final_site_idxs, end_tot - start_tot
 
 
     
