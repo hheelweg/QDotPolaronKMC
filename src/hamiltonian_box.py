@@ -207,70 +207,31 @@ class SpecDens():
         return out if out.shape != () else out[()]
 
     # Eq. (15): K(ω) = ∫_0^∞ e^{iωτ} ⟨V(τ)V(0)⟩ dτ with ⟨V(τ)V(0)⟩ = κ^2 (e^{λ φ(τ)} - 1)
-    def bathCorrFT(self, omega, lamda, kappa, *,
-                    dt=None, T=None, eta=None,
-                    window='kaiser', win_beta=8.0,
-                    return_grid=False):
-        """
-        Fast Eq. (15) via rFFT.
-        omega : array-like of target frequencies (rad/time)
-        lamda : λ_{mn,m'n'} (scalar)
-        kappa : coupling κ (scalar)
-        dt    : time step; if None, chosen heuristically
-        T     : total time; if None, chosen from eta
-        eta   : small damping (>0); default 1e-3 * omega_c
-        window: None | 'kaiser' | 'hann'
-        return_grid: if True, return (omega_grid, K_grid) instead of interpolating
-        """
+    def bathCorrFT(self, omega, lamda, kappa):
         omega = np.atleast_1d(omega).astype(float)
-
         if lamda == 0 or kappa == 0:
-            Z = np.zeros_like(omega, dtype=complex)
-            return Z
+            return np.zeros_like(omega, dtype=complex)
 
-        if eta is None:
-            eta = 1e-3 * self.omega_c
+        # choose a time cutoff; larger if your J(ω) has a slow tail
+        tmax = 100.0 / self.omega_c
+        tmin = 1e-14
 
-        # Heuristics for grid
-        wmax = float(np.max(omega)) if omega.size else 0.0
-        if dt is None:
-            # resolve both ω_c and requested wmax; smaller wins
-            dt = 0.1 / max(self.omega_c, 1e-12)
-            if wmax > 0:
-                dt = min(dt, np.pi / (8.0*(wmax + eta)))
-        if T is None:
-            # make e^{-eta T} tiny
-            T = max(50.0/ self.omega_c, 12.0/eta)
+        def a(t):
+            return np.real(kappa**2 * (np.exp(lamda * self.phi(t)) - 1.0))
 
-        # Build time grid (power-of-two for fast FFT)
-        N = int(2 ** np.ceil(np.log2(T / dt)))
-        t = np.arange(N) * dt
+        def b(t):
+            return np.imag(kappa**2 * (np.exp(lamda * self.phi(t)) - 1.0))
 
-        # Correlator C(t) = κ^2 (exp(λ φ(t)) - 1)
-        # vectorized φ
-        phi_t = self.phi(t)        # assumes your phi(t) returns complex array
-        C_t = kappa**2 * (np.exp(lamda * phi_t) - 1.0)
-
-        # Damping and optional window to reduce leakage
-        f = C_t * np.exp(-eta * t)
-        if window == 'kaiser':
-            f = f * np.kaiser(N, win_beta)
-        elif window == 'hann':
-            f = f * np.hanning(N)
-
-        # rFFT (one-sided). Normalization Δt and sign convention fix:
-        F = dt * np.fft.rfft(f)
-        K_grid = np.conj(F)              # because rfft uses e^{-i ...}
-        omega_grid = 2.0 * np.pi * np.fft.rfftfreq(N, d=dt)
-
-        if return_grid:
-            return omega_grid, K_grid
-
-        # Interpolate to requested ω (outside range -> 0)
-        # Use real/imag separately for safe interpolation.
-        re = np.interp(omega, omega_grid, K_grid.real, left=0.0, right=0.0)
-        im = np.interp(omega, omega_grid, K_grid.imag, left=0.0, right=0.0)
-        return re + 1j*im               
+        K = np.empty_like(omega, dtype=complex)
+        for i, w in enumerate(omega):
+            A_cos = integrate.quad(a, tmin, tmax, weight='cos', wvar=w, limit=200)[0]
+            B_sin = integrate.quad(b, tmin, tmax, weight='sin', wvar=w, limit=200)[0]
+            A_sin = integrate.quad(a, tmin, tmax, weight='sin', wvar=w, limit=200)[0]
+            B_cos = integrate.quad(b, tmin, tmax, weight='cos', wvar=w, limit=200)[0]
+            Re = A_cos - B_sin          # <-- minus sign
+            Im = A_sin + B_cos          # <-- plus sign
+            K[i] = Re + 1j*Im
+        return K              
 
 
     # first order approximation to the bath correlation function in Eq. (16)
