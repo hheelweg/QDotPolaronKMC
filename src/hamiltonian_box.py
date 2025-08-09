@@ -360,105 +360,49 @@ class SpecDensOld():
     # K(ω) = ∫_0^∞ e^{iωτ} C(τ) dτ with C(τ) = κ^2 (exp(λ φ(τ)) - 1)
     def bathCorrFT_new(self, omega, lamda, kappa, eta=None,
                epsabs=1e-9, epsrel=1e-7, limlst=None, limit=2000, maxp1=256):
-        """
-        Fixes vs original:
-        • uses +lamda in exp (Eq.16),
-        • corrects recombination: Re = ∫(a cos − b sin), Im = ∫(a sin + b cos),
-        • integrates τ∈[0,∞) with small damping e^{-ητ} (η>0),
-        • supports scalar or array omega.
-        """
-        # normalize omega to array
+        # normalize omega to array (keep your original behavior)
         if isinstance(omega, (float, int, np.floating)):
             omega = np.array([float(omega)], dtype=float)
-        else:
-            omega = np.asarray(omega, dtype=float)
 
-        # trivial cases
         if lamda == 0 or kappa == 0:
             return np.zeros_like(omega, dtype=complex)
 
-        # small positive damping for numerical stability
-        if eta is None:
-            eta = 1e-3 * self.omega_c
+        # pieces of C(τ) = κ^2 (exp(+λ Φ(τ)) - 1)  ← SIGN FIX HERE
+        def integrandFT_real(tau):
+            # a(τ) = Re C(τ)
+            return kappa**2 * np.real(np.exp(lamda * self.Phi(tau)) - 1.0)
 
-        # Build C(τ) pieces with damping
-        # NOTE: self.Phi must return φ(τ); in your __init__ you already set self.Phi = self.phi for 'exact'
-        def A(t):  # a(τ) = Re C(τ) · e^{-ητ}
-            z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
-            return np.real(z) * np.exp(-eta * t)
+        def integrandFT_imag(tau):
+            # b(τ) = Im C(τ)
+            return kappa**2 * np.imag(np.exp(lamda * self.Phi(tau)) - 1.0)
 
-        def B(t):  # b(τ) = Im C(τ) · e^{-ητ}
-            z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
-            return np.imag(z) * np.exp(-eta * t)
+        # half-sided FT with oscillatory weights; integrate to ∞ (not 100*ω_c)
+        lowLim = 1e-14
+        uppLim = 50 / self.omega_c
 
-        # choose number of oscillatory cycles adaptively from ω and damping window T≈12/η
-        def K_eta(w):
-            T = 12.0 / max(eta, 1e-30)                 # effective window where e^{-ητ}≈0
-            ncycles = int(np.ceil(abs(w) * T / np.pi)) # ~ number of half-periods in [0,T]
-            _limlst = max(1000, min(20000, ncycles + 50)) if limlst is None else limlst
+        bathCorrFT_real1 = np.zeros_like(omega, dtype=float)   # ∫ a cos
+        bathCorrFT_real2 = np.zeros_like(omega, dtype=float)   # ∫ b sin
+        bathCorrFT_imag1 = np.zeros_like(omega, dtype=float)   # ∫ b cos
+        bathCorrFT_imag2 = np.zeros_like(omega, dtype=float)   # ∫ a sin
 
-            A_cos = integrate.quad(A, 0.0, np.inf, weight='cos', wvar=w,
-                                limlst=_limlst, limit=limit, maxp1=maxp1,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            B_sin = integrate.quad(B, 0.0, np.inf, weight='sin', wvar=w,
-                                limlst=_limlst, limit=limit, maxp1=maxp1,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            A_sin = integrate.quad(A, 0.0, np.inf, weight='sin', wvar=w,
-                                limlst=_limlst, limit=limit, maxp1=maxp1,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            B_cos = integrate.quad(B, 0.0, np.inf, weight='cos', wvar=w,
-                                limlst=_limlst, limit=limit, maxp1=maxp1,
-                                epsabs=epsabs, epsrel=epsrel)[0]
+        for i, w in enumerate(omega):
+            bathCorrFT_real1[i] = integrate.quad(
+                integrandFT_real, lowLim, uppLim, weight='cos', wvar=w, limit=200, limlst=200
+            )[0]
+            bathCorrFT_real2[i] = integrate.quad(
+                integrandFT_imag, lowLim, uppLim, weight='sin', wvar=w, limit=200, limlst=200
+            )[0]
+            bathCorrFT_imag1[i] = integrate.quad(
+                integrandFT_imag, lowLim, uppLim, weight='cos', wvar=w, limit=200, limlst=200
+            )[0]
+            bathCorrFT_imag2[i] = integrate.quad(
+                integrandFT_real, lowLim, uppLim, weight='sin', wvar=w, limit=200, limlst=200
+            )[0]
 
-            Re = A_cos - B_sin     # <-- minus on b·sin
-            Im = A_sin + B_cos     # <-- plus on a·sin + b·cos
-            return Re + 1j*Im
-
-        # evaluate with η and 2η, then Richardson-extrapolate to reduce damping bias
-        K1 = np.array([K_eta(w) for w in omega])
-
-        eta2 = 2.0 * eta
-        def A2(t):
-            z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
-            return np.real(z) * np.exp(-eta2 * t)
-        def B2(t):
-            z = kappa**2 * (np.exp(lamda * self.Phi(t)) - 1.0)
-            return np.imag(z) * np.exp(-eta2 * t)
-
-        def K_2eta(w):
-            T = 12.0 / max(eta2, 1e-30)
-            ncycles = int(np.ceil(abs(w) * T / np.pi))
-            _limlst = max(1000, min(20000, ncycles + 50)) if limlst is None else limlst
-            A_cos = integrate.quad(A2, 0.0, np.inf, weight='cos', wvar=w,
-                                limlst=_limlst, limit=limit, maxp1=maxp1,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            B_sin = integrate.quad(B2, 0.0, np.inf, weight='sin', wvar=w,
-                                limlst=_limlst, limit=limit, maxp1=maxp1,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            A_sin = integrate.quad(A2, 0.0, np.inf, weight='sin', wvar=w,
-                                limlst=_limlst, limit=limit, maxp1=maxp1,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            B_cos = integrate.quad(B2, 0.0, np.inf, weight='cos', wvar=w,
-                                limlst=_limlst, limit=limit, maxp1=maxp1,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            return (A_cos - B_sin) + 1j*(A_sin + B_cos)
-
-        K2 = np.array([K_2eta(w) for w in omega])
-        K = 2*K1 - K2  # Richardson extrapolation
-
-        return K if K.shape != () else K[0]
-
-        # Richardson extrapolation to η→0+
-        K1 = np.array([K_eta(w) for w in omega])
-        old_eta = eta
-        eta *= 2.0
-        def A2(t): return A(t) * np.exp(-(eta-old_eta)*t)
-        def B2(t): return B(t) * np.exp(-(eta-old_eta)*t)
-        A, B = A2, B2  # reuse in closures
-        K2 = np.array([K_eta(w) for w in omega])
-        K = 2*K1 - K2
-
-        return K if out.shape != () else K[()]
+        # CORRECT RE/IM COMBINATION:
+        # Re K = ∫ (a cos − b sin),   Im K = ∫ (a sin + b cos)
+        K = (bathCorrFT_real1 - bathCorrFT_real2) + 1j * (bathCorrFT_imag2 + bathCorrFT_imag1)
+        return K
 
 
 
