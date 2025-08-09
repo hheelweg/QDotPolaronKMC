@@ -358,51 +358,52 @@ class SpecDensOld():
         
     # perform half-sided Fourier transform of bath correlation function based on Eq. (15)
     # K(ω) = ∫_0^∞ e^{iωτ} C(τ) dτ with C(τ) = κ^2 (exp(λ φ(τ)) - 1)
-    def bathCorrFT_new(self, omega, lamda, kappa, eta=None,
-               epsabs=1e-9, epsrel=1e-7, limlst=None, limit=2000, maxp1=256):
+    def bathCorrFT_new(self, omega, lamda, kappa, tmax_factor=50.0, sign='minus'):
+        """
+        Half-sided FT of C(τ) = κ^2 (exp(λ Φ(τ)) - 1).
+        sign='minus' implements K(ω)=∫_0^∞ e^{-iωτ} C(τ)dτ  (common in Redfield)
+        sign='plus'  implements K(ω)=∫_0^∞ e^{+iωτ} C(τ)dτ
+        """
         # normalize omega to array (keep your original behavior)
         if isinstance(omega, (float, int, np.floating)):
             omega = np.array([float(omega)], dtype=float)
+        else:
+            omega = np.asarray(omega, dtype=float)
 
         if lamda == 0 or kappa == 0:
             return np.zeros_like(omega, dtype=complex)
 
-        # pieces of C(τ) = κ^2 (exp(+λ Φ(τ)) - 1)  ← SIGN FIX HERE
-        def integrandFT_real(tau):
-            # a(τ) = Re C(τ)
-            return kappa**2 * np.real(np.exp(lamda * self.Phi(tau)) - 1.0)
-
-        def integrandFT_imag(tau):
-            # b(τ) = Im C(τ)
+        # a(τ), b(τ) pieces of C(τ)
+        def a_tau(tau):
+            return kappa**2 * np.real(np.exp(lamda * self.Phi(tau)) - 1.0)  # SIGN in exponent fixed ( +λ )
+        def b_tau(tau):
             return kappa**2 * np.imag(np.exp(lamda * self.Phi(tau)) - 1.0)
 
-        # half-sided FT with oscillatory weights; integrate to ∞ (not 100*ω_c)
         lowLim = 1e-14
-        uppLim = 50 / self.omega_c
+        uppLim = tmax_factor / self.omega_c   # finite time cutoff (≈∞ numerically)
 
-        bathCorrFT_real1 = np.zeros_like(omega, dtype=float)   # ∫ a cos
-        bathCorrFT_real2 = np.zeros_like(omega, dtype=float)   # ∫ b sin
-        bathCorrFT_imag1 = np.zeros_like(omega, dtype=float)   # ∫ b cos
-        bathCorrFT_imag2 = np.zeros_like(omega, dtype=float)   # ∫ a sin
+        # integrals
+        Acos = np.zeros_like(omega, dtype=float)  # ∫ a cos
+        Asin = np.zeros_like(omega, dtype=float)  # ∫ a sin
+        Bcos = np.zeros_like(omega, dtype=float)  # ∫ b cos
+        Bsin = np.zeros_like(omega, dtype=float)  # ∫ b sin
 
         for i, w in enumerate(omega):
-            bathCorrFT_real1[i] = integrate.quad(
-                integrandFT_real, lowLim, uppLim, weight='cos', wvar=w, limit=200, limlst=200
-            )[0]
-            bathCorrFT_real2[i] = integrate.quad(
-                integrandFT_imag, lowLim, uppLim, weight='sin', wvar=w, limit=200, limlst=200
-            )[0]
-            bathCorrFT_imag1[i] = integrate.quad(
-                integrandFT_imag, lowLim, uppLim, weight='cos', wvar=w, limit=200, limlst=200
-            )[0]
-            bathCorrFT_imag2[i] = integrate.quad(
-                integrandFT_real, lowLim, uppLim, weight='sin', wvar=w, limit=200, limlst=200
-            )[0]
+            Acos[i] = integrate.quad(a_tau, lowLim, uppLim, weight='cos', wvar=w, limit=200)[0]
+            Asin[i] = integrate.quad(a_tau, lowLim, uppLim, weight='sin', wvar=w, limit=200)[0]
+            Bcos[i] = integrate.quad(b_tau, lowLim, uppLim, weight='cos', wvar=w, limit=200)[0]
+            Bsin[i] = integrate.quad(b_tau, lowLim, uppLim, weight='sin', wvar=w, limit=200)[0]
 
-        # CORRECT RE/IM COMBINATION:
-        # Re K = ∫ (a cos − b sin),   Im K = ∫ (a sin + b cos)
-        K = (bathCorrFT_real1 - bathCorrFT_real2) + 1j * (bathCorrFT_imag2 + bathCorrFT_imag1)
-        return K
+        if sign == 'minus':          # K(ω)=∫ e^{-iωτ}C(τ)dτ
+            # Re K = ∫ (a cos + b sin),  Im K = ∫ (-a sin + b cos)
+            Re = Acos + Bsin
+            Im = -Asin + Bcos
+        else:                        # sign == 'plus', K(ω)=∫ e^{+iωτ}C(τ)dτ
+            # Re K = ∫ (a cos − b sin),  Im K = ∫ ( a sin + b cos)
+            Re = Acos - Bsin
+            Im =  Asin + Bcos
+
+        return Re + 1j*Im
 
 
 
