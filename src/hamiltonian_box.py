@@ -56,9 +56,9 @@ class Hamiltonian(HamiltonianSystem):
         self.sysbath = ham_sysbath
 
         # sepctral density
-        if type(spec_density) != SpecDens:
+        if type(spec_density) != SpecDensOld:
             max_energy_diff = np.max(evals) - np.min(evals)
-            self.spec = SpecDens(spec_density, max_energy_diff)
+            self.spec = SpecDensOld(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
 
@@ -398,7 +398,7 @@ class SpecDensOld():
         
     # perform half-sided Fourier transform of bath correlation function based on Eq. (15)
     # K(ω) = ∫_0^∞ e^{iωτ} C(τ) dτ with C(τ) = κ^2 (exp(λ φ(τ)) - 1)
-    def bathCorrFT_new(self, omega, lamda, kappa, tmax_factor=40.0, sign='plus'):
+    def bathCorrFT_new(self, omega, lamda, kappa, tmax_factor=70.0, sign='plus'):
         """
         Half-sided FT of C(τ) = κ^2 (exp(λ Φ(τ)) - 1).
         sign='minus' implements K(ω)=∫_0^∞ e^{-iωτ} C(τ)dτ  (common in Redfield)
