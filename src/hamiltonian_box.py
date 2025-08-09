@@ -25,6 +25,7 @@ class HamiltonianSystem():
         self.nsite = np.size(evals)
         self.evals, self.Umat = evals, eigstates
         
+        # NOTE : do we need to divide by const.HBAR ? (08/09/2025)
         self.omega_diff = np.zeros((self.nsite,self.nsite)) # used for transformation to interaction picture and parameter Omega
         for i in range(self.nsite):
             for j in range(self.nsite):
@@ -90,8 +91,13 @@ class _PhiTransformer:
         GI = (Jw / (np.pi * denom))
         GI[0] = 0.0  # sin(0·τ)=0
 
-        cos_sum = dct(GR, type=1, norm=None)
-        sin_sum = dst(GI, type=1, norm=None)
+        # Clenshaw–Curtis endpoint weights on [0,W]
+        ccw = np.ones_like(w)
+        ccw[0] *= 0.5
+        ccw[-1] *= 0.5
+
+        cos_sum = dct(GR * ccw, type=1, norm=None)
+        sin_sum = dst(GI * ccw, type=1, norm=None)
 
         phi_real_grid = self.dw * cos_sum
         phi_imag_grid = self.dw * sin_sum
@@ -155,34 +161,64 @@ class _BathCorrFFT:
             self._cache[key] = K_pos
             return K_pos
 
-        # C(τ) (Eq. 16) and damping
-        C = (kappa**2) * (np.exp(lamda * self.phi_tau) - 1.0)
+        # C(τ) with the corrected sign: C(τ)=κ^2(e^{-λ φ(τ)} − 1)
+        C = (kappa**2) * (np.exp(-lamda * self.phi_tau) - 1.0)
+
         f = C * np.exp(-eta * self.tau)
         if self.window == 'kaiser':
             f = f * np.kaiser(self.tau.size, self.win_beta)
         elif self.window == 'hann':
             f = f * np.hanning(self.tau.size)
 
-        # Complex FFT; our convention needs +iωτ, numpy uses -iωτ → conjugate
+        # Numpy FFT uses e^{-iωτ}; conjugate to realize e^{+iωτ}
         F_full = self.dt * np.fft.fft(f)
         K_full = np.conj(F_full)
 
-        # Keep non-negative frequencies
-        K_pos = K_full[self._pos_mask]
+        K_pos = K_full[self._pos_mask]   # store ω≥0 only
         self._cache[key] = K_pos
         return K_pos
 
-    def eval(self, omega, lamda, kappa, eta=None, return_grid=False):
+    def eval(self, omega, lamda, kappa, eta=None, return_grid=False,
+             omega_is_energy=False, do_eta_extrap=False):
+        """
+        Evaluate K(ω) for array-like ω.
+        - omega_is_energy: divide by ħ to get angular freq before lookup.
+        - do_eta_extrap: use Richardson (2η−η) to reduce damping bias.
+        """
         if eta is None:
             eta = self.default_eta
-        Kgrid = self._build(lamda, kappa, eta)
-        if return_grid:
-            return self.omega_grid, Kgrid
 
-        omega = np.atleast_1d(omega).astype(float)
-        Re = np.interp(omega, self.omega_grid, Kgrid.real, left=0.0, right=0.0)
-        Im = np.interp(omega, self.omega_grid, Kgrid.imag, left=0.0, right=0.0)
-        out = Re + 1j*Im
+        # optionally build two grids and extrapolate η→0+
+        if do_eta_extrap:
+            K1 = self._build(lamda, kappa, eta)
+            K2 = self._build(lamda, kappa, 2*eta)
+            Kpos = 2*K1 - K2
+        else:
+            Kpos = self._build(lamda, kappa, eta)
+
+        if return_grid:
+            return self.omega_grid, Kpos
+
+        w = np.atleast_1d(omega).astype(float)
+        if omega_is_energy:
+            w = w / const.hbar  # convert E-differences to angular frequency
+
+        # Handle negatives correctly: K(-ω) = K(ω)^* for our +iωτ convention
+        out = np.empty(w.shape, dtype=complex)
+        mask_pos = (w >= 0)
+        wp = w[mask_pos]
+        wn = -w[~mask_pos]  # make positive
+
+        # interpolate on ω≥0 grid
+        Re_p = np.interp(wp, self.omega_grid, Kpos.real, left=0.0, right=0.0)
+        Im_p = np.interp(wp, self.omega_grid, Kpos.imag, left=0.0, right=0.0)
+        out[mask_pos] = Re_p + 1j*Im_p
+
+        # for negatives, use conjugate symmetry
+        Re_n = np.interp(wn, self.omega_grid, Kpos.real, left=0.0, right=0.0)
+        Im_n = np.interp(wn, self.omega_grid, Kpos.imag, left=0.0, right=0.0)
+        out[~mask_pos] = np.conj(Re_n + 1j*Im_n)
+
         return out if out.ndim else out[()]
 
 
@@ -226,7 +262,11 @@ class SpecDens:
     # fast Eq. (15) via FFT using cached grids
     def _correlationFT_fft(self, omega, lamda, kappa, eta=None, return_grid=False):
         # support scalar or array ω
-        return self._fft.eval(omega, lamda=float(lamda), kappa=float(kappa), eta=eta, return_grid=return_grid)
+        return self._fft.eval(
+                                omega, lamda=float(lamda), kappa=float(kappa),
+                                eta=eta, return_grid=return_grid,
+                                do_eta_extrap=False         # set True if you want a bit more accuracy
+                            )
     
 
 
@@ -358,7 +398,7 @@ class SpecDensOld():
         
     # perform half-sided Fourier transform of bath correlation function based on Eq. (15)
     # K(ω) = ∫_0^∞ e^{iωτ} C(τ) dτ with C(τ) = κ^2 (exp(λ φ(τ)) - 1)
-    def bathCorrFT_new(self, omega, lamda, kappa, tmax_factor=60.0, sign='plus'):
+    def bathCorrFT_new(self, omega, lamda, kappa, tmax_factor=40.0, sign='plus'):
         """
         Half-sided FT of C(τ) = κ^2 (exp(λ Φ(τ)) - 1).
         sign='minus' implements K(ω)=∫_0^∞ e^{-iωτ} C(τ)dτ  (common in Redfield)
