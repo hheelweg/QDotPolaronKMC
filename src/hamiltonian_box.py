@@ -240,7 +240,7 @@ class SpecDens:
             beta = 1.0 / const.kT
             # knobs: W and N; adjust if you need tighter accuracy
             W = 20.0 * self.omega_c
-            N = 263850  # ~2^14+1
+            N = 16385  # ~2^14+1
             self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c, window=None)
             # API compatibility:
@@ -265,7 +265,7 @@ class SpecDens:
         return self._fft.eval(
                                 omega, lamda=float(lamda), kappa=float(kappa),
                                 eta=eta, return_grid=return_grid,
-                                do_eta_extrap=False         # set True if you want a bit more accuracy
+                                do_eta_extrap=True         # set True if you want a bit more accuracy
                             )
     
 
