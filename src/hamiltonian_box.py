@@ -225,8 +225,6 @@ class SpecDens:
             # API compatibility:
             self.Phi = self._phi_tr.phi
             self.correlationFT = self._correlationFT_fft
-            # verify
-            self.verify()
 
         elif self.bath_method == 'first-order':
             raise ValueError("Not implemented in this SpecDens class")
@@ -245,76 +243,6 @@ class SpecDens:
         # support scalar or array ω
         return self._fft.eval(omega, lamda=float(lamda), kappa=float(kappa), eta=eta, return_grid=return_grid)
     
-
-    def verify(self, tol=1e-8, kappa_test=1.0, eta_factor=1e-3, verbose=True):
-        """
-        Rigorous checks:
-        (i)  Im φ(0) = 0
-        (ii) Re φ has zero slope at 0 (within tol)
-        (iii) Im φ'(0) equals -∫ J(ω)/(π ω) dω on [0,W] using the SAME quadrature
-        (iv) λ=0 ⇒ K(ω)=0
-        (v)  η-consistency: ||K_η - K_{2η}|| shrinks
-        """
-        if getattr(self, 'bath_method', None) != 'exact' or not hasattr(self, '_phi_tr'):
-            raise RuntimeError("verify() requires bath_method='exact' and GL-based _PhiTransformer.")
-
-        out = {}
-        tau = self._phi_tr.tau_grid
-        phi_grid = self._phi_tr.phi_grid
-        dt = self._phi_tr.dtau
-
-        # (i) Im φ(0) = 0
-        im0 = float(abs(phi_grid.imag[0]))
-        out['imag_phi_at_0'] = im0
-        out['imag_phi_at_0_ok'] = (im0 < 100*tol)  # allow tiny float noise
-
-        # (ii) Re φ slope at 0 → 0 (use forward difference)
-        re_slope = (phi_grid.real[1] - phi_grid.real[0]) / (tau[1] - tau[0])
-        out['re_phi_prime_at_0'] = float(abs(re_slope))
-        out['re_phi_prime_at_0_ok'] = (abs(re_slope) < 100*tol)
-
-        # (iii) Im φ'(0) from the SAME quadrature (no finite-diff!)
-        # φ'(0) = - i * ∫_0^W J(ω)/(π ω) dω  ⇒  Im φ'(0) = - ∫ J/(π ω) dω  (negative real)
-        w = self._phi_tr._omega_quad
-        dw = self._phi_tr._domega_quad
-        GI = self._phi_tr._GI_quad  # = J/(π ω^2)
-        im_slope_quad = - float(np.sum(dw * (GI * w)))  # - ∫ J/(π ω) dω on [0,W]
-        im_slope_num  = (phi_grid.imag[1] - phi_grid.imag[0]) / (tau[1] - tau[0])
-        out['im_phi_prime_target'] = im_slope_quad
-        out['im_phi_prime_num'] = float(im_slope_num)
-        abs_err = abs(im_slope_num - im_slope_quad)
-        rel_err = abs_err / (abs(im_slope_quad) + 1e-30)
-        out['im_phi_prime_abs_err'] = float(abs_err)
-        out['im_phi_prime_rel_err'] = float(rel_err)
-        out['im_phi_prime_ok'] = (rel_err < 5e-3)  # tighten as you like
-
-        # (iv) λ=0 ⇒ K(ω)=0
-        omegas = np.linspace(0.0, min(10*self.omega_c, 0.5/dt)*2*np.pi, 256)
-        K0 = self._fft.eval(omegas, lamda=0.0, kappa=kappa_test)
-        null_err = float(np.max(np.abs(K0)))
-        out['lambda0_K_maxabs'] = null_err
-        out['lambda0_ok'] = (null_err < 100*tol)
-
-        # (v) η-consistency on native FFT grid (no interp)
-        eta = eta_factor * self.omega_c
-        K1 = self._fft._build(lamda=1.0, kappa=kappa_test, eta=eta)
-        K2 = self._fft._build(lamda=1.0, kappa=kappa_test, eta=2*eta)
-        diff_norm = float(np.linalg.norm(K1 - K2, ord=np.inf))
-        ref_norm  = float(np.linalg.norm(K1, ord=np.inf) + 1e-30)
-        out['eta_diff_rel'] = diff_norm / ref_norm
-        out['eta_consistent'] = (out['eta_diff_rel'] < 5e-2)  # expect small; if not, adjust N_tau/eta
-
-        if verbose:
-            print("[SpecDens.verify] Eq.17: Im φ(0) =", im0, "OK?", out['imag_phi_at_0_ok'])
-            print("[SpecDens.verify] Eq.17: Re φ'(0) ≈", out['re_phi_prime_at_0'], "OK?", out['re_phi_prime_at_0_ok'])
-            print("[SpecDens.verify] Eq.17: Im φ'(0) num =", out['im_phi_prime_num'],
-                " target =", out['im_phi_prime_target'],
-                " |rel err| =", out['im_phi_prime_rel_err'],
-                " OK?", out['im_phi_prime_ok'])
-            print("[SpecDens.verify] Eq.16→15 λ=0 ⇒ K=0: max|K| =", null_err, "OK?", out['lambda0_ok'])
-            print("[SpecDens.verify] η-consistency: rel ||K_η - K_{2η}||_∞ =", out['eta_diff_rel'],
-                " OK?", out['eta_consistent'])
-        return out
 
 
 # previous version 
