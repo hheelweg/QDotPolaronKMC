@@ -122,7 +122,8 @@ class _PhiTransformer:
         im = self._interp1(tau, self.tau_grid, self._phi_im)
         out = re - 1j * im
         return out if out.ndim else out[()]
-    
+
+
 class _BathCorrFFT:
     """Fast Eq. (15) via complex FFT on τ-grid from _PhiTransformer with caching."""
     def __init__(self, phi_tr, omega_c, default_eta=None, window=None, win_beta=8.0):
@@ -201,7 +202,7 @@ class SpecDens:
         if self.bath_method == 'exact':
             beta = 1.0 / const.kT
             # knobs: W and N; adjust if you need tighter accuracy
-            W = 15.0 * self.omega_c
+            W = 40.0 * self.omega_c
             N = 16385  # ~2^14+1
             self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c, window=None)
