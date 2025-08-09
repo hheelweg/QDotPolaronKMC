@@ -207,31 +207,50 @@ class SpecDens():
         return out if out.shape != () else out[()]
 
     # Eq. (15): K(ω) = ∫_0^∞ e^{iωτ} ⟨V(τ)V(0)⟩ dτ with ⟨V(τ)V(0)⟩ = κ^2 (e^{λ φ(τ)} - 1)
-    def bathCorrFT(self, omega, lamda, kappa):
+    def bathCorrFT(self, omega, lamda, kappa, eta=None, epsabs=1e-9, epsrel=1e-7):
+        """
+        Implements Eq. (15): K(ω) = ∫_0^∞ e^{iωτ} ⟨V(τ)V(0)⟩ dτ,
+        with ⟨V(τ)V(0)⟩ = κ^2 (exp(λ φ(τ)) - 1).
+        Uses small exponential damping e^{-ητ} for numerical stability.
+        """
         omega = np.atleast_1d(omega).astype(float)
-        if lamda == 0 or kappa == 0:
-            return np.zeros_like(omega, dtype=complex)
+        out = np.empty_like(omega, dtype=complex)
 
-        # choose a time cutoff; larger if your J(ω) has a slow tail
-        tmax = 100.0 / self.omega_c
-        tmin = 1e-14
+        if lamda == 0 or kappa == 0:
+            out[:] = 0.0
+            return out if out.shape != () else out[()]  # scalar if input scalar
+
+        if eta is None:
+            eta = 1e-3 * self.omega_c  # small positive; increase if warnings persist
+
+        # Correlator pieces a(τ) + i b(τ)
+        def C(t):
+            return kappa**2 * (np.exp(lamda * self.phi(t)) - 1.0)
 
         def a(t):
-            return np.real(kappa**2 * (np.exp(lamda * self.phi(t)) - 1.0))
+            return np.real(C(t)) * np.exp(-eta * t)
 
         def b(t):
-            return np.imag(kappa**2 * (np.exp(lamda * self.phi(t)) - 1.0))
+            return np.imag(C(t)) * np.exp(-eta * t)
 
-        K = np.empty_like(omega, dtype=complex)
         for i, w in enumerate(omega):
-            A_cos = integrate.quad(a, tmin, tmax, weight='cos', wvar=w, limit=200)[0]
-            B_sin = integrate.quad(b, tmin, tmax, weight='sin', wvar=w, limit=200)[0]
-            A_sin = integrate.quad(a, tmin, tmax, weight='sin', wvar=w, limit=200)[0]
-            B_cos = integrate.quad(b, tmin, tmax, weight='cos', wvar=w, limit=200)[0]
-            Re = A_cos - B_sin          # <-- minus sign
-            Im = A_sin + B_cos          # <-- plus sign
-            K[i] = Re + 1j*Im
-        return K                
+            # Real part: ∫ [a cos - b sin]
+            A_cos = integrate.quad(a, 0.0, np.inf, weight='cos', wvar=w,
+                                limlst=1000, maxp1=200, limit=2000,
+                                epsabs=epsabs, epsrel=epsrel)[0]
+            B_sin = integrate.quad(b, 0.0, np.inf, weight='sin', wvar=w,
+                                limlst=1000, maxp1=200, limit=2000,
+                                epsabs=epsabs, epsrel=epsrel)[0]
+            # Imag part: ∫ [a sin + b cos]
+            A_sin = integrate.quad(a, 0.0, np.inf, weight='sin', wvar=w,
+                                limlst=1000, maxp1=200, limit=2000,
+                                epsabs=epsabs, epsrel=epsrel)[0]
+            B_cos = integrate.quad(b, 0.0, np.inf, weight='cos', wvar=w,
+                                limlst=1000, maxp1=200, limit=2000,
+                                epsabs=epsabs, epsrel=epsrel)[0]
+            out[i] = (A_cos - B_sin) + 1j * (A_sin + B_cos)
+
+        return out if out.shape != () else out[()]                
 
 
     # first order approximation to the bath correlation function in Eq. (16)
