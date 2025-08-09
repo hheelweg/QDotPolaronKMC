@@ -121,7 +121,7 @@ class SpecDens():
         
         beta = 1.0/const.kT
         uppLim=np.inf
-        uppLim= 20 * self.omega_c
+        uppLim= 100 * self.omega_c
         
         if type(tau) == float or type(tau) == int or type(tau) == np.float64:
             tau = np.array([tau])
@@ -174,7 +174,7 @@ class SpecDens():
             
             # perform half-sided Fourier transform (real/imaginary parts separately)
             uppLim=np.inf
-            uppLim = 20 * self.omega_c
+            uppLim = 100 * self.omega_c
             lowLim=1E-14
             for i in np.arange(np.size(omega)):
                 bathCorrFT_real1[i]=integrate.quad(integrandFT_real, lowLim, uppLim, limit=200, weight='cos', wvar=omega[i], limlst = 200)[0]
