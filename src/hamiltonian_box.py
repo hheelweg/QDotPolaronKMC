@@ -56,9 +56,9 @@ class Hamiltonian(HamiltonianSystem):
         self.sysbath = ham_sysbath
 
         # sepctral density
-        if type(spec_density) != SpecDensOld:
+        if type(spec_density) != SpecDens:
             max_energy_diff = np.max(evals) - np.min(evals)
-            self.spec = SpecDensOld(spec_density, max_energy_diff)
+            self.spec = SpecDens(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
 
@@ -239,7 +239,7 @@ class SpecDens:
         if self.bath_method == 'exact':
             beta = 1.0 / const.kT
             # knobs: W and N; adjust if you need tighter accuracy
-            W = 15.0 * self.omega_c
+            W = 40.0 * self.omega_c
             N = 16385  # ~2^14+1
             self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c, window=None)
