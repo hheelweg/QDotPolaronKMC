@@ -75,7 +75,7 @@ class SpecDens():
             self.omega_inf = 20*self.omega_c
             #self.cheby_tau_cutoff = 40/self.omega_c
             #omega_grid = np.linspace(1e-6, 20 * self.omega_c, 5000)
-            omega_grid = np.linspace(1e-10, 20 * self.omega_c, 5000)
+            omega_grid = np.linspace(1e-6, 20 * self.omega_c, 5000)
 
             # real part of bath correlation function 
             def re_bath_corr(omega):
