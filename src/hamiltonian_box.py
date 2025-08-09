@@ -95,10 +95,14 @@ class SpecDens():
             self.re_interp = interp1d(omega_grid, re_vals, kind='cubic', bounds_error=False, fill_value=0.0)
             self.hilb_interp = interp1d(omega_grid, hilb, kind='cubic', bounds_error=False, fill_value=0.0)
 
-        if self.bath_method == 'first-order':
-            #self.correlationFT = self.firstOrderFT
-            #self.correlationFT = self.fastfirstOrderFT
+        
+        if self.bath_method == 'exact':
+            self.Phi = self.phi     # use exact phi
             self.correlationFT = self.bathCorrFT
+        
+        elif self.bath_method == 'first-order':
+            #self.correlationFT = self.firstOrderFT
+            self.correlationFT = self.fastfirstOrderFT
         else:
             raise SystemExit
 
