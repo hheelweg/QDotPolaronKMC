@@ -207,50 +207,70 @@ class SpecDens():
         return out if out.shape != () else out[()]
 
     # Eq. (15): K(ω) = ∫_0^∞ e^{iωτ} ⟨V(τ)V(0)⟩ dτ with ⟨V(τ)V(0)⟩ = κ^2 (e^{λ φ(τ)} - 1)
-    def bathCorrFT(self, omega, lamda, kappa, eta=None, epsabs=1e-9, epsrel=1e-7):
+    def bathCorrFT(self, omega, lamda, kappa, *,
+                    dt=None, T=None, eta=None,
+                    window='kaiser', win_beta=8.0,
+                    return_grid=False):
         """
-        Implements Eq. (15): K(ω) = ∫_0^∞ e^{iωτ} ⟨V(τ)V(0)⟩ dτ,
-        with ⟨V(τ)V(0)⟩ = κ^2 (exp(λ φ(τ)) - 1).
-        Uses small exponential damping e^{-ητ} for numerical stability.
+        Fast Eq. (15) via rFFT.
+        omega : array-like of target frequencies (rad/time)
+        lamda : λ_{mn,m'n'} (scalar)
+        kappa : coupling κ (scalar)
+        dt    : time step; if None, chosen heuristically
+        T     : total time; if None, chosen from eta
+        eta   : small damping (>0); default 1e-3 * omega_c
+        window: None | 'kaiser' | 'hann'
+        return_grid: if True, return (omega_grid, K_grid) instead of interpolating
         """
         omega = np.atleast_1d(omega).astype(float)
-        out = np.empty_like(omega, dtype=complex)
 
         if lamda == 0 or kappa == 0:
-            out[:] = 0.0
-            return out if out.shape != () else out[()]  # scalar if input scalar
+            Z = np.zeros_like(omega, dtype=complex)
+            return Z
 
         if eta is None:
-            eta = 1e-3 * self.omega_c  # small positive; increase if warnings persist
+            eta = 1e-3 * self.omega_c
 
-        # Correlator pieces a(τ) + i b(τ)
-        def C(t):
-            return kappa**2 * (np.exp(lamda * self.phi(t)) - 1.0)
+        # Heuristics for grid
+        wmax = float(np.max(omega)) if omega.size else 0.0
+        if dt is None:
+            # resolve both ω_c and requested wmax; smaller wins
+            dt = 0.1 / max(self.omega_c, 1e-12)
+            if wmax > 0:
+                dt = min(dt, np.pi / (8.0*(wmax + eta)))
+        if T is None:
+            # make e^{-eta T} tiny
+            T = max(50.0/ self.omega_c, 12.0/eta)
 
-        def a(t):
-            return np.real(C(t)) * np.exp(-eta * t)
+        # Build time grid (power-of-two for fast FFT)
+        N = int(2 ** np.ceil(np.log2(T / dt)))
+        t = np.arange(N) * dt
 
-        def b(t):
-            return np.imag(C(t)) * np.exp(-eta * t)
+        # Correlator C(t) = κ^2 (exp(λ φ(t)) - 1)
+        # vectorized φ
+        phi_t = self.phi(t)        # assumes your phi(t) returns complex array
+        C_t = kappa**2 * (np.exp(lamda * phi_t) - 1.0)
 
-        for i, w in enumerate(omega):
-            # Real part: ∫ [a cos - b sin]
-            A_cos = integrate.quad(a, 0.0, np.inf, weight='cos', wvar=w,
-                                limlst=1000, maxp1=200, limit=2000,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            B_sin = integrate.quad(b, 0.0, np.inf, weight='sin', wvar=w,
-                                limlst=1000, maxp1=200, limit=2000,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            # Imag part: ∫ [a sin + b cos]
-            A_sin = integrate.quad(a, 0.0, np.inf, weight='sin', wvar=w,
-                                limlst=1000, maxp1=200, limit=2000,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            B_cos = integrate.quad(b, 0.0, np.inf, weight='cos', wvar=w,
-                                limlst=1000, maxp1=200, limit=2000,
-                                epsabs=epsabs, epsrel=epsrel)[0]
-            out[i] = (A_cos - B_sin) + 1j * (A_sin + B_cos)
+        # Damping and optional window to reduce leakage
+        f = C_t * np.exp(-eta * t)
+        if window == 'kaiser':
+            f = f * np.kaiser(N, win_beta)
+        elif window == 'hann':
+            f = f * np.hanning(N)
 
-        return out if out.shape != () else out[()]                
+        # rFFT (one-sided). Normalization Δt and sign convention fix:
+        F = dt * np.fft.rfft(f)
+        K_grid = np.conj(F)              # because rfft uses e^{-i ...}
+        omega_grid = 2.0 * np.pi * np.fft.rfftfreq(N, d=dt)
+
+        if return_grid:
+            return omega_grid, K_grid
+
+        # Interpolate to requested ω (outside range -> 0)
+        # Use real/imag separately for safe interpolation.
+        re = np.interp(omega, omega_grid, K_grid.real, left=0.0, right=0.0)
+        im = np.interp(omega, omega_grid, K_grid.imag, left=0.0, right=0.0)
+        return re + 1j*im               
 
 
     # first order approximation to the bath correlation function in Eq. (16)
