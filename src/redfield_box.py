@@ -561,7 +561,7 @@ class Redfield(Unitary):
         
         print('rates', rates)
 
-        return rates, final_pol_idxs, None  # you can pass elapsed time if you like
+        return rates, final_pol_idxs, time.time() - start  # you can pass elapsed time if you like
 
 
     # def make_redfield_box(self, center_idx):
