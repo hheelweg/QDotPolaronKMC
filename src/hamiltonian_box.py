@@ -247,7 +247,7 @@ class SpecDens:
     # fast Eq. (15) via FFT using cached grids
     def _correlationFT_fft(self, omega, lamda, kappa, eta=None, return_grid=False):
         # support scalar or array ω
-        return self._fft.eval(omega, lamda=float(lamda), kappa=float(kappa), eta=eta, return_grid=return_grid)
+        return - self._fft.eval(omega, lamda=float(lamda), kappa=float(kappa), eta=eta, return_grid=return_grid)
 
 
 
