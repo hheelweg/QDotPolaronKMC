@@ -242,7 +242,7 @@ class SpecDens:
             W = 40.0 * self.omega_c
             N = 16385  # ~2^14+1
             self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
-            self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c, window='kaiser')
+            self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c, window='kaiser', win_beta=12)
             # API compatibility:
             self.Phi = self._phi_tr.phi
             self.correlationFT = self._correlationFT_fft
