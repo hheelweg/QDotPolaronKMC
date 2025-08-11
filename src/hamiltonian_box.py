@@ -56,11 +56,54 @@ class Hamiltonian(HamiltonianSystem):
         self.sysbath = ham_sysbath
 
         # sepctral density
-        if type(spec_density) != SpecDensOld:
+        if type(spec_density) != SpecDens:
             max_energy_diff = np.max(evals) - np.min(evals)
-            self.spec = SpecDensOld(spec_density, max_energy_diff)
+            self.spec = SpecDens(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
+
+class _PhiTransformerAccurate:
+    """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
+
+    def __init__(self, J_callable, beta, omega_c, N_tau=2000, tau_max_factor=70.0):
+        self.J = J_callable
+        self.beta = float(beta)
+        self.omega_c = float(omega_c)
+        self.N_tau = int(N_tau)
+        self.tau_max = tau_max_factor / self.omega_c
+        self.tau_grid = np.linspace(0.0, self.tau_max, self.N_tau)
+
+        phi_real = np.zeros_like(self.tau_grid)
+        phi_imag = np.zeros_like(self.tau_grid)
+
+        uppLim = 100 * self.omega_c  # as in baseline
+        lowLim = 1e-14
+
+        for i, tau in enumerate(self.tau_grid):
+            if tau > 0 and tau < (self.omega_c / 200.0):
+                # no quad weights
+                def integrand_real(omega):
+                    return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2) * np.cos(tau * omega)
+                def integrand_imag(omega):
+                    return 1/(np.pi*omega**2)*self.J(omega) * np.sin(tau * omega)
+                phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim)[0]
+                phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim)[0]
+            else:
+                def integrand_real(omega):
+                    return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2)
+                def integrand_imag(omega):
+                    return 1/(np.pi*omega**2)*self.J(omega)
+                phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim, weight='cos', wvar=tau, limit=200)[0]
+                phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim, weight='sin', wvar=tau, limit=200)[0]
+
+        self.phi_grid = phi_real - 1j*phi_imag
+
+    def phi(self, tau):
+        tau = np.atleast_1d(tau).astype(float)
+        re = np.interp(tau, self.tau_grid, self.phi_grid.real, left=0.0, right=0.0)
+        im = np.interp(tau, self.tau_grid, self.phi_grid.imag, left=0.0, right=0.0)
+        out = re - 1j*im
+        return out if out.ndim else out[()]
 
 class _PhiTransformer:
     """Fast Eq. (17) on a fixed (ω,τ) grid using DCT/DST + cubic splines."""
@@ -229,7 +272,8 @@ class SpecDens:
             # knobs: W and N; adjust if you need tighter accuracy
             W = 40.0 * self.omega_c
             N = 16385  # ~2^14+1
-            self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
+            # self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
+            self._phi_tr = _PhiTransformerAccurate(self.J, beta, self.omega_c)
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c)
             # API compatibility:
             self.Phi = self._phi_tr.phi
