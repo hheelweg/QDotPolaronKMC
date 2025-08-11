@@ -305,7 +305,7 @@ class KMCRunner():
         pol_idxs = self.pol_idxs_last
         site_idxs = self.site_idxs_last
 
-        rates, final_states, tot_time = self.redfield.make_redfield_box_for_indices(
+        self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_for_indices(
             pol_idxs=pol_idxs,
             site_idxs=site_idxs,
             center_local=center_local
@@ -313,8 +313,8 @@ class KMCRunner():
 
         overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[center_local], self.polaron_locs)
         self.stored_npolarons_box[overall_idx_start] = len(site_idxs)
-        self.stored_polaron_sites[overall_idx_start] = np.copy(final_states)
-        self.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
+        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
+        self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
 
         return tot_time
 
