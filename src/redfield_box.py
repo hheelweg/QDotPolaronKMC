@@ -327,8 +327,16 @@ class NewRedfield(Unitary):
 
         return rates, final_site_idxs, time.time() - start_tot
 
-    def make_redfield_box_for_indices(self, *, pol_idxs, site_idxs, center_local):
+    def make_redfield_box_for_indices(self, *, pol_idxs, site_idxs, center_local, compat_indexing=True):
+        """
+        Bit-for-bit reproduction of your original make_redfield_box, but operating
+        on explicit index arrays prepared by NEW_get_box. Matches baseline rates.
 
+        compat_indexing=True  -> use the original hybrid ω indexing:
+                                omega_diff[i_local, center_global]
+                            False -> use physically consistent global/global indexing.
+        """
+        import time
         t0_all = time.time()
         time_verbose = getattr(self, "time_verbose", False)
 
@@ -339,9 +347,10 @@ class NewRedfield(Unitary):
         if time_verbose:
             print('npols, nsites', npols, nsites)
 
+        # Map local center to global
         center_global = int(pol_idxs[center_local])
 
-        # λ tensor
+        # --- λ tensor (same as baseline) ---
         ident = np.identity(nsites)
         ones  = np.ones((nsites, nsites, nsites, nsites))
         lamdas = ( np.einsum('ac, abcd->abcd', ident, ones)
@@ -350,45 +359,49 @@ class NewRedfield(Unitary):
                 - np.einsum('bc, abcd->abcd', ident, ones) )
         lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
 
-        # Bath integrals – baseline-compatible ω indexing:
+        # --- Bath integrals: reproduce baseline ω-indexing exactly when compat_indexing=True ---
         t_bath = time.time()
         bath_integrals = []
         for lam in lamdalist:
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0.0:
                 for i_local in range(npols):
-                    # LEFT index is the *local position*, just like the original code
-                    omega_ij = self.ham.omega_diff[i_local, center_global]
+                    omega_ij = self.ham.omega_diff[i_local, center_global]  # left=local row index!
                     vec[i_local] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
         if time_verbose:
             print('time(bath integrals)', time.time() - t_bath, flush=True)
 
-        # Transform full op then slice (matches baseline)
+        # --- Transform sysbath ops: FULL transform, THEN slice (matches baseline) ---
         t_tr = time.time()
         Gs = np.zeros((nsites, nsites), dtype=object)
         for aa, a_idx in enumerate(site_idxs):
             for bb, b_idx in enumerate(site_idxs):
+                # FULL operator in global site basis:
                 op_ab_full = self.ham.sysbath[int(a_idx)][int(b_idx)]
+                # FULL transform to eigenbasis:
                 G_full = self.ham.site2eig(op_ab_full)
+                # THEN slice to (pol_idxs x pol_idxs):
                 Gs[aa][bb] = G_full[np.ix_(pol_idxs, pol_idxs)]
         if time_verbose:
             print('time(site→eig)', time.time() - t_tr, flush=True)
 
-        # Accumulate γ⁺
+        # --- Accumulate gamma_plus: same algebra as baseline ---
         t_acc = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
         for lam_idx, lam in enumerate(lamdalist):
             indices = np.argwhere(lamdas == lam)
             if indices.size == 0:
                 continue
-            for a,b,c,d in indices:
+            for abcd in indices:
+                a, b, c, d = map(int, abcd)
                 gamma_plus += bath_integrals[lam_idx] * (
                     np.multiply(Gs[c][d].T[center_local], Gs[a][b][center_local])
                 )
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t_acc, flush=True)
 
+        # --- Outgoing rates (remove center), identical to baseline ---
         red_R_tensor = 2.0 * np.real(gamma_plus)
         rates = np.delete(red_R_tensor, center_local) / const.hbar
         final_site_idxs = np.delete(np.asarray(pol_idxs, dtype=int), center_local)
