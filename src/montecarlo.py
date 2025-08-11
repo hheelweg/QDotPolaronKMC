@@ -407,6 +407,9 @@ class KMCRunner():
         assert where.size == 1, "Center polaron not uniquely found in pol_idxs_last"
         self.center_local = int(where[0])
 
+        
+        self.hamil_box = self.hamil[np.ix_(self.site_idxs_last, self.site_idxs_last)]
+
 
 
 
