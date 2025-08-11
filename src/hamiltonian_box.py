@@ -67,20 +67,21 @@ class Hamiltonian(HamiltonianSystem):
 class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
-    def __init__(self, J_callable, beta, omega_c, N_tau=2000, tau_max_factor=70.0):
+    def __init__(self, J_callable, beta, omega_c, omega_inf, N_tau=2000, tau_max_factor=70.0):
         
         self.J = J_callable
         self.beta = float(beta)
         self.omega_c = float(omega_c)
+
+        # set up τ grid
         self.N_tau = int(N_tau)
         self.tau_max = tau_max_factor / self.omega_c
         self.tau_grid = np.linspace(0.0, self.tau_max, self.N_tau)
-
         phi_real = np.zeros_like(self.tau_grid)
         phi_imag = np.zeros_like(self.tau_grid)
 
         # integration limits for integral over ω 
-        uppLim = 40 * self.omega_c
+        uppLim = omega_inf
         lowLim = 1e-12
 
         for i, tau in enumerate(self.tau_grid):
@@ -183,6 +184,7 @@ class _BathCorrFFT:
 
 
 class SpecDens:
+
     def __init__(self, spec_dens_list, max_energy_diff):
         sd_type = spec_dens_list[0]
         self.bath_method = spec_dens_list[-1]
@@ -194,14 +196,12 @@ class SpecDens:
             self.omega_c = spec_dens_list[2]
             self.J = self.cubic_exp
             self.low_freq_cutoff = self.omega_c / 200.0
-            self.omega_inf = 20 * self.omega_c
+            self.omega_inf = 40 * self.omega_c
 
         # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15) if using 'exact'
         if self.bath_method == 'exact':
-            self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c)
+            self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c, self.omega_inf)
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
-            # API compatibility:
-            #self.Phi = self._phi_tr.phi
             self.correlationFT = self._correlationFT_fft
 
         elif self.bath_method == 'first-order':
