@@ -302,19 +302,20 @@ class KMCRunner():
     #     return tot_time
 
     def NEW_kmatrix_box(self, center_local):
-        pol_idxs = self.pol_idxs_last
+        # use indices prepared by NEW_get_box
+        pol_idxs  = self.pol_idxs_last
         site_idxs = self.site_idxs_last
+        center_local = self.center_local
 
+        # reuse global redfield / hamiltonian
         self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_for_indices(
-            pol_idxs=pol_idxs,
-            site_idxs=site_idxs,
-            center_local=center_local
+            pol_idxs=pol_idxs, site_idxs=site_idxs, center_local=center_local
         )
 
-        overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[center_local], self.polaron_locs)
-        self.stored_npolarons_box[overall_idx_start] = len(site_idxs)
-        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
-        self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
+        overall_idx_start = self.pol_idxs_last[center_local]  # exact global index
+        self.stored_npolarons_box[overall_idx_start] = len(pol_idxs)
+        self.stored_polaron_sites[overall_idx_start] = np.copy(final_states)
+        self.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
 
         return tot_time
 
@@ -421,36 +422,40 @@ class KMCRunner():
 
     # need to continue here
     def NEW_make_kmc_step(self, polaron_start_site):
-        
-        # (1) create box around polaron start_site
-        self.NEW_get_box(polaron_start_site)
-        
-        # (2) get idx of polaron eigenstate in box
-        overall_idx_start = self.get_closest_idx(polaron_start_site, self.polaron_locs)
-        box_idx_start = self.get_closest_idx(polaron_start_site, self.eigstates_locs_abs)
-        start_pol = self.eigstates_locs_abs[self.center_local]
-        
-        # (3) get rates from this polaron (box center) to potential final states
-        if self.stored_npolarons_box[overall_idx_start] == 0:
-            tot_time = self.NEW_kmatrix_box(box_idx_start)
-        else:
-            tot_time = 0
-            self.final_states = self.stored_polaron_sites[overall_idx_start]
-            self.rates = self.stored_rate_vectors[overall_idx_start]
-        
-        # (4) rejection-free KMC step
-        # (4a) get cumulative rates
-        cum_rates = np.array([np.sum(self.rates[:i+1]) for i in range(len(self.rates))])
-        S = cum_rates[-1]
-        # (4b) draw random number u and determine j s.t. cumrates[j-1] < u*T < cum_rates[j]
-        u = np.random.uniform()
-        self.j = np.searchsorted(cum_rates, u * S)
-        # (4b) update time clock
-        self.time += - np.log(np.random.uniform()) / S
+        # (1) build box and store indices/locals
+        self.NEW_get_box(polaron_start_site)   # sets: pol_idxs_last, site_idxs_last, eigstates_locs_abs, center_local
 
-        # (5) obtain spatial coordinates of final polaron state j
+        # (2) center index bookkeeping (no value-based matching)
+        overall_idx_start = int(self.pol_idxs_last[self.center_local])     # global polaron index
+        start_pol = self.eigstates_locs_abs[self.center_local]             # absolute coord (in box order)
+
+        # (3) get rates for this center (compute once, then reuse)
+        if self.stored_npolarons_box[overall_idx_start] == 0:
+            # pass the local center index; NEW_kmatrix_box must use the stored indices
+            tot_time = self.NEW_kmatrix_box(self.center_local)
+        else:
+            tot_time = 0.0
+            self.final_states = self.stored_polaron_sites[overall_idx_start]
+            self.rates        = self.stored_rate_vectors[overall_idx_start]
+
+        # (4) rejection-free KMC step
+        # (4a) cumulative rates (vectorized)
+        cum_rates = np.cumsum(self.rates)
+        S = cum_rates[-1]
+
+        # safety: if no outgoing rate, stay put and advance zero time
+        if S <= 0.0:
+            self.j = 0
+            end_pol = start_pol
+            return start_pol, end_pol, tot_time
+
+        # (4b) pick hop and advance time
+        u = np.random.uniform()
+        self.j = int(np.searchsorted(cum_rates, u * S))
+        self.time += -np.log(np.random.uniform()) / S
+
+        # (5) absolute coord of final polaron within the box’s ordering
         end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
-        
         return start_pol, end_pol, tot_time
     
     
