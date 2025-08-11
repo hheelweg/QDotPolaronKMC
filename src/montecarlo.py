@@ -312,6 +312,11 @@ class KMCRunner():
         # (C) Local center index in that list (do NOT reuse center_local from the box)
         center_local_rf = int(np.where(pol_idxs_rf == center_global)[0][0])
 
+        pol_idxs_base, site_idxs_base = self.redfield.get_idxs(center_global)
+        assert np.array_equal(pol_idxs_base, pol_idxs_rf)
+        assert np.array_equal(site_idxs_base, site_idxs_rf)
+        assert center_local_rf == np.where(pol_idxs_rf == center_global)[0][0]
+
         # (D) Compute rates using those Redfield indices (bit-for-bit baseline algebra)
         self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_for_indices(
             pol_idxs=pol_idxs_rf,
