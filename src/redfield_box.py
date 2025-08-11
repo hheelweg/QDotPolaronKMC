@@ -308,97 +308,127 @@ class NewRedfield(Unitary):
 
     def make_redfield_box_for_indices(self, *, pol_idxs, site_idxs, center_local):
         """
-        Compute outgoing rates from the local center (center_local) using
-        exactly the same algebra as make_redfield_box, but operating on the
-        explicit index lists prepared by NEW_get_box.
-
-        Args
-        ----
-        pol_idxs : 1D array of int (local polaron eigenstate indices IN GLOBAL BASIS)
-        site_idxs: 1D array of int (local site indices IN GLOBAL BASIS)
-        center_local : int (index of center polaron within pol_idxs)
-
-        Returns
-        -------
-        rates : 1D float array of outgoing rates from center (center removed), in 1/time
-        final_site_idxs : 1D int array of destination polaron global indices (center removed)
-        tot_time : float, wall time spent here (seconds)
+        Bit-for-bit mirror of make_redfield_box, but taking explicit index lists.
         """
         import time
         start_tot = time.time()
-        time_verbose = getattr(self, "time_verbose", False)
+        if getattr(self, "time_verbose", False):
+            print('npols, nsites', len(pol_idxs), len(site_idxs))
 
-        npols  = int(len(pol_idxs))
-        nsites = int(len(site_idxs))
-        if time_verbose:
-            print('npols, nsites', npols, nsites)
+        # Local sizes and mapping
+        pol_idxs  = np.asarray(pol_idxs, dtype=np.intp)    # global polaron indices in this box
+        site_idxs = np.asarray(site_idxs, dtype=np.intp)   # global site indices in this box
+        npols  = int(pol_idxs.size)
+        nsites = int(site_idxs.size)
+        center_i = int(center_local)                       # local center index
+        center_global = int(pol_idxs[center_i])            # global center index
 
-        # Map local center to global index
-        center_global = int(pol_idxs[center_local])
-
-        # ---- λ-tensor (Eq. 16) on the local site set (identical construction)
-        ident = np.identity(nsites)
-        ones  = np.ones((nsites, nsites, nsites, nsites))
-        lamdas = ( np.einsum('ac, abcd->abcd', ident, ones)
-                + np.einsum('bd, abcd->abcd', ident, ones)
-                - np.einsum('ad, abcd->abcd', ident, ones)
-                - np.einsum('bc, abcd->abcd', ident, ones) )
-
+        # --- λ-tensor cache EXACTLY as in your original ---
+        if not hasattr(self, "_lam_idx_cache"):
+            self._lam_idx_cache = {}
         lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
+        if nsites not in self._lam_idx_cache:
+            ident = np.identity(nsites)
+            ones  = np.ones((nsites, nsites, nsites, nsites))
+            lamdas = (np.einsum('ac, abcd->abcd', ident, ones)
+                    + np.einsum('bd, abcd->abcd', ident, ones)
+                    - np.einsum('ad, abcd->abcd', ident, ones)
+                    - np.einsum('bc, abcd->abcd', ident, ones))
+            idx_dict = {}
+            for lam in lamdalist:
+                idxs = np.argwhere(lamdas == lam)
+                if idxs.size == 0:
+                    idx_dict[lam] = (np.array([], dtype=int),
+                                    np.array([], dtype=int),
+                                    np.array([], dtype=int),
+                                    np.array([], dtype=int))
+                else:
+                    a_idx, b_idx, c_idx, d_idx = idxs.T
+                    idx_dict[lam] = (a_idx, b_idx, c_idx, d_idx)
+            del lamdas
+            self._lam_idx_cache[nsites] = idx_dict
+        idx_dict = self._lam_idx_cache[nsites]
 
-        # ---- Bath integrals, exactly like your original (keep local loop order)
+        # --- sparse A_λ cache EXACTLY as in your original ---
+        if not hasattr(self, "_A_lambda_cache"):
+            self._A_lambda_cache = {}  # key: nsites -> { lam -> csr_matrix or None }
+        if nsites not in self._A_lambda_cache:
+            from scipy import sparse
+            AB = nsites * nsites
+            A_map = {}
+            for lam in lamdalist:
+                a_idx, b_idx, c_idx, d_idx = idx_dict[lam]
+                if a_idx.size == 0:
+                    A_map[lam] = None
+                else:
+                    ab_flat = (a_idx * nsites + b_idx).astype(np.intp)
+                    cd_flat = (c_idx * nsites + d_idx).astype(np.intp)
+                    data = np.ones_like(ab_flat, dtype=np.float64)
+                    A_map[lam] = sparse.csr_matrix((data, (ab_flat, cd_flat)), shape=(AB, AB))
+            self._A_lambda_cache[nsites] = A_map
+        A_map = self._A_lambda_cache[nsites]
+
+        # --- Bath integrals: keep the ORIGINAL indexing (local i with global center) ---
         t0 = time.time()
         bath_integrals = []
         for lam in lamdalist:
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0.0:
-                for i_local in range(npols):
-                    i_global = int(pol_idxs[i_local])
-                    omega_ij = self.ham.omega_diff[i_global, center_global]
+                for i_local in range(npols):  # local index on purpose
+                    # MATCH BASELINE: local i used against global omega_diff (as in your original)
+                    omega_ij = self.ham.omega_diff[i_local, center_global]
                     vec[i_local] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
-        if time_verbose:
+        if getattr(self, "time_verbose", False):
             print('time(bath integrals)', time.time() - t0, flush=True)
 
-        # ---- Transform sysbath operators to eigenbasis and slice to pol_idxs (unchanged)
+        # --- Transform sysbath operators and build the SAME 4D tensor Gs[a,b,i,j] ---
         t1 = time.time()
-        Gs = np.zeros((nsites, nsites), dtype=object)
+        Gs = np.empty((nsites, nsites, npols, npols), dtype=np.complex128)
         for aa, a_idx in enumerate(site_idxs):
             for bb, b_idx in enumerate(site_idxs):
-                # global site operator
-                op_ab = self.ham.sysbath[a_idx][b_idx]
-                # transform to eigenbasis and slice (pol_idxs × pol_idxs)
-                G_full = self.ham.site2eig(op_ab)
-                Gs[aa][bb] = G_full[np.ix_(pol_idxs, pol_idxs)]
-        if time_verbose:
+                G_full = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])
+                Gs[aa, bb] = G_full[np.ix_(pol_idxs, pol_idxs)]
+        if getattr(self, "time_verbose", False):
             print('time(site→eig)', time.time() - t1, flush=True)
 
-        # ---- Accumulate γ⁺ (same algebra and indexing as your original)
+        # --- PREP: flatten to R (row) and C (col), EXACTLY like original ---
+        AB = nsites * nsites
+        R = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))
+        C = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))
+
+        # --- optional pruning EXACTLY like original ---
+        row_mask = np.any(R != 0, axis=1)
+        col_mask = np.any(C != 0, axis=1)
+        ab_keep = row_mask | col_mask
+        if ab_keep.sum() < AB:
+            from scipy import sparse
+            R = R[ab_keep, :]
+            C = C[ab_keep, :]
+            A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
+                    for lam in lamdalist}
+            AB = ab_keep.sum()
+
+        # --- γ⁺ accumulation via CSR×dense and einsum (same algebra) ---
         t2 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
         for lam_idx, lam in enumerate(lamdalist):
-            # all (a,b,c,d) where λ_abcd == lam
-            indices = np.argwhere(lamdas == lam)
-            if indices.size == 0:
+            A = A_map[lam]
+            if A is None:
                 continue
-            for abcd in indices:
-                a, b, c, d = map(int, abcd)
-                # elementwise product of the center row and center column, then add bath weight
-                # Gs[c][d].T[center_local] has shape (npols,), same for Gs[a][b][center_local]
-                gamma_plus += bath_integrals[lam_idx] * (
-                    np.multiply(Gs[c][d].T[center_local], Gs[a][b][center_local])
-                )
-        if time_verbose:
+            Y = A.dot(C)                              # (AB, npols)
+            contrib = np.einsum('an,an->n', R, Y, optimize=True)
+            gamma_plus += bath_integrals[lam_idx] * contrib
+        if getattr(self, "time_verbose", False):
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
-        # ---- Outgoing rates (remove center), identical scaling by ħ
+        # --- Outgoing rates and destinations (center removed), identical to original ---
         red_R_tensor = 2.0 * np.real(gamma_plus)
-        rates = np.delete(red_R_tensor, center_local) / const.hbar
-        final_site_idxs = np.delete(np.asarray(pol_idxs, dtype=int), center_local)
+        rates = np.delete(red_R_tensor, center_i) / const.hbar
+        final_site_idxs = np.delete(pol_idxs, center_i)   # global indices (same as original)
 
-        if time_verbose:
+        if getattr(self, "time_verbose", False):
             print('time(total)', time.time() - start_tot, flush=True)
-
         print('rates', rates)
 
         return rates, final_site_idxs, time.time() - start_tot
