@@ -56,9 +56,9 @@ class Hamiltonian(HamiltonianSystem):
         self.sysbath = ham_sysbath
 
         # sepctral density
-        if type(spec_density) != SpecDens:
+        if type(spec_density) != SpecDensOld:
             max_energy_diff = np.max(evals) - np.min(evals)
-            self.spec = SpecDens(spec_density, max_energy_diff)
+            self.spec = SpecDensOld(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
 
@@ -270,7 +270,7 @@ class SpecDensOld():
             self.omega_c = spec_dens_list[2]
             self.J = self.cubic_exp
             self.low_freq_cutoff = self.omega_c/200
-            self.omega_inf = 20*self.omega_c
+            self.omega_inf = 40*self.omega_c
             #self.cheby_tau_cutoff = 40/self.omega_c
             #omega_grid = np.linspace(1e-6, 20 * self.omega_c, 5000)
             omega_grid = np.linspace(1e-6, 20 * self.omega_c, 5000)
