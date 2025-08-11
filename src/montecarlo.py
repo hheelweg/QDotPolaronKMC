@@ -303,24 +303,26 @@ class KMCRunner():
 
 
     def NEW_kmatrix_box(self, center_local):
-        """
-        Use the indices prepared by NEW_get_box (pol_idxs_last, site_idxs_last, center_local)
-        and compute rates with exactly the same algebra/order as the baseline.
-        """
-        # 1) Use indices that NEW_get_box already produced in the baseline order
-        pol_idxs  = self.pol_idxs_last
-        site_idxs = self.site_idxs_last
-        center_local = int(self.center_local)  # provided by NEW_get_box
+        # (A) Global index of the center polaron (unchanged)
+        center_global = self.get_closest_idx(self.eigstates_locs_abs[center_local], self.polaron_locs)
 
-        # 2) Compute outgoing rates using the indices as-is
+        # (B) Get the EXACT index sets & order the baseline uses
+        pol_idxs_rf, site_idxs_rf = self.redfield.get_idxs(center_global)
+
+        # (C) Local center index in that list (do NOT reuse center_local from the box)
+        center_local_rf = int(np.where(pol_idxs_rf == center_global)[0][0])
+
+        # (D) Compute rates using those Redfield indices (bit-for-bit baseline algebra)
         self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_for_indices(
-            pol_idxs=pol_idxs, site_idxs=site_idxs, center_local=center_local
+            pol_idxs=pol_idxs_rf,
+            site_idxs=site_idxs_rf,
+            center_local=center_local_rf
         )
 
-        # 3) Cache by the *global* center polaron index for reuse
-        overall_idx_start = int(pol_idxs[center_local])  # exact global index of center
-        self.stored_npolarons_box[overall_idx_start] = len(pol_idxs)
-        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)  # global indices
+        # (E) Cache by the global center index
+        overall_idx_start = center_global
+        self.stored_npolarons_box[overall_idx_start] = len(pol_idxs_rf)
+        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)   # GLOBAL indices
         self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
 
         return tot_time
