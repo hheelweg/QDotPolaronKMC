@@ -187,6 +187,7 @@ class SpecDens:
         sd_type = spec_dens_list[0]
         self.bath_method = spec_dens_list[-1]
         self.max_energy_diff = max_energy_diff  # if you need it elsewhere
+        beta = 1.0 / const.kT
 
         if sd_type == 'cubic-exp':
             self.lamda = spec_dens_list[1]
@@ -197,10 +198,7 @@ class SpecDens:
 
         # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15) if using 'exact'
         if self.bath_method == 'exact':
-            beta = 1.0 / const.kT
             self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c)
-            #self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c)
-            #self.Phi = self._phi_tr.phi
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
             # API compatibility:
             self.Phi = self._phi_tr.phi
@@ -223,8 +221,7 @@ class SpecDens:
         return self._fft.eval(
                             omega, lamda=float(lamda), kappa=float(kappa),
                             return_grid=return_grid,
-                            #eta = None,
-                            omega_is_energy=False   # you pass ΔE; we convert to ω = ΔE/ħ
+                            omega_is_energy=False   
                             )
     
 

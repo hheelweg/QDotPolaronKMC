@@ -257,7 +257,7 @@ class KMCRunner():
         
         my_ham = hamiltonian_box.Hamiltonian(self.eignrgs_box, self.eigstates_box, self.sites_locs_rel,
                                              ham_sysbath, self.spectrum, const.kB * self.temp)
-        my_redfield = redfield_box.Redfield(my_ham, self.kappa_polaron, self.r_hop, self.r_ove)
+        my_redfield = redfield_box.NewRedfield(my_ham, self.kappa_polaron, self.r_hop, self.r_ove)
 
         # get rates and indices of the potential final polaron states we can jump to
         self.rates, self.final_states = my_redfield.make_redfield_box(center)
