@@ -314,8 +314,8 @@ class KMCRunner():
 
         overall_idx_start = self.pol_idxs_last[center_local]  # exact global index
         self.stored_npolarons_box[overall_idx_start] = len(pol_idxs)
-        self.stored_polaron_sites[overall_idx_start] = np.copy(final_states)
-        self.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
+        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
+        self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
 
         return tot_time
 
