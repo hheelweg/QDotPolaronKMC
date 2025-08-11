@@ -374,13 +374,13 @@ class KMCRunner():
         center_coord = center  # (this is already the coordinate you pass in)
 
         # polaron indices: use ORIGINAL 'polaron_locations' (not polaron_locs)
-        dpol = self.polaron_locations[pol_pref] - center_coord
+        dpol = self.polaron_locs[pol_pref]  - center_coord
         if dpol.ndim == 1: dpol = dpol[:, None]
         pol_mask = np.linalg.norm(dpol, axis=1) < r_hop_abs
         pol_idxs = pol_pref[pol_mask]
 
         # site indices: use ORIGINAL 'ham.qd_lattice_rel' (not qd_locations)
-        dsite = self.ham.qd_lattice_rel[site_pref] - center_coord
+        dsite = self.qd_locations[site_pref] - center_coord
         if dsite.ndim == 1: dsite = dsite[:, None]
         site_mask = np.linalg.norm(dsite, axis=1) < r_ove_abs
         site_idxs = site_pref[site_mask]
