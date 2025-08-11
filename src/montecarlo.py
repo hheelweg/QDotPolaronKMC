@@ -237,7 +237,7 @@ class KMCRunner():
         self.full_ham = hamiltonian_box.Hamiltonian(self.eignrgs, self.eigstates, self.qd_locations,
                                              ham_sysbath, self.spectrum, const.kB * self.temp)
         # do we need this?
-        # self.spectrum_calc = self.full_ham.spec
+        self.spectrum_calc = self.full_ham.spec
         self.redfield = redfield_box.NewRedfield(
                                                  self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
                                                  time_verbose=True
@@ -383,49 +383,38 @@ class KMCRunner():
                 dy = (dy + grid_dimensions[1] / 2) % grid_dimensions[1] - grid_dimensions[1] / 2
                 return np.column_stack((dx, dy)) 
 
-        pol_pref = find_indices_within_box(self.polaron_locs, center,
-                                       self.lattice_dimension, self.box_size, periodic=periodic)
-        site_pref = find_indices_within_box(self.qd_locations, center,
-                                            self.lattice_dimension, self.box_size, periodic=periodic)
+        # get indices of polarons that are inside the box
+        pol_idxs = find_indices_within_box(self.polaron_locs, center,
+                                        self.lattice_dimension, self.box_size, periodic)
+        # get indices of sites that are within the box
+        site_idxs = find_indices_within_box(self.qd_locations, center,
+                                            self.lattice_dimension, self.box_size, periodic)
 
-        # (B) Refine by ORIGINAL physics: spherical strict-< WITHOUT wrap
-        #     (this matches your old get_idxs behavior)
-        r_hop_abs = self.r_hop * self.qd_spacing
-        r_ove_abs = self.r_ove * self.qd_spacing
+        # ensure uniqueness and stable order
+        pol_idxs  = np.unique(pol_idxs)
+        site_idxs = np.unique(site_idxs)
 
-        # polaron spherical cutoff (no periodic wrap here)
-        dp = self.polaron_locs[pol_pref] - center              # raw differences
-        if dp.ndim == 1: dp = dp[:, None]
-        pol_mask = np.linalg.norm(dp, axis=1) < r_hop_abs
-        pol_idxs = np.ascontiguousarray(pol_pref[pol_mask].astype(np.intp))
+        # store indices **directly** (do not rederive later)
+        self.pol_idxs_last  = pol_idxs.astype(np.intp)
+        self.site_idxs_last = site_idxs.astype(np.intp)
 
-        # site spherical cutoff (no periodic wrap here)
-        ds = self.qd_locations[site_pref] - center             # raw differences
-        if ds.ndim == 1: ds = ds[:, None]
-        site_mask = np.linalg.norm(ds, axis=1) < r_ove_abs
-        site_idxs = np.ascontiguousarray(site_pref[site_mask].astype(np.intp))
-
-        # (C) Store indices EXACTLY (no value-based rederivation later)
-        self.pol_idxs_last  = pol_idxs
-        self.site_idxs_last = site_idxs
-
-        # (D) Absolute positions in box
+        # absolute positions (unchanged)
         self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
         self.site_locs          = self.qd_locations[self.site_idxs_last]
 
-        # (E) Relative positions using your helper (periodic-aware for plotting/geometry)
+        # relative positions (unchanged)
         self.eigstates_locs = get_relative_positions(self.eigstates_locs_abs, center, self.lattice_dimension)
         self.sites_locs_rel = get_relative_positions(self.site_locs,         center, self.lattice_dimension)
 
-        # (F) Eigen-objects sliced by indices
+        # local box eigen-objects (fine to keep, but no index guessing elsewhere)
         self.eignrgs_box   = self.eignrgs[self.pol_idxs_last]
         self.eigstates_box = self.eigstates[self.site_idxs_last, :][:, self.pol_idxs_last]
 
-        # (G) Map center to LOCAL index (no value matching)
-        overall_idx_start = int(self.get_closest_idx(center, self.polaron_locs))  # global polaron index of the center
+        # **compute local center index from global index match, not value proximity**
+        overall_idx_start = self.get_closest_idx(center, self.polaron_locs)  # global index of center polaron
+        # map to local index inside pol_idxs_last
         where = np.nonzero(self.pol_idxs_last == overall_idx_start)[0]
-        if where.size != 1:
-            raise RuntimeError("Center polaron not uniquely found in pol_idxs_last")
+        assert where.size == 1, "Center polaron not uniquely found in pol_idxs_last"
         self.center_local = int(where[0])
 
 
