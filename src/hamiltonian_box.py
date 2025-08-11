@@ -78,7 +78,7 @@ class _PhiTransformerAccurate:
         phi_imag = np.zeros_like(self.tau_grid)
 
         uppLim = 100 * self.omega_c  # as in baseline
-        lowLim = 1e-16
+        lowLim = 1e-12
 
         for i, tau in enumerate(self.tau_grid):
             if tau > 0 and tau < (self.omega_c / 200.0):
