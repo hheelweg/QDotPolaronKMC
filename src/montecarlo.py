@@ -412,40 +412,36 @@ class KMCRunner():
 
 
     def NEW_make_kmc_step(self, polaron_start_site):
-        # (1) build the box around the start coordinate -> defines:
-        #     pol_idxs_last, site_idxs_last, hamil_box, eignrgs_box, eigstates_box,
-        #     eigstates_locs_abs, eigstates_locs, sites_locs_rel, center_local
+        
+        # (1) create box around polaron start_site
         self.NEW_get_box(polaron_start_site)
-
-        # (2) map the global center polaron index
-        overall_idx_start = int(self.pol_idxs_last[self.center_local])
-
-        # (3) compute (or reuse) outgoing rates from this center state
+        
+        # (2) get idx of polaron eigenstate in box
+        overall_idx_start = self.get_closest_idx(polaron_start_site, self.polaron_locs)
+        box_idx_start = self.get_closest_idx(polaron_start_site, self.eigstates_locs_abs)
+        start_pol = self.eigstates_locs_abs[box_idx_start]
+        
+        # (3) get rates from this polaron (box center) to potential final states
         if self.stored_npolarons_box[overall_idx_start] == 0:
-            tot_time = self.NEW_kmatrix_box(self.center_local)
+            tot_time = self.NEW_kmatrix_box(box_idx_start)
         else:
-            tot_time = 0.0
+            tot_time = 0
             self.final_states = self.stored_polaron_sites[overall_idx_start]
-            self.rates        = self.stored_rate_vectors[overall_idx_start]
-
+            self.rates = self.stored_rate_vectors[overall_idx_start]
+        
         # (4) rejection-free KMC step
-        #     guard for pathological zero-sum case (shouldn’t happen with positive rates, but safe)
-        S = float(np.sum(self.rates))
-        if S <= 0.0:
-            self.j = 0
-            start_pol = self.eigstates_locs_abs[self.center_local]
-            end_pol   = start_pol
-            return start_pol, end_pol, tot_time
-
-        # cumulative, sample jump, advance time
-        cum_rates = np.cumsum(self.rates)
+        # (4a) get cumulative rates
+        cum_rates = np.array([np.sum(self.rates[:i+1]) for i in range(len(self.rates))])
+        S = cum_rates[-1]
+        # (4b) draw random number u and determine j s.t. cumrates[j-1] < u*T < cum_rates[j]
         u = np.random.uniform()
-        self.j = int(np.searchsorted(cum_rates, u * S))
-        self.time += -np.log(np.random.uniform()) / S
+        self.j = np.searchsorted(cum_rates, u * S)
+        # (4b) update time clock
+        self.time += - np.log(np.random.uniform()) / S
 
-        # (5) start/end positions in absolute coordinates of the box
-        start_pol = self.eigstates_locs_abs[self.center_local]
-        end_pol   = self.eigstates_locs_abs[self.final_states[self.j]]
+        # (5) obtain spatial coordinates of final polaron state j
+        end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
+        
         return start_pol, end_pol, tot_time
 
     # need to continue here
