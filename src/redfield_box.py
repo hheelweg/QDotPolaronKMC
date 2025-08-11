@@ -366,13 +366,7 @@ class NewRedfield(Unitary):
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0.0:
                 for i_local in range(npols):
-                    if compat_indexing:
-                        # ORIGINAL hybrid indexing: local i on the left, global center on the right
-                        omega_ij = self.ham.omega_diff[i_local, center_global]
-                    else:
-                        # Consistent global/global indexing (physically cleaner)
-                        i_global = int(pol_idxs[i_local])
-                        omega_ij = self.ham.omega_diff[i_global, center_global]
+                    omega_ij = self.ham.omega_diff[i_local, center_global]  # left=local row index!
                     vec[i_local] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
         if time_verbose:
