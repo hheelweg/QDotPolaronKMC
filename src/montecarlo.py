@@ -322,97 +322,87 @@ class KMCRunner():
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
-    def NEW_get_box(self, center, periodic = True):
-
-        # box dimensions
+    def NEW_get_box(self, center, periodic=True):
+        # box dimensions (unchanged)
         self.box_size = self.box_length * self.qd_spacing
 
-        # (1)function that finds indices of points array within box_size of center
-        def find_indices_within_box(points, center, grid_dimensions, box_size, periodic = True):
-            # half box size
-            half_box = box_size /2
-            # get dimensiona of lattice and make sure all dimensions are equal
+        # --- your helpers (unchanged) ---
+        def find_indices_within_box(points, center, grid_dimensions, box_size, periodic=True):
+            half_box = box_size / 2
             dim = len(center)
             assert(len(points[0]) == len(center) == len(grid_dimensions))
-
-            # TODO : implement for 3D
             if dim == 1:
-                # Compute periodic distances in x direction
                 dx = np.abs(points - center[0])
-
-                # Apply periodic boundary conditions
-                dx = np.minimum(dx, grid_dimensions[0] - dx)  # Distance considering periodic wrapping
-
-                # Find indices where points are within the box
+                dx = np.minimum(dx, grid_dimensions[0] - dx) if periodic else dx
                 mask = (dx <= half_box)
                 return np.where(mask)[0]
-
             elif dim == 2:
-                # Compute periodic distances in x and y directions
                 dx = np.abs(points[:, 0] - center[0])
                 dy = np.abs(points[:, 1] - center[1])
-
-                # Apply periodic boundary conditions
-                dx = np.minimum(dx, grid_dimensions[0] - dx)  # Distance considering periodic wrapping
-                dy = np.minimum(dy, grid_dimensions[1] - dy)
-
-                # Find indices where points are within the square box
+                if periodic:
+                    dx = np.minimum(dx, grid_dimensions[0] - dx)
+                    dy = np.minimum(dy, grid_dimensions[1] - dy)
                 mask = (dx <= half_box) & (dy <= half_box)
                 return np.where(mask)[0]
 
-        # (2) function that finds relative position of points array w.r.t. centerx
         def get_relative_positions(points, center, grid_dimensions):
-
-            # get dimensiona of lattice and make sure all dimensions are equal
             dim = len(center)
             assert(len(points[0]) == len(center) == len(grid_dimensions))
             if dim == 1:
-                # Compute raw relative distances
                 dx = points - center[0]
-
-                # Apply periodic boundary conditions: adjust distances for wrap-around
-                dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2  # Wrap around midpoint
+                dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2 if periodic else dx
                 return dx
             elif dim == 2:
-                # Compute raw relative distances
                 dx = points[:, 0] - center[0]
                 dy = points[:, 1] - center[1]
+                if periodic:
+                    dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2
+                    dy = (dy + grid_dimensions[1] / 2) % grid_dimensions[1] - grid_dimensions[1] / 2
+                return np.column_stack((dx, dy))
 
-                # Apply periodic boundary conditions: adjust distances for wrap-around
-                dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2  # Wrap around midpoint
-                dy = (dy + grid_dimensions[1] / 2) % grid_dimensions[1] - grid_dimensions[1] / 2
-                return np.column_stack((dx, dy)) 
+        # --- (1) coarse prefilter with your helper (box, periodic-aware) ---
+        pol_pref = find_indices_within_box(self.polaron_locs, center, self.lattice_dimension, self.box_size, periodic)
+        site_pref = find_indices_within_box(self.qd_locations, center, self.lattice_dimension, self.box_size, periodic)
 
-        # get indices of polarons that are inside the box
-        pol_idxs = find_indices_within_box(self.polaron_locs, center,
-                                        self.lattice_dimension, self.box_size, periodic)
-        # get indices of sites that are within the box
-        site_idxs = find_indices_within_box(self.qd_locations, center,
-                                            self.lattice_dimension, self.box_size, periodic)
+        # --- (2) REFINE with the ORIGINAL physics: spherical strict-< in ORIGINAL frames ---
+        # Old get_idxs used: polaron_locations vs center_coord, and ham.qd_lattice_rel vs center_coord
+        r_hop_abs = self.r_hop * self.qd_spacing
+        r_ove_abs = self.r_ove * self.qd_spacing
 
-        # ensure uniqueness and stable order
-        pol_idxs  = np.unique(pol_idxs)
-        site_idxs = np.unique(site_idxs)
+        # IMPORTANT: build center_coord in the SAME frame as the original get_idxs
+        # Your original get_idxs’ 'center' was a coordinate in the same frame as polaron_locations.
+        center_coord = center  # (this is already the coordinate you pass in)
 
-        # store indices **directly** (do not rederive later)
-        self.pol_idxs_last  = pol_idxs.astype(np.intp)
-        self.site_idxs_last = site_idxs.astype(np.intp)
+        # polaron indices: use ORIGINAL 'polaron_locations' (not polaron_locs)
+        dpol = self.polaron_locations[pol_pref] - center_coord
+        if dpol.ndim == 1: dpol = dpol[:, None]
+        pol_mask = np.linalg.norm(dpol, axis=1) < r_hop_abs
+        pol_idxs = pol_pref[pol_mask]
 
-        # absolute positions (unchanged)
+        # site indices: use ORIGINAL 'ham.qd_lattice_rel' (not qd_locations)
+        dsite = self.ham.qd_lattice_rel[site_pref] - center_coord
+        if dsite.ndim == 1: dsite = dsite[:, None]
+        site_mask = np.linalg.norm(dsite, axis=1) < r_ove_abs
+        site_idxs = site_pref[site_mask]
+
+        # store indices directly (no re-derivation)
+        self.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
+        self.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
+
+        # --- absolute positions (unchanged; use what you used downstream) ---
         self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
         self.site_locs          = self.qd_locations[self.site_idxs_last]
 
-        # relative positions (unchanged)
+        # --- relative positions using your helper (unchanged) ---
         self.eigstates_locs = get_relative_positions(self.eigstates_locs_abs, center, self.lattice_dimension)
         self.sites_locs_rel = get_relative_positions(self.site_locs,         center, self.lattice_dimension)
 
-        # local box eigen-objects (fine to keep, but no index guessing elsewhere)
+        # --- eigen-objects sliced by indices (unchanged) ---
         self.eignrgs_box   = self.eignrgs[self.pol_idxs_last]
         self.eigstates_box = self.eigstates[self.site_idxs_last, :][:, self.pol_idxs_last]
 
-        # **compute local center index from global index match, not value proximity**
-        overall_idx_start = self.get_closest_idx(center, self.polaron_locs)  # global index of center polaron
-        # map to local index inside pol_idxs_last
+        # --- center mapping to LOCAL index (no value matching) ---
+        overall_idx_start = self.get_closest_idx(center, self.polaron_locs)
         where = np.nonzero(self.pol_idxs_last == overall_idx_start)[0]
         assert where.size == 1, "Center polaron not uniquely found in pol_idxs_last"
         self.center_local = int(where[0])
