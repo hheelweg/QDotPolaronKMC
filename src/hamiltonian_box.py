@@ -64,7 +64,7 @@ class Hamiltonian(HamiltonianSystem):
             self.spec = spec_density
 
 
-class _PhiTransformerAccurate:
+class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
     def __init__(self, J_callable, beta, omega_c, N_tau=2000, tau_max_factor=70.0):
@@ -107,73 +107,6 @@ class _PhiTransformerAccurate:
         out = re - 1j*im
         return out if out.ndim else out[()]
 
-class _PhiTransformer:
-    """Fast Eq. (17) on a fixed (ω,τ) grid using DCT/DST + cubic splines."""
-    def __init__(self, J_callable, beta, W, N, omega_min=0.0):
-        self.J = J_callable
-        self.beta = float(beta)
-        self.W = float(W)
-        self.N = int(N)
-        self.dw = self.W / (self.N - 1)
-        w = np.arange(self.N) * self.dw
-        if omega_min > 0.0:
-            w = np.maximum(w, omega_min)
-        self.omega = w
-
-        def _coth_half_beta_w(w_):
-            x = 0.5 * self.beta * w_
-            out = np.empty_like(x)
-            small = np.abs(x) < 1e-6
-            out[~small] = 1.0 / np.tanh(x[~small])
-            xs = x[small]
-            out[small] = 1.0/xs + xs/3.0 - (xs**3)/45.0
-            return out
-
-        Jw = np.asarray(self.J(w), dtype=float)
-        eps = 1e-300
-        denom = np.maximum(w**2, eps)
-        GR = (Jw / (np.pi * denom)) * _coth_half_beta_w(w)
-        GI = (Jw / (np.pi * denom))
-        GI[0] = 0.0  # sin(0·τ)=0
-
-        # Clenshaw–Curtis endpoint weights on [0,W]
-        ccw = np.ones_like(w)
-        ccw[0] *= 0.5
-        ccw[-1] *= 0.5
-
-        cos_sum = dct(GR * ccw, type=1, norm=None)
-        sin_sum = dst(GI * ccw, type=1, norm=None)
-
-        phi_real_grid = self.dw * cos_sum
-        phi_imag_grid = self.dw * sin_sum
-        self.phi_grid = phi_real_grid - 1j * phi_imag_grid
-
-        self.dtau = np.pi / self.W
-        self.tau_grid = np.arange(self.N) * self.dtau
-
-        # light-weight cubic splines (manual) to avoid extra imports
-        # (SciPy CubicSpline OK too; here we use numpy polyfit chunked)
-        # For robustness/speed, we’ll just do linear interp; cubic gives tiny gains here.
-        self._phi_re = self.phi_grid.real
-        self._phi_im = self.phi_grid.imag
-
-    def _interp1(self, xq, x, y):
-        # vectorized piecewise-linear; out-of-range -> 0
-        xq = np.atleast_1d(xq)
-        idx = np.clip(np.searchsorted(x, xq) - 1, 0, x.size - 2)
-        x0 = x[idx]; x1 = x[idx + 1]
-        y0 = y[idx]; y1 = y[idx + 1]
-        w = (xq - x0) / np.maximum(x1 - x0, 1e-300)
-        out = y0 * (1 - w) + y1 * w
-        out[(xq < x[0]) | (xq > x[-1])] = 0.0
-        return out
-
-    def phi(self, tau):
-        tau = np.atleast_1d(tau).astype(float)
-        re = self._interp1(tau, self.tau_grid, self._phi_re)
-        im = self._interp1(tau, self.tau_grid, self._phi_im)
-        out = re - 1j * im
-        return out if out.ndim else out[()]
 
 class _BathCorrFFT:
     """Half-sided Eq. (15) via FFT on τ ∈ [0,T] """
@@ -263,11 +196,7 @@ class SpecDens:
         # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15) if using 'exact'
         if self.bath_method == 'exact':
             beta = 1.0 / const.kT
-            # knobs: W and N; adjust if you need tighter accuracy
-            W = 40.0 * self.omega_c
-            N = 16385  # ~2^14+1
-            #self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
-            self._phi_tr = _PhiTransformerAccurate(self.J, beta, self.omega_c)
+            self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c)
             #self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c)
             self.Phi = self._phi_tr.phi
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
