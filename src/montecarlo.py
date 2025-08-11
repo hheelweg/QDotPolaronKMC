@@ -383,31 +383,38 @@ class KMCRunner():
                 return np.column_stack((dx, dy)) 
 
         # get indices of polarons that are inside the box
-        pol_idxs = find_indices_within_box(self.polaron_locs, center, self.lattice_dimension, self.box_size)
+        pol_idxs = find_indices_within_box(self.polaron_locs, center,
+                                        self.lattice_dimension, self.box_size, periodic)
         # get indices of sites that are within the box
-        site_idxs = find_indices_within_box(self.qd_locations, center, self.lattice_dimension, self.box_size)
+        site_idxs = find_indices_within_box(self.qd_locations, center,
+                                            self.lattice_dimension, self.box_size, periodic)
 
-        # get absolute positions of polarons and sites in box
-        self.eigstates_locs_abs = self.polaron_locs[pol_idxs]
-        self.site_locs = self.qd_locations[site_idxs]
+        # ensure uniqueness and stable order
+        pol_idxs  = np.unique(pol_idxs)
+        site_idxs = np.unique(site_idxs)
 
+        # store indices **directly** (do not rederive later)
+        self.pol_idxs_last  = pol_idxs.astype(np.intp)
+        self.site_idxs_last = site_idxs.astype(np.intp)
 
-        # get relative positions of polarons and sites in box
+        # absolute positions (unchanged)
+        self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
+        self.site_locs          = self.qd_locations[self.site_idxs_last]
+
+        # relative positions (unchanged)
         self.eigstates_locs = get_relative_positions(self.eigstates_locs_abs, center, self.lattice_dimension)
-        self.sites_locs_rel = get_relative_positions(self.site_locs, center, self.lattice_dimension)
+        self.sites_locs_rel = get_relative_positions(self.site_locs,         center, self.lattice_dimension)
 
-        # get eigenstate energies and eigenstates in box
-        self.eignrgs_box = self.eignrgs[pol_idxs]
-        self.eigstates_box = self.eigstates[site_idxs, :][:, pol_idxs]
+        # local box eigen-objects (fine to keep, but no index guessing elsewhere)
+        self.eignrgs_box   = self.eignrgs[self.pol_idxs_last]
+        self.eigstates_box = self.eigstates[self.site_idxs_last, :][:, self.pol_idxs_last]
 
-        # get box Hamiltonian
-        # TODO : how can we use the new Hamiltonian for Redfield?
-        self.hamil_box = self.hamil[site_idxs, :][:, site_idxs]
-
-        self.pol_idxs_last = np.where(np.isin(self.eignrgs, self.eignrgs_box))[0]   # or reuse the indices you already had
-        self.site_idxs_last = np.where(np.isin(self.qd_locations, self.site_locs).all(axis=1))[0]
-        # Map center to local index
-        self.center_local = self.get_closest_idx(center, self.eigstates_locs_abs)
+        # **compute local center index from global index match, not value proximity**
+        overall_idx_start = self.get_closest_idx(center, self.polaron_locs)  # global index of center polaron
+        # map to local index inside pol_idxs_last
+        where = np.nonzero(self.pol_idxs_last == overall_idx_start)[0]
+        assert where.size == 1, "Center polaron not uniquely found in pol_idxs_last"
+        self.center_local = int(where[0])
 
 
 
