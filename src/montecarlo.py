@@ -270,54 +270,53 @@ class KMCRunner():
         self.rates, self.final_states = my_redfield.make_redfield_box(center)
 
     # need to add this function! 
-    def NEW_kmatrix_box(self, center):
-        # TODO: consider checking that enough fraction of an eigenstate is included in the box before summing
-        """
-        make rates and return indices of final polaron states, as well as index i
-        of the start polaron
-        """
-        # system-bath Hamiltonian
-        J = self.hamil_box - np.diag(np.diag(self.hamil_box)) 
-        dim = len(self.hamil_box)
-        ham_sysbath = []
-        for i in range(dim):
-            ham_list=[]
-            for j in range(dim):
-                ham_coupl=np.zeros((dim,dim))
-                ham_coupl[i,j]=J[i,j]
-                ham_list.append(ham_coupl)
-            ham_sysbath.append(ham_list)   
+    # def NEW_kmatrix_box(self, center):
+    #     # TODO: consider checking that enough fraction of an eigenstate is included in the box before summing
+    #     """
+    #     make rates and return indices of final polaron states, as well as index i
+    #     of the start polaron
+    #     """
+    #     # system-bath Hamiltonian
+    #     J = self.hamil_box - np.diag(np.diag(self.hamil_box)) 
+    #     dim = len(self.hamil_box)
+    #     ham_sysbath = []
+    #     for i in range(dim):
+    #         ham_list=[]
+    #         for j in range(dim):
+    #             ham_coupl=np.zeros((dim,dim))
+    #             ham_coupl[i,j]=J[i,j]
+    #             ham_list.append(ham_coupl)
+    #         ham_sysbath.append(ham_list)   
         
-        my_ham = hamiltonian_box.Hamiltonian(self.eignrgs_box, self.eigstates_box, self.sites_locs_rel,
-                                             ham_sysbath, self.spectrum_calc, const.kB * self.temp)
-        my_redfield = redfield_box.NewRedfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
+    #     my_ham = hamiltonian_box.Hamiltonian(self.eignrgs_box, self.eigstates_box, self.sites_locs_rel,
+    #                                          ham_sysbath, self.spectrum_calc, const.kB * self.temp)
+    #     my_redfield = redfield_box.NewRedfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
 
-        # get rates and indices of the potential final polaron states we can jump to
-        self.rates, self.final_states, tot_time = my_redfield.make_redfield_box(center)
-        overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[center], self.polaron_locs)
-        self.stored_npolarons_box[overall_idx_start] = len(self.hamil_box)
-        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
-        self.stored_rate_vectors[overall_idx_start] = np.copy(self.rates)
-        
-        return tot_time
-
-    # def NEW_kmatrix_box(self, center_local):
-    #     # use indices prepared by NEW_get_box
-    #     pol_idxs  = self.pol_idxs_last
-    #     site_idxs = self.site_idxs_last
-    #     center_local = self.center_local
-
-    #     # reuse global redfield / hamiltonian
-    #     self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_for_indices(
-    #         pol_idxs=pol_idxs, site_idxs=site_idxs, center_local=center_local
-    #     )
-
-    #     overall_idx_start = self.pol_idxs_last[center_local]  # exact global index
-    #     self.stored_npolarons_box[overall_idx_start] = len(pol_idxs)
+    #     # get rates and indices of the potential final polaron states we can jump to
+    #     self.rates, self.final_states, tot_time = my_redfield.make_redfield_box(center)
+    #     overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[center], self.polaron_locs)
+    #     self.stored_npolarons_box[overall_idx_start] = len(self.hamil_box)
     #     self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
-    #     self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
-
+    #     self.stored_rate_vectors[overall_idx_start] = np.copy(self.rates)
+        
     #     return tot_time
+
+
+    def NEW_kmatrix_box(self, center_local):
+        pol_idxs  = self.pol_idxs_last
+        site_idxs = self.site_idxs_last
+        center_local = self.center_local
+
+        self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_for_indices(
+            pol_idxs=pol_idxs, site_idxs=site_idxs, center_local=center_local
+        )
+
+        overall_idx_start = int(self.pol_idxs_last[center_local])  # global index
+        self.stored_npolarons_box[overall_idx_start] = len(pol_idxs)
+        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
+        self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
+
+        return tot_time
 
 
     # make box around center position where we are currently at
