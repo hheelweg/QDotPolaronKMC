@@ -44,25 +44,79 @@ class HamiltonianSystem():
         return utils.transform_rho(_eig2site, rho)
 
 
-class Hamiltonian(HamiltonianSystem):
+# class Hamiltonian(HamiltonianSystem):
 
-    def __init__(self, evals, eigstates, qd_lattice,
-                 ham_sysbath, spec_density, kT):
+#     def __init__(self, evals, eigstates, qd_lattice,
+#                  ham_sysbath, spec_density, kT):
         
-        # Set these shared constants
-        const.kT = kT
+#         # Set these shared constants
+#         const.kT = kT
         
-        self.qd_lattice_rel = qd_lattice
+#         self.qd_lattice_rel = qd_lattice
 
-        self.init_system(evals, eigstates)
-        self.sysbath = ham_sysbath
+#         self.init_system(evals, eigstates)
+#         self.sysbath = ham_sysbath
 
-        # sepctral density
+#         # sepctral density
+#         if type(spec_density) != SpecDens:
+#             max_energy_diff = np.max(evals) - np.min(evals)
+#             self.spec = SpecDens(spec_density, max_energy_diff)
+#         else:
+#             self.spec = spec_density
+
+class Hamiltonian:
+    def __init__(self, evals, eigstates, qd_lattice_rel, sysbath, spec_density, kT):
+        self.evals = np.asarray(evals)
+        self.Umat  = np.asarray(eigstates)
+        self.qd_lattice_rel = np.asarray(qd_lattice_rel)
+        self.sysbath = sysbath          # list-of-lists of site-basis operators
+        self.spec = spectrum            # SpecDens instance
+        self.kT = float(kT)
+
+        self.init_system(self.evals, eigstates)
+
+        # NEW: persistent cache: (a_idx, b_idx) -> dense eigen-basis operator (nsite x nsite)
+        self._sysbath_eig_cache = {}
+
+         # spectral density
         if type(spec_density) != SpecDens:
             max_energy_diff = np.max(evals) - np.min(evals)
             self.spec = SpecDens(spec_density, max_energy_diff)
         else:
             self.spec = spec_density
+
+    def init_system(self, evals, eigstates):
+        self.nsite = np.size(evals)
+        self.evals, self.Umat = evals, eigstates
+        # global omega differences (energies, not divided by ħ — keep as you had)
+        self.omega_diff = np.subtract.outer(self.evals, self.evals)
+
+    # unchanged helpers
+    def site2eig(self, rho):
+        def _site2eig(rho2):
+            return utils.matrix_dot(self.Umat.conj().T, rho2, self.Umat)
+        return utils.transform_rho(_site2eig, rho)
+
+    def eig2site(self, rho):
+        def _eig2site(rho2):
+            return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
+        return utils.transform_rho(_eig2site, rho)
+
+    # NEW: cached getter
+    def get_sysbath_eig(self, a_idx: int, b_idx: int) -> np.ndarray:
+        key = (int(a_idx), int(b_idx))
+        op = self._sysbath_eig_cache.get(key)
+        if op is None:
+            op = self.site2eig(self.sysbath[a_idx][b_idx])
+            op = np.asarray(op, dtype=np.complex128, order='C')   # dense & contiguous
+            self._sysbath_eig_cache[key] = op
+        return op
+
+    # Optional: prewarm cache for a set of site indices (handy for repeated boxes)
+    def warm_sysbath_eig_cache(self, site_idxs):
+        for a in site_idxs:
+            for b in site_idxs:
+                _ = self.get_sysbath_eig(a, b)
 
 
 class _PhiTransformer:
