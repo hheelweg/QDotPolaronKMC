@@ -77,7 +77,7 @@ class _PhiTransformerAccurate:
         phi_real = np.zeros_like(self.tau_grid)
         phi_imag = np.zeros_like(self.tau_grid)
 
-        uppLim = 100 * self.omega_c  # as in baseline
+        uppLim = 40 * self.omega_c  # as in baseline
         lowLim = 1e-14
 
         for i, tau in enumerate(self.tau_grid):
@@ -174,76 +174,49 @@ class _PhiTransformer:
         out = re - 1j * im
         return out if out.ndim else out[()]
 
-
 class _BathCorrFFT:
-    def __init__(self, phi_tr, omega_c, pad=4):
+    """Half-sided Eq. (15) via FFT on τ∈[0,T] with no damping/window (to match bathCorrFT_new)."""
+    def __init__(self, phi_tr, omega_c):
         self.tr = phi_tr
         self.omega_c = float(omega_c)
 
-        # τ-grid (uniform)
+        # τ-grid supplied by the accurate φ-transformer (uniform linspace)
         self.tau = self.tr.tau_grid
         self.dt  = self.tau[1] - self.tau[0]
-        self.phi_tau = self.tr.phi_grid
+        self.phi_tau = self.tr.phi_grid  # complex φ(τ) on this grid
 
-        # Precompute trapezoid weights: 0.5 at endpoints, 1.0 inside
-        wtrap = np.ones_like(self.tau, dtype=float)
-        if wtrap.size >= 2:
-            wtrap[0] *= 0.5
-            wtrap[-1] *= 0.5
-        self._wtrap = wtrap
-
-        # Frequency grid after zero-padding (angular freq)
-        self.pad = int(pad)  # small, fixed; e.g. 4
-        N = self.tau.size * self.pad
-        f_full = np.fft.fftfreq(N, d=self.dt)             # cycles / time
-        omega_full = 2.0 * np.pi * f_full                 # rad / time
+        # Frequency grid in angular freq (rad/time). Keep ω ≥ 0.
+        f_full = np.fft.fftfreq(self.tau.size, d=self.dt)     # cycles / time
+        omega_full = 2.0 * np.pi * f_full                     # rad / time
         self._pos_mask = (omega_full >= 0.0)
         self.omega_grid = omega_full[self._pos_mask]
 
+        # Cache: (lamda,kappa) -> K(ω≥0)
         self._cache = {}
-        self._interp_cache = {}
 
     def _build(self, lamda, kappa):
         key = (float(lamda), float(kappa))
         if key in self._cache:
-            return self._cache[key], self._interp_cache[key]
+            return self._cache[key]
 
         if kappa == 0.0 or lamda == 0.0:
             K_pos = np.zeros_like(self.omega_grid, dtype=complex)
-            # build interpolators anyway
-            interp_re = PchipInterpolator(self.omega_grid, K_pos.real, extrapolate=True)
-            interp_im = PchipInterpolator(self.omega_grid, K_pos.imag, extrapolate=True)
             self._cache[key] = K_pos
-            self._interp_cache[key] = (interp_re, interp_im)
-            return K_pos, (interp_re, interp_im)
+            return K_pos
 
-        # C(τ) = κ^2 (e^{-λ φ(τ)} − 1), NO extra damping/window
+        # C(τ) = κ^2 (e^{-λ φ(τ)} − 1), NO damping/window to mirror bathCorrFT_new
         C = (kappa**2) * (np.exp(-lamda * self.phi_tau) - 1.0)
 
-        # Apply trapezoidal weights to the integrand
-        f = C * self._wtrap
-
-        # Zero-pad in time (×pad)
-        if self.pad > 1:
-            pad_len = (self.pad - 1) * f.size
-            f = np.pad(f, (0, pad_len), mode='constant')
-
-        # FFT integral: dt * Σ f_n e^{-iωt_n}, then conjugate → e^{+iωt}
-        F_full = self.dt * np.fft.fft(f)
+        # NumPy FFT is ∑ f(τ) e^{-iωτ}; conjugate → e^{+iωτ}. Riemann factor is dt.
+        F_full = self.dt * np.fft.fft(C)
         K_full = np.conj(F_full)
 
         K_pos = K_full[self._pos_mask]
-
-        # Build smooth interpolators once
-        interp_re = PchipInterpolator(self.omega_grid, K_pos.real, extrapolate=True)
-        interp_im = PchipInterpolator(self.omega_grid, K_pos.imag, extrapolate=True)
-
         self._cache[key] = K_pos
-        self._interp_cache[key] = (interp_re, interp_im)
-        return K_pos, (interp_re, interp_im)
+        return K_pos
 
     def eval(self, omega, lamda, kappa, return_grid=False, omega_is_energy=True):
-        Kpos, (interp_re, interp_im) = self._build(lamda, kappa)
+        Kpos = self._build(lamda, kappa)
         if return_grid:
             return self.omega_grid, Kpos
 
@@ -256,10 +229,19 @@ class _BathCorrFFT:
         wp = w[mask_pos]
         wn = -w[~mask_pos]  # reflect negatives
 
-        # PCHIP interpolation on ω≥0 grid
-        out[mask_pos]  = interp_re(wp) + 1j * interp_im(wp)
-        # K(-ω) = K(ω)^* for e^{+iωt}
-        out[~mask_pos] = np.conj(interp_re(wn) + 1j * interp_im(wn))
+        # Linear interp with edge clamping (avoid accidental zeros just outside grid)
+        def interp_edge(x, xp, fp):
+            y = np.interp(x, xp, fp, left=fp[0], right=fp[-1])
+            return y
+
+        Re_p = interp_edge(wp, self.omega_grid, Kpos.real)
+        Im_p = interp_edge(wp, self.omega_grid, Kpos.imag)
+        out[mask_pos] = Re_p + 1j*Im_p
+
+        # K(-ω) = K(ω)^* for e^{+iωτ} with C(-τ)=C(τ)^*
+        Re_n = interp_edge(wn, self.omega_grid, Kpos.real)
+        Im_n = interp_edge(wn, self.omega_grid, Kpos.imag)
+        out[~mask_pos] = np.conj(Re_n + 1j*Im_n)
 
         return out if out.ndim else out[()]
 
