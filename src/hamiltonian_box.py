@@ -68,6 +68,7 @@ class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
     def __init__(self, J_callable, beta, omega_c, N_tau=2000, tau_max_factor=70.0):
+        
         self.J = J_callable
         self.beta = float(beta)
         self.omega_c = float(omega_c)
@@ -78,7 +79,8 @@ class _PhiTransformer:
         phi_real = np.zeros_like(self.tau_grid)
         phi_imag = np.zeros_like(self.tau_grid)
 
-        uppLim = 100 * self.omega_c  # as in baseline
+        # integration limits for integral over ω 
+        uppLim = 40 * self.omega_c
         lowLim = 1e-12
 
         for i, tau in enumerate(self.tau_grid):
@@ -98,7 +100,7 @@ class _PhiTransformer:
                 phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim, weight='cos', wvar=tau, limit=200)[0]
                 phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim, weight='sin', wvar=tau, limit=200)[0]
 
-        self.phi_grid = phi_real - 1j*phi_imag
+        self.phi_grid = phi_real - 1j * phi_imag
 
     def phi(self, tau):
         tau = np.atleast_1d(tau).astype(float)
