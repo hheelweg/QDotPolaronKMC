@@ -307,33 +307,31 @@ class NewRedfield(Unitary):
         return rates, final_site_idxs, time.time() - start_tot
 
     def make_redfield_box_for_indices(self, *, pol_idxs, site_idxs, center_local):
-        """
-        Bit-for-bit mirror of make_redfield_box, but taking explicit index lists.
-        """
-        import time
+
         start_tot = time.time()
-        if getattr(self, "time_verbose", False):
-            print('npols, nsites', len(pol_idxs), len(site_idxs))
+        time_verbose = getattr(self, "time_verbose", False)
 
-        # Local sizes and mapping
-        pol_idxs  = np.asarray(pol_idxs, dtype=np.intp)    # global polaron indices in this box
-        site_idxs = np.asarray(site_idxs, dtype=np.intp)   # global site indices in this box
-        npols  = int(pol_idxs.size)
-        nsites = int(site_idxs.size)
-        center_i = int(center_local)                       # local center index
-        center_global = int(pol_idxs[center_i])            # global center index
+        # ensure arrays
+        pol_idxs  = np.asarray(pol_idxs,  dtype=np.intp)
+        site_idxs = np.asarray(site_idxs, dtype=np.intp)
+        npols, nsites = pol_idxs.size, site_idxs.size
+        if time_verbose:
+            print('npols, nsites', npols, nsites)
 
-        # --- λ-tensor cache EXACTLY as in your original ---
+        center_i      = int(center_local)           # local index (0..npols-1)
+        center_global = int(pol_idxs[center_i])     # corresponding global index
+
+        # ---- λ caches (exactly as in your original) ----
         if not hasattr(self, "_lam_idx_cache"):
             self._lam_idx_cache = {}
         lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
         if nsites not in self._lam_idx_cache:
             ident = np.identity(nsites)
             ones  = np.ones((nsites, nsites, nsites, nsites))
-            lamdas = (np.einsum('ac, abcd->abcd', ident, ones)
+            lamdas = ( np.einsum('ac, abcd->abcd', ident, ones)
                     + np.einsum('bd, abcd->abcd', ident, ones)
                     - np.einsum('ad, abcd->abcd', ident, ones)
-                    - np.einsum('bc, abcd->abcd', ident, ones))
+                    - np.einsum('bc, abcd->abcd', ident, ones) )
             idx_dict = {}
             for lam in lamdalist:
                 idxs = np.argwhere(lamdas == lam)
@@ -349,9 +347,8 @@ class NewRedfield(Unitary):
             self._lam_idx_cache[nsites] = idx_dict
         idx_dict = self._lam_idx_cache[nsites]
 
-        # --- sparse A_λ cache EXACTLY as in your original ---
         if not hasattr(self, "_A_lambda_cache"):
-            self._A_lambda_cache = {}  # key: nsites -> { lam -> csr_matrix or None }
+            self._A_lambda_cache = {}
         if nsites not in self._A_lambda_cache:
             from scipy import sparse
             AB = nsites * nsites
@@ -368,36 +365,38 @@ class NewRedfield(Unitary):
             self._A_lambda_cache[nsites] = A_map
         A_map = self._A_lambda_cache[nsites]
 
-        # --- Bath integrals: keep the ORIGINAL indexing (local i with global center) ---
+        # ---- Bath integrals: compute ω_ij in the *local box ordering* ----
         t0 = time.time()
+        evals = self.ham.evals              # global eigen-energies
         bath_integrals = []
         for lam in lamdalist:
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0.0:
-                for i_local in range(npols):  # local index on purpose
-                    # MATCH BASELINE: local i used against global omega_diff (as in your original)
-                    omega_ij = self.ham.omega_diff[i_local, center_global]
+                # local→global map for both i and center
+                w_center = evals[center_global]
+                for i_local in range(npols):
+                    w_i = evals[pol_idxs[i_local]]
+                    omega_ij = (w_i - w_center)     # this mirrors the original *local* omega_diff[i, center]
                     vec[i_local] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
-        if getattr(self, "time_verbose", False):
+        if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
 
-        # --- Transform sysbath operators and build the SAME 4D tensor Gs[a,b,i,j] ---
+        # ---- Transform operators and slice to (pol_idxs × pol_idxs), unchanged ----
         t1 = time.time()
         Gs = np.empty((nsites, nsites, npols, npols), dtype=np.complex128)
         for aa, a_idx in enumerate(site_idxs):
             for bb, b_idx in enumerate(site_idxs):
                 G_full = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])
                 Gs[aa, bb] = G_full[np.ix_(pol_idxs, pol_idxs)]
-        if getattr(self, "time_verbose", False):
+        if time_verbose:
             print('time(site→eig)', time.time() - t1, flush=True)
 
-        # --- PREP: flatten to R (row) and C (col), EXACTLY like original ---
+        # ---- Flatten to R/C, optional pruning, and accumulate γ⁺ exactly as before ----
         AB = nsites * nsites
         R = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))
         C = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))
 
-        # --- optional pruning EXACTLY like original ---
         row_mask = np.any(R != 0, axis=1)
         col_mask = np.any(C != 0, axis=1)
         ab_keep = row_mask | col_mask
@@ -409,25 +408,24 @@ class NewRedfield(Unitary):
                     for lam in lamdalist}
             AB = ab_keep.sum()
 
-        # --- γ⁺ accumulation via CSR×dense and einsum (same algebra) ---
         t2 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
         for lam_idx, lam in enumerate(lamdalist):
             A = A_map[lam]
             if A is None:
                 continue
-            Y = A.dot(C)                              # (AB, npols)
+            Y = A.dot(C)                           # (AB, npols)
             contrib = np.einsum('an,an->n', R, Y, optimize=True)
             gamma_plus += bath_integrals[lam_idx] * contrib
-        if getattr(self, "time_verbose", False):
+        if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
-        # --- Outgoing rates and destinations (center removed), identical to original ---
+        # ---- Outgoing rates (center removed) and global destinations ----
         red_R_tensor = 2.0 * np.real(gamma_plus)
         rates = np.delete(red_R_tensor, center_i) / const.hbar
-        final_site_idxs = np.delete(pol_idxs, center_i)   # global indices (same as original)
+        final_site_idxs = np.delete(pol_idxs, center_i)    # global indices
 
-        if getattr(self, "time_verbose", False):
+        if time_verbose:
             print('time(total)', time.time() - start_tot, flush=True)
         print('rates', rates)
 
