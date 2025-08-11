@@ -67,7 +67,7 @@ class Hamiltonian(HamiltonianSystem):
 class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
-    def __init__(self, J_callable, beta, omega_c, omega_inf, N_tau=2000, tau_max_factor=70.0):
+    def __init__(self, J_callable, beta, omega_c, omega_inf, low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
         
         self.J = J_callable
         self.beta = float(beta)
@@ -85,7 +85,7 @@ class _PhiTransformer:
         lowLim = 1e-12
 
         for i, tau in enumerate(self.tau_grid):
-            if tau > 0 and tau < (self.omega_c / 200.0):
+            if tau > 0 and tau < (low_freq_cutoff):
                 # no quad weights
                 def integrand_real(omega):
                     return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2) * np.cos(tau * omega)
@@ -200,7 +200,7 @@ class SpecDens:
 
         # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15) if using 'exact'
         if self.bath_method == 'exact':
-            self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c, self.omega_inf)
+            self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c, self.omega_inf, self.low_freq_cutoff)
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
             self.correlationFT = self._correlationFT_fft
 
