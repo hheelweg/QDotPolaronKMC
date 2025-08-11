@@ -42,12 +42,8 @@ class NewRedfield(Unitary):
 
     def get_idxs(self, center_idx):
         center_coord = self.polaron_locations[center_idx]
-        polaron_idxs = np.where(
-            np.linalg.norm(self.polaron_locations - center_coord, axis=1) < self.r_hop
-        )[0]
-        site_idxs = np.where(
-            np.linalg.norm(self.ham.qd_lattice_rel - center_coord, axis=1) < self.r_ove
-        )[0]
+        polaron_idxs = np.where(np.linalg.norm(self.polaron_locations - center_coord, axis=1) < self.r_hop)[0]
+        site_idxs = np.where(np.linalg.norm(self.ham.qd_lattice_rel - center_coord, axis=1) < self.r_ove)[0]
         return polaron_idxs, site_idxs
     
     def get_idxsNew(self, center_idx):
