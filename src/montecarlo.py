@@ -407,58 +407,93 @@ class KMCRunner():
         assert where.size == 1, "Center polaron not uniquely found in pol_idxs_last"
         self.center_local = int(where[0])
 
-        
+
         self.hamil_box = self.hamil[np.ix_(self.site_idxs_last, self.site_idxs_last)]
 
 
-
-
-    # need to continue here
     def NEW_make_kmc_step(self, polaron_start_site):
+        # (1) build the box around the start coordinate -> defines:
+        #     pol_idxs_last, site_idxs_last, hamil_box, eignrgs_box, eigstates_box,
+        #     eigstates_locs_abs, eigstates_locs, sites_locs_rel, center_local
+        self.NEW_get_box(polaron_start_site)
 
-        # find global center index as before (using absolute polaron positions)
-        center_idx = int(self.get_closest_idx(polaron_start_site, self.polaron_locs))
-
-        # use the ORIGINAL selection (lives in NewRedfield and matches old physics)
-        pol_idxs, site_idxs = self.redfield.get_idxs(center_idx)
-
-        # store for downstream use
-        self.pol_idxs_last  = pol_idxs.astype(np.intp)
-        self.site_idxs_last = site_idxs.astype(np.intp)
-
-        # local center index inside pol_idxs
-        where = np.nonzero(self.pol_idxs_last == center_idx)[0]
-        if where.size != 1:
-            raise RuntimeError("Center not uniquely in pol_idxs")
-        self.center_local = int(where[0])
-
-        # absolute positions for output (unchanged)
-        self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
-        start_pol = self.eigstates_locs_abs[self.center_local]
-
-        # compute/use rates
+        # (2) map the global center polaron index
         overall_idx_start = int(self.pol_idxs_last[self.center_local])
+
+        # (3) compute (or reuse) outgoing rates from this center state
         if self.stored_npolarons_box[overall_idx_start] == 0:
-            tot_time = self.NEW_kmatrix_box(self.center_local)  # uses stored indices
+            tot_time = self.NEW_kmatrix_box(self.center_local)
         else:
             tot_time = 0.0
             self.final_states = self.stored_polaron_sites[overall_idx_start]
             self.rates        = self.stored_rate_vectors[overall_idx_start]
 
-        # KMC step
-        cum_rates = np.cumsum(self.rates)
-        S = cum_rates[-1]
+        # (4) rejection-free KMC step
+        #     guard for pathological zero-sum case (shouldn’t happen with positive rates, but safe)
+        S = float(np.sum(self.rates))
         if S <= 0.0:
             self.j = 0
-            end_pol = start_pol
+            start_pol = self.eigstates_locs_abs[self.center_local]
+            end_pol   = start_pol
             return start_pol, end_pol, tot_time
 
+        # cumulative, sample jump, advance time
+        cum_rates = np.cumsum(self.rates)
         u = np.random.uniform()
         self.j = int(np.searchsorted(cum_rates, u * S))
         self.time += -np.log(np.random.uniform()) / S
 
-        end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
+        # (5) start/end positions in absolute coordinates of the box
+        start_pol = self.eigstates_locs_abs[self.center_local]
+        end_pol   = self.eigstates_locs_abs[self.final_states[self.j]]
         return start_pol, end_pol, tot_time
+
+    # need to continue here
+    # def NEW_make_kmc_step(self, polaron_start_site):
+
+    #     # find global center index as before (using absolute polaron positions)
+    #     center_idx = int(self.get_closest_idx(polaron_start_site, self.polaron_locs))
+
+    #     # use the ORIGINAL selection (lives in NewRedfield and matches old physics)
+    #     pol_idxs, site_idxs = self.redfield.get_idxs(center_idx)
+
+    #     # store for downstream use
+    #     self.pol_idxs_last  = pol_idxs.astype(np.intp)
+    #     self.site_idxs_last = site_idxs.astype(np.intp)
+
+    #     # local center index inside pol_idxs
+    #     where = np.nonzero(self.pol_idxs_last == center_idx)[0]
+    #     if where.size != 1:
+    #         raise RuntimeError("Center not uniquely in pol_idxs")
+    #     self.center_local = int(where[0])
+
+    #     # absolute positions for output (unchanged)
+    #     self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
+    #     start_pol = self.eigstates_locs_abs[self.center_local]
+
+    #     # compute/use rates
+    #     overall_idx_start = int(self.pol_idxs_last[self.center_local])
+    #     if self.stored_npolarons_box[overall_idx_start] == 0:
+    #         tot_time = self.NEW_kmatrix_box(self.center_local)  # uses stored indices
+    #     else:
+    #         tot_time = 0.0
+    #         self.final_states = self.stored_polaron_sites[overall_idx_start]
+    #         self.rates        = self.stored_rate_vectors[overall_idx_start]
+
+    #     # KMC step
+    #     cum_rates = np.cumsum(self.rates)
+    #     S = cum_rates[-1]
+    #     if S <= 0.0:
+    #         self.j = 0
+    #         end_pol = start_pol
+    #         return start_pol, end_pol, tot_time
+
+    #     u = np.random.uniform()
+    #     self.j = int(np.searchsorted(cum_rates, u * S))
+    #     self.time += -np.log(np.random.uniform()) / S
+
+    #     end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
+    #     return start_pol, end_pol, tot_time
     
     
     
