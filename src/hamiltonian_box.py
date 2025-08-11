@@ -70,7 +70,7 @@ class Hamiltonian:
         self.Umat  = np.asarray(eigstates)
         self.qd_lattice_rel = np.asarray(qd_lattice_rel)
         self.sysbath = sysbath          # list-of-lists of site-basis operators
-        self.spec = spectrum            # SpecDens instance
+        self.spec = spec_density            # SpecDens instance
         self.kT = float(kT)
 
         self.init_system(self.evals, eigstates)
