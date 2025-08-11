@@ -494,7 +494,7 @@ class NewRedfield(Unitary):
             print('time(total)', time.time() - t_start, flush=True)
 
         # Optional: print for immediate comparison
-        # print('rates', rates)
+        print('rates', rates)
 
         return rates, final_site_idxs, time.time() - t_start
 
