@@ -421,7 +421,7 @@ class KMCRunner():
         # (2) get idx of polaron eigenstate in box
         overall_idx_start = self.get_closest_idx(polaron_start_site, self.polaron_locs)
         box_idx_start = self.get_closest_idx(polaron_start_site, self.eigstates_locs_abs)
-        start_pol = self.eigstates_locs_abs[box_idx_start]
+        start_pol = self.eigstates_locs_abs[self.center_local]
         
         # (3) get rates from this polaron (box center) to potential final states
         if self.stored_npolarons_box[overall_idx_start] == 0:

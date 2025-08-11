@@ -301,8 +301,6 @@ class NewRedfield(Unitary):
     #     return rates, final_site_idxs, time.time() - start_tot
 
     def make_redfield_box_for_indices(self, pol_idxs, site_idxs, center_local):
-        import time, numpy as np
-        from scipy import sparse
 
         npols = len(pol_idxs); nsites = len(site_idxs)
         if self.time_verbose:
