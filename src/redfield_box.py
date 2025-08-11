@@ -31,13 +31,23 @@ class NewRedfield(Unitary):
         self.time_verbose = time_verbose
         
  
+    # def get_idxs(self, center_idx):
+    #     # location of center polaron i (given by idx center_idx) around which we have constructed the box
+    #     center_coord = self.polaron_locations[center_idx]
+    #     # (1) get indices of all polaron states j that are within r_hop of the center polaron 
+    #     polaron_idxs = np.where(np.array([np.linalg.norm(polaron_pos - center_coord) for polaron_pos in self.polaron_locations]) < self.r_hop )[0]
+    #     # (2) get indices of the site basis states that are within r_ove of the center polaron
+    #     site_idxs = np.where(np.array([np.linalg.norm(site_pos - center_coord) for site_pos in self.ham.qd_lattice_rel]) < self.r_ove )[0]
+    #     return polaron_idxs, site_idxs
+
     def get_idxs(self, center_idx):
-        # location of center polaron i (given by idx center_idx) around which we have constructed the box
         center_coord = self.polaron_locations[center_idx]
-        # (1) get indices of all polaron states j that are within r_hop of the center polaron 
-        polaron_idxs = np.where(np.array([np.linalg.norm(polaron_pos - center_coord) for polaron_pos in self.polaron_locations]) < self.r_hop )[0]
-        # (2) get indices of the site basis states that are within r_ove of the center polaron
-        site_idxs = np.where(np.array([np.linalg.norm(site_pos - center_coord) for site_pos in self.ham.qd_lattice_rel]) < self.r_ove )[0]
+        polaron_idxs = np.where(
+            np.linalg.norm(self.polaron_locations - center_coord, axis=1) < self.r_hop
+        )[0]
+        site_idxs = np.where(
+            np.linalg.norm(self.ham.qd_lattice_rel - center_coord, axis=1) < self.r_ove
+        )[0]
         return polaron_idxs, site_idxs
     
     def get_idxsNew(self, center_idx):
