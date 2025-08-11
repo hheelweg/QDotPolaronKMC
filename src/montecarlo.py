@@ -303,31 +303,20 @@ class KMCRunner():
 
 
     def NEW_kmatrix_box(self, center_local):
-        # (A) Global index of the center polaron (unchanged)
-        center_global = self.get_closest_idx(self.eigstates_locs_abs[center_local], self.polaron_locs)
+        # 1) Use the indices prepared by NEW_get_box (periodic/relative)
+        pol_idxs  = self.pol_idxs_last          # 1D global indices, from NEW_get_box
+        site_idxs = self.site_idxs_last         # 1D global indices, from NEW_get_box
+        center_local = self.center_local        # local index inside pol_idxs
 
-        # (B) Get the EXACT index sets & order the baseline uses
-        pol_idxs_rf, site_idxs_rf = self.redfield.get_idxs(center_global)
-
-        # (C) Local center index in that list (do NOT reuse center_local from the box)
-        center_local_rf = int(np.where(pol_idxs_rf == center_global)[0][0])
-
-        pol_idxs_base, site_idxs_base = self.redfield.get_idxs(center_global)
-        assert np.array_equal(pol_idxs_base, pol_idxs_rf)
-        assert np.array_equal(site_idxs_base, site_idxs_rf)
-        assert center_local_rf == np.where(pol_idxs_rf == center_global)[0][0]
-
-        # (D) Compute rates using those Redfield indices (bit-for-bit baseline algebra)
+        # 2) Compute rates on those exact indices (no re-derivation)
         self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_for_indices(
-            pol_idxs=pol_idxs_rf,
-            site_idxs=site_idxs_rf,
-            center_local=center_local_rf
+            pol_idxs=pol_idxs, site_idxs=site_idxs, center_local=center_local
         )
 
-        # (E) Cache by the global center index
-        overall_idx_start = center_global
-        self.stored_npolarons_box[overall_idx_start] = len(pol_idxs_rf)
-        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)   # GLOBAL indices
+        # 3) Cache by global center index
+        overall_idx_start = pol_idxs[center_local]
+        self.stored_npolarons_box[overall_idx_start] = len(pol_idxs)
+        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)   # global indices
         self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
 
         return tot_time
