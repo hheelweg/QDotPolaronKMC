@@ -302,122 +302,134 @@ class NewRedfield(Unitary):
 
     # VERSION 3 : currently at test
     def make_redfield_box(self, center_idx):
-
         # --- setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
         npols = len(pol_idxs); nsites = len(site_idxs)
         if self.time_verbose:
             print('npols, nsites', npols, nsites)
-        t_start = time.time()
+        start_tot = time.time()
         center_i = int(np.where(pol_idxs == center_idx)[0][0])
 
-        lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
-
-        # --- cache λ-index CSR maps per nsites
-        if not hasattr(self, "_A_lambda_cache"):
-            self._A_lambda_cache = {}                      # nsites -> {lam: CSR or None}
-            self._lam_idx_cache = {}                       # nsites -> {lam: (a,b,c,d)}  (optional)
-        if nsites not in self._A_lambda_cache:
+        # --- cache λ-index sets for this nsites (unchanged)
+        if not hasattr(self, "_lam_idx_cache"):
+            self._lam_idx_cache = {}
+        lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)  # keep your exact ordering/types
+        if nsites not in self._lam_idx_cache:
             ident = np.identity(nsites)
             ones  = np.ones((nsites, nsites, nsites, nsites))
             lamdas = (np.einsum('ac, abcd->abcd', ident, ones)
                     + np.einsum('bd, abcd->abcd', ident, ones)
                     - np.einsum('ad, abcd->abcd', ident, ones)
                     - np.einsum('bc, abcd->abcd', ident, ones))
-            AB = nsites * nsites
-            A_map = {}
             idx_dict = {}
             for lam in lamdalist:
                 idxs = np.argwhere(lamdas == lam)
                 if idxs.size == 0:
-                    A_map[lam] = None
-                    idx_dict[lam] = (np.array([], int),)*4
+                    idx_dict[lam] = (np.array([], dtype=int),
+                                    np.array([], dtype=int),
+                                    np.array([], dtype=int),
+                                    np.array([], dtype=int))
                 else:
                     a_idx, b_idx, c_idx, d_idx = idxs.T
+                    idx_dict[lam] = (a_idx, b_idx, c_idx, d_idx)
+            del lamdas
+            self._lam_idx_cache[nsites] = idx_dict
+        idx_dict = self._lam_idx_cache[nsites]
+
+        # --- cache flattened pairs as CSR maps once per nsites (unchanged)
+        if not hasattr(self, "_A_lambda_cache"):
+            self._A_lambda_cache = {}  # key: nsites -> { lam -> csr_matrix or None }
+        if nsites not in self._A_lambda_cache:
+            from scipy import sparse
+            AB = nsites * nsites
+            A_map = {}
+            for lam in lamdalist:
+                a_idx, b_idx, c_idx, d_idx = idx_dict[lam]
+                if a_idx.size == 0:
+                    A_map[lam] = None
+                else:
                     ab_flat = (a_idx * nsites + b_idx).astype(np.intp)
                     cd_flat = (c_idx * nsites + d_idx).astype(np.intp)
-                    data = np.ones_like(ab_flat, dtype=np.float64)
+                    data = np.ones_like(ab_flat, dtype=np.float64)  # 1.0 weights
                     A_map[lam] = sparse.csr_matrix((data, (ab_flat, cd_flat)), shape=(AB, AB))
-                    idx_dict[lam] = (a_idx, b_idx, c_idx, d_idx)
             self._A_lambda_cache[nsites] = A_map
-            self._lam_idx_cache[nsites]  = idx_dict
-            del lamdas
         A_map = self._A_lambda_cache[nsites]
 
-        # --- cache sysbath in eigenbasis (dense) across calls
+        # --- bath integrals (KEEP your exact local indexing and loop)
+        t0 = time.time()
+        bath_integrals = []
+        for lam in lamdalist:
+            vec = np.zeros(npols, dtype=np.complex128)
+            if lam != 0.0:
+                for i in range(npols):  # local index on purpose (no behavior change)
+                    omega_ij = self.ham.omega_diff[i, center_idx]
+                    vec[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
+            bath_integrals.append(vec)
+        if self.time_verbose:
+            print('time(bath integrals)', time.time() - t0, flush=True)
+
+        # --- transform sysbath operators to eigenbasis, with a tiny cache
         if not hasattr(self, "_sysbath_eig_cache"):
-            self._sysbath_eig_cache = {}                   # (a_idx,b_idx) -> dense eig-op
+            self._sysbath_eig_cache = {}  # (a_idx,b_idx) -> dense eigen-basis operator
 
         t1 = time.time()
-        # Build Gs[a,b] restricted to pol_idxs — try to keep this tight
         Gs = np.empty((nsites, nsites, npols, npols), dtype=np.complex128)
         for aa, a_idx in enumerate(site_idxs):
             for bb, b_idx in enumerate(site_idxs):
                 key = (int(a_idx), int(b_idx))
                 G_full = self._sysbath_eig_cache.get(key)
                 if G_full is None:
+                    # transform once and cache
                     G_full = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])
-                    G_full = np.asarray(G_full, dtype=np.complex128, order='C')
+                    G_full = np.asarray(G_full, dtype=np.complex128, order='C')  # dense, contiguous
                     self._sysbath_eig_cache[key] = G_full
+                # slice to current polaron box
                 Gs[aa, bb] = G_full[np.ix_(pol_idxs, pol_idxs)]
         if self.time_verbose:
-            print('time(site→eig cached)', time.time() - t1, flush=True)
+            print('time(site→eig)', time.time() - t1, flush=True)
 
-        # --- vectorized bath integrals over i (uses FFT cache internally)
-        t2 = time.time()
-        omega_vec = self.ham.omega_diff[pol_idxs, center_idx]   # energy diffs; spec.correlationFT converts to ω
-        bath_integrals = []
-        for lam in lamdalist:
-            if lam == 0.0:
-                bath_integrals.append(np.zeros(npols, dtype=np.complex128))
-            else:
-                bath_integrals.append(self.ham.spec.correlationFT(omega_vec, lam, self.kappa))
-        if self.time_verbose:
-            print('time(bath integrals)', time.time() - t2, flush=True)
-
-        # --- flatten R and C once; keep contiguous for BLAS
+        # --- PREP: make center row/col contiguous and flatten (a,b)→ab (unchanged)
         AB = nsites * nsites
-        R = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))  # R[ab, n]
-        C = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))  # C[ab, n]
+        R = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))  # G[a,b][center_i, :]
+        C = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))  # G[a,b][:, center_i]
 
-        # prune strictly-zero rows only if it meaningfully shrinks AB (say >15%)
+        # --- optional prune of all-zero rows/cols (unchanged)
         row_mask = np.any(R != 0, axis=1)
         col_mask = np.any(C != 0, axis=1)
         ab_keep = row_mask | col_mask
-        shrink = ab_keep.sum() / AB
-        if shrink < 0.85:
+        if ab_keep.sum() < AB:
+            from scipy import sparse
             R = R[ab_keep, :]
             C = C[ab_keep, :]
             A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
                     for lam in lamdalist}
-            AB = R.shape[0]
+            AB = ab_keep.sum()
 
-        # --- accumulate gamma_plus with CSR × dense per λ
-        t3 = time.time()
+        # --- gamma accumulation via CSR × dense per λ (unchanged algebra)
+        t2 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
+
         for lam_idx, lam in enumerate(lamdalist):
             A = A_map[lam]
             if A is None:
                 continue
-            # Y = A @ C : (AB×AB)·(AB×npols) -> (AB×npols), fast in SciPy
-            Y = A.dot(C)
-            # contrib[n] = sum_ab R[ab,n] * Y[ab,n]
-            # (elementwise multiply then sum over ab). np.sum is often faster than einsum here:
-            contrib = np.sum(R * Y, axis=0)
+            Y = A.dot(C)                                  # (AB×AB)·(AB×npols) -> (AB×npols)
+            contrib = np.einsum('an,an->n', R, Y, optimize=True)  # sum_ab R*Y
             gamma_plus += bath_integrals[lam_idx] * contrib
-        if self.time_verbose:
-            print('time(gamma accumulation)', time.time() - t3, flush=True)
 
-        # --- outgoing rates
+        if self.time_verbose:
+            print('time(gamma accumulation)', time.time() - t2, flush=True)
+
+        # --- outgoing rates (unchanged)
         self.red_R_tensor = 2.0 * np.real(gamma_plus)
         rates = np.delete(self.red_R_tensor, center_i) / const.hbar
         final_site_idxs = np.delete(pol_idxs, center_i)
 
         if self.time_verbose:
-            print('time(total)', time.time() - t_start, flush=True)
-        print('rates', rates)
+            print('time(total)', time.time() - start_tot, flush=True)
 
-        return rates, final_site_idxs, time.time() - t_start
+        print('rates', rates)
+        return rates, final_site_idxs, time.time() - start_tot
     
 
 
