@@ -252,7 +252,7 @@ class SpecDens:
         return self._fft.eval(
                             omega, lamda=float(lamda), kappa=float(kappa),
                             eta=eta, return_grid=return_grid,
-                            omega_is_energy=True   # you pass ΔE; we convert to ω = ΔE/ħ
+                            omega_is_energy=False   # you pass ΔE; we convert to ω = ΔE/ħ
                             )
     
 
