@@ -48,6 +48,7 @@ class Hamiltonian(HamiltonianSystem):
 
     def __init__(self, evals, eigstates, qd_lattice,
                  ham_sysbath, spec_density, kT):
+        
         # Set these shared constants
         const.kT = kT
         
@@ -68,8 +69,6 @@ class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
     def __init__(self, J_callable, beta, omega_c, omega_inf, low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
-
-        print('num called omega integral')
         
         self.J = J_callable
         self.beta = float(beta)
@@ -116,7 +115,6 @@ class _PhiTransformer:
 class _BathCorrFFT:
     """Half-sided Eq. (15) via FFT on τ ∈ [0,T] """
     def __init__(self, phi_tr, omega_c):
-        print('num called bath corr FT')
         self.tr = phi_tr
         self.omega_c = float(omega_c)
 
@@ -229,7 +227,7 @@ class SpecDens:
     
 
 
-# previous version 
+# previous version that computes 
 class SpecDensOld():
 
     def __init__(self, spec_dens_list, max_energy_diff):
