@@ -303,17 +303,21 @@ class KMCRunner():
 
 
     def NEW_kmatrix_box(self, center_local):
-        pol_idxs  = self.pol_idxs_last
-        site_idxs = self.site_idxs_last
-        center_local = self.center_local
+        
+        # 1) Get global index of the center polaron
+        overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[center_local], self.polaron_locs)
 
+        # 2) Ask Redfield to build the *exact same* index sets as the baseline
+        pol_idxs, site_idxs = self.redfield.get_idxs(overall_idx_start)
+
+        # 3) Compute rates using those radius-based indices
         self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_for_indices(
-            pol_idxs=pol_idxs, site_idxs=site_idxs, center_local=center_local
+            pol_idxs=pol_idxs, site_idxs=site_idxs, center_local=np.where(pol_idxs == overall_idx_start)[0][0]
         )
 
-        overall_idx_start = int(self.pol_idxs_last[center_local])  # global index
+        # 4) Cache by global index of the center
         self.stored_npolarons_box[overall_idx_start] = len(pol_idxs)
-        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
+        self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)   # global indices by design
         self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
 
         return tot_time
