@@ -165,7 +165,7 @@ class _BathCorrFFT:
         wp = w[mask_pos]
         wn = -w[~mask_pos]  # reflect negatives
 
-        # Linear interp with edge clamping (avoid accidental zeros just outside grid)
+        # linear interp with edge clamping (avoid accidental zeros just outside grid)
         def interp_edge(x, xp, fp):
             y = np.interp(x, xp, fp, left=fp[0], right=fp[-1])
             return y
@@ -200,7 +200,7 @@ class SpecDens:
             beta = 1.0 / const.kT
             self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c)
             #self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c)
-            self.Phi = self._phi_tr.phi
+            #self.Phi = self._phi_tr.phi
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
             # API compatibility:
             self.Phi = self._phi_tr.phi
