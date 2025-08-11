@@ -201,7 +201,7 @@ class SpecDens:
             self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c)
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
             # API compatibility:
-            self.Phi = self._phi_tr.phi
+            #self.Phi = self._phi_tr.phi
             self.correlationFT = self._correlationFT_fft
 
         elif self.bath_method == 'first-order':
