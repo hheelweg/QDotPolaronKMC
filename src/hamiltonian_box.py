@@ -66,7 +66,7 @@ class Hamiltonian(HamiltonianSystem):
 class _PhiTransformerAccurate:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
-    def __init__(self, J_callable, beta, omega_c, N_tau=2000, tau_max_factor=70.0):
+    def __init__(self, J_callable, beta, omega_c, N_tau=5000, tau_max_factor=70.0):
         self.J = J_callable
         self.beta = float(beta)
         self.omega_c = float(omega_c)
