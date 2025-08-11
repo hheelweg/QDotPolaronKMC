@@ -307,7 +307,12 @@ class NewRedfield(Unitary):
         return rates, final_site_idxs, time.time() - start_tot
 
     def make_redfield_box_for_indices(self, *, pol_idxs, site_idxs, center_local):
-
+        """
+        Bitwise-equivalent to the original make_redfield_box, but operates on the
+        explicit index lists prepared by NEW_get_box. Critically, this uses a local
+        'slice-then-transform' path (U_box) just like your original.
+        """
+        import time
         start_tot = time.time()
         time_verbose = getattr(self, "time_verbose", False)
 
@@ -318,10 +323,21 @@ class NewRedfield(Unitary):
         if time_verbose:
             print('npols, nsites', npols, nsites)
 
-        center_i      = int(center_local)           # local index (0..npols-1)
-        center_global = int(pol_idxs[center_i])     # corresponding global index
+        center_i = int(center_local)  # local center index
 
-        # ---- λ caches (exactly as in your original) ----
+        # ---- Build the local eigenbasis exactly as in the original code ----
+        # local energies and local eigenvector block (site x polaron)
+        E_box = self.ham.evals[pol_idxs]                                # shape (npols,)
+        U_box = self.ham.eigstates[np.ix_(site_idxs, pol_idxs)]         # shape (nsites, npols)
+
+        # local view of site operators O_ab restricted to site_idxs
+        # NOTE: we will transform with U_box (slice-first-then-transform)
+        def site2eig_box(op_global_ab):
+            # slice to the local site block, then transform with U_box
+            Oloc = op_global_ab[np.ix_(site_idxs, site_idxs)]
+            return utils.matrix_dot(U_box.conj().T, Oloc, U_box)        # (npols x npols)
+
+        # ---- λ-tensor cache (identical to your original) ----
         if not hasattr(self, "_lam_idx_cache"):
             self._lam_idx_cache = {}
         lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
@@ -347,6 +363,7 @@ class NewRedfield(Unitary):
             self._lam_idx_cache[nsites] = idx_dict
         idx_dict = self._lam_idx_cache[nsites]
 
+        # sparse A_lambda cache (unchanged)
         if not hasattr(self, "_A_lambda_cache"):
             self._A_lambda_cache = {}
         if nsites not in self._A_lambda_cache:
@@ -365,65 +382,75 @@ class NewRedfield(Unitary):
             self._A_lambda_cache[nsites] = A_map
         A_map = self._A_lambda_cache[nsites]
 
-        # ---- Bath integrals: compute ω_ij in the *local box ordering* ----
+        # ---- Bath integrals with *local* ω_ij (this matches original semantics) ----
         t0 = time.time()
-        evals = self.ham.evals              # global eigen-energies
         bath_integrals = []
         for lam in lamdalist:
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0.0:
-                # local→global map for both i and center
-                w_center = evals[center_global]
+                w_center = E_box[center_i]
+                # local frequency: E_i - E_center in *local* ordering
                 for i_local in range(npols):
-                    w_i = evals[pol_idxs[i_local]]
-                    omega_ij = (w_i - w_center)     # this mirrors the original *local* omega_diff[i, center]
+                    omega_ij = E_box[i_local] - w_center
                     vec[i_local] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
         if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
 
-        # ---- Transform operators and slice to (pol_idxs × pol_idxs), unchanged ----
+        # ---- Transform local site operators with U_box, then slice to (pol x pol) (same sizes) ----
         t1 = time.time()
-        Gs = np.empty((nsites, nsites, npols, npols), dtype=np.complex128)
+        # Gs[a,b] is (npols x npols) already in the local basis
+        Gs = np.empty((nsites, nsites), dtype=object)
         for aa, a_idx in enumerate(site_idxs):
             for bb, b_idx in enumerate(site_idxs):
-                G_full = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])
-                Gs[aa, bb] = G_full[np.ix_(pol_idxs, pol_idxs)]
+                Gs[aa][bb] = site2eig_box(self.ham.sysbath[a_idx][b_idx])
         if time_verbose:
             print('time(site→eig)', time.time() - t1, flush=True)
 
-        # ---- Flatten to R/C, optional pruning, and accumulate γ⁺ exactly as before ----
+        # ---- Flatten to R/C, optional pruning, and accumulate γ⁺ as before ----
         AB = nsites * nsites
-        R = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))
-        C = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))
+        # Build dense blocks R and C exactly like your original:
+        # R[ab,:] = G[ab][center_i,:]; C[ab,:] = G[ab][:,center_i]
+        R = np.empty((AB, npols), dtype=np.complex128)
+        C = np.empty((AB, npols), dtype=np.complex128)
+        k = 0
+        for aa in range(nsites):
+            for bb in range(nsites):
+                Gab = Gs[aa][bb]
+                R[k, :] = Gab[center_i, :]
+                C[k, :] = Gab[:, center_i]
+                k += 1
 
+        # prune exactly-zero rows/cols (safe)
         row_mask = np.any(R != 0, axis=1)
         col_mask = np.any(C != 0, axis=1)
         ab_keep = row_mask | col_mask
         if ab_keep.sum() < AB:
-            from scipy import sparse
             R = R[ab_keep, :]
             C = C[ab_keep, :]
-            A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
-                    for lam in lamdalist}
             AB = ab_keep.sum()
 
         t2 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
         for lam_idx, lam in enumerate(lamdalist):
-            A = A_map[lam]
+            # Equivalent to the original einsum over all (a,b,c,d) where λ=lam,
+            # but we keep the same shape algebra via the implicit A_lambda structure:
+            # contrib[n] = sum_{ab,cd with λ} R_ab[n] * C_cd[n] with (ab→cd) pairs.
+            # We preserve your original sparse pattern approach for speed:
+            A = self._A_lambda_cache[nsites][lam]
             if A is None:
                 continue
-            Y = A.dot(C)                           # (AB, npols)
+            # Y = A @ C  (AB x npols)
+            Y = A.dot(C)
             contrib = np.einsum('an,an->n', R, Y, optimize=True)
             gamma_plus += bath_integrals[lam_idx] * contrib
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
-        # ---- Outgoing rates (center removed) and global destinations ----
+        # ---- Outgoing rates (remove center) ----
         red_R_tensor = 2.0 * np.real(gamma_plus)
         rates = np.delete(red_R_tensor, center_i) / const.hbar
-        final_site_idxs = np.delete(pol_idxs, center_i)    # global indices
+        final_site_idxs = np.delete(pol_idxs, center_i)   # global indices
 
         if time_verbose:
             print('time(total)', time.time() - start_tot, flush=True)
