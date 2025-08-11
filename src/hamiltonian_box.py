@@ -63,6 +63,82 @@ class Hamiltonian(HamiltonianSystem):
         else:
             self.spec = spec_density
 
+class PhiTransformerUniformSimpson:
+    """
+    Eq. (17) on a uniform ω-grid using composite Simpson's rule.
+    Simple, fast for many τ, and close to the per-τ quad baseline.
+    """
+    def __init__(self, J_callable, beta, omega_c,
+                 wmax_factor=100.0,   # ω_max = wmax_factor * ω_c
+                 M=20001,             # number of ω samples (must be odd for Simpson)
+                 tau_max_factor=70.0, # only used if you want a cached τ-grid (optional)
+                 N_tau=0):            # set >0 if you want phi_grid cached
+        self.J = J_callable
+        self.beta = float(beta)
+        self.omega_c = float(omega_c)
+
+        # --- uniform ω grid on [0, ω_max] ---
+        self.omega_max = float(wmax_factor) * self.omega_c
+        self.M = int(M if M % 2 == 1 else M+1)      # Simpson needs odd number of points
+        self.omega = np.linspace(0.0, self.omega_max, self.M)
+        dω = self.omega[1] - self.omega[0]
+        self.dω = dω
+
+        # Avoid the ω=0 singularity with a tiny epsilon (same spirit as your baseline)
+        eps = 1e-14
+        ωsafe = np.maximum(self.omega, eps)
+
+        # --- Simpson weights on [0, ω_max] ---
+        W = np.ones(self.M)
+        W[1:-1:2] = 4.0
+        W[2:-2:2] = 2.0
+        W *= dω / 3.0
+
+        # --- τ-independent kernels A(ω), B(ω) ---
+        x = 0.5 * self.beta * ωsafe
+        coth = np.empty_like(x)
+        small = (np.abs(x) < 1e-6)
+        coth[~small] = 1.0 / np.tanh(x[~small])
+        xs = x[small]
+        coth[small] = 1.0/xs + xs/3.0 - (xs**3)/45.0
+
+        Jw = np.asarray(self.J(ωsafe), dtype=float)
+        denom = np.maximum(ωsafe**2, 1e-300)
+
+        # A for the cos·coth part; B for the sin part
+        self.A = W * (Jw / (np.pi * denom)) * coth
+        self.B = W * (Jw / (np.pi * denom))
+
+        # Optional: cache a τ-grid if you want (not required)
+        self.tau_max = tau_max_factor / self.omega_c
+        if int(N_tau) > 0:
+            self.tau_grid = np.linspace(0.0, self.tau_max, int(N_tau))
+            self.phi_grid = self._phi_many(self.tau_grid)
+        else:
+            self.tau_grid = None
+            self.phi_grid = None
+
+    def _phi_many(self, tau, block=2048):
+        tau = np.atleast_1d(tau).astype(float)
+        outR = np.zeros_like(tau)
+        outI = np.zeros_like(tau)
+        ω = self.omega[None, :]  # (1, M)
+
+        # block to keep memory modest
+        for i0 in range(0, tau.size, block):
+            i1 = min(i0 + block, tau.size)
+            t = tau[i0:i1][:, None]          # (B,1)
+            C = np.cos(ω * t)                # (B, M)
+            S = np.sin(ω * t)                # (B, M)
+            outR[i0:i1] = C @ self.A         # Σ A(ω) cos(ωτ)
+            outI[i0:i1] = S @ self.B         # Σ B(ω) sin(ωτ)
+        return outR - 1j*outI                # φ(τ) = Re − i·Im (Eq. 17)
+
+    def phi(self, tau):
+        tau = np.atleast_1d(tau).astype(float)
+        vals = self._phi_many(tau)
+        return vals if vals.ndim else vals[()]
+
 class _PhiTransformerAccurate:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
@@ -267,6 +343,7 @@ class SpecDens:
             N = 16385  # ~2^14+1
             #self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
             self._phi_tr = _PhiTransformerAccurate(self.J, beta, self.omega_c)
+            self._phi_tr = PhiTransformerUniformSimpson(self.J, beta, self.omega_c)
             #self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c)
             self.Phi = self._phi_tr.phi
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
