@@ -265,8 +265,8 @@ class SpecDens:
             # knobs: W and N; adjust if you need tighter accuracy
             W = 40.0 * self.omega_c
             N = 16385  # ~2^14+1
-            # self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
-            self._phi_tr = _PhiTransformerAccurate(self.J, beta, self.omega_c)
+            self._phi_tr = _PhiTransformer(self.J, beta, W, N, omega_min=1e-12)
+            #self._phi_tr = _PhiTransformerAccurate(self.J, beta, self.omega_c)
             #self._fft = _BathCorrFFT(self._phi_tr, self.omega_c, default_eta=1e-3*self.omega_c)
             self.Phi = self._phi_tr.phi
             self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
