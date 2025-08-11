@@ -1,6 +1,7 @@
 
 import numpy as np
 from . import const
+from . import utils
 import time
 from numba import njit
 from scipy import sparse
@@ -29,6 +30,26 @@ class NewRedfield(Unitary):
         self.r_ove = r_ove
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
+    
+        # NEW: capture global eigenvectors in site basis (match what site2eig uses)
+        if hasattr(self.ham, "Umat"):
+            self._U_global = self.ham.Umat
+        elif hasattr(self.ham, "eigstates"):
+            self._U_global = self.ham.eigstates
+        else:
+            raise AttributeError(
+                "Hamiltonian must expose eigenvectors as .Umat or .eigstates"
+            )
+
+        # Energies (used for local ω_ij); prefer .evals if present
+        if hasattr(self.ham, "evals"):
+            self._E_global = self.ham.evals
+        elif hasattr(self.ham, "eignrgs"):
+            self._E_global = self.ham.eignrgs
+        else:
+            raise AttributeError(
+                "Hamiltonian must expose eigenvalues as .evals or .eignrgs"
+            )
         
  
     def get_idxs(self, center_idx):
@@ -327,8 +348,8 @@ class NewRedfield(Unitary):
 
         # ---- Build the local eigenbasis exactly as in the original code ----
         # local energies and local eigenvector block (site x polaron)
-        E_box = self.ham.evals[pol_idxs]                                # shape (npols,)
-        U_box = self.ham.eigstates[np.ix_(site_idxs, pol_idxs)]         # shape (nsites, npols)
+        U_box = self._U_global[np.ix_(site_idxs, pol_idxs)]  # (nsites, npols)
+        E_box = self._E_global[pol_idxs]                     # (npols,)
 
         # local view of site operators O_ab restricted to site_idxs
         # NOTE: we will transform with U_box (slice-first-then-transform)
