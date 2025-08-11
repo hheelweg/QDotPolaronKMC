@@ -368,7 +368,8 @@ class SpecDens:
     def _correlationFT_fft(self, omega, lamda, kappa, eta=None, return_grid=False):
         return self._fft.eval(
                             omega, lamda=float(lamda), kappa=float(kappa),
-                            eta=eta, return_grid=return_grid,
+                            return_grid=return_grid,
+                            #eta = None,
                             omega_is_energy=False   # you pass ΔE; we convert to ω = ΔE/ħ
                             )
     
