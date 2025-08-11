@@ -252,12 +252,20 @@ class _PhiTransformer:
 
 class _BathCorrFFT:
     """Half-sided Eq. (15) via FFT on τ ∈ [0,T] """
-    def __init__(self, phi_tr, omega_c):
+    def __init__(self, phi_tr, omega_c, tau_max_factor=70.0, N_tau=5001):
         self.tr = phi_tr
         self.omega_c = float(omega_c)
 
         # τ-grid supplied by the accurate φ-transformer (uniform linspace)
-        self.tau = self.tr.tau_grid
+        #self.tau = self.tr.tau_grid
+         # Use transformer's grid if available; otherwise build one
+        if getattr(self.tr, "tau_grid", None) is not None and getattr(self.tr, "phi_grid", None) is not None:
+            self.tau = self.tr.tau_grid
+            self.phi_tau = self.tr.phi_grid
+        else:
+            T = float(tau_max_factor) / self.omega_c
+            self.tau = np.linspace(0.0, T, int(N_tau))
+            self.phi_tau = self.tr.phi(self.tau)  # sample φ on this grid
         self.dt  = self.tau[1] - self.tau[0]
         self.phi_tau = self.tr.phi_grid  # complex φ(τ) on this grid
 
