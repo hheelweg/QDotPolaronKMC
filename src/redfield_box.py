@@ -311,54 +311,35 @@ class NewRedfield(Unitary):
         t_start = time.time()
         center_i = int(np.where(pol_idxs == center_idx)[0][0])
 
-        # --- cache λ-index sets for this nsites (compute once per nsites) ---
         lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
-        if not hasattr(self, "_lam_idx_cache"):
-            self._lam_idx_cache = {}
-        if nsites not in self._lam_idx_cache:
+
+        # --- cache λ index PAIRS once per nsites: (ab_flat, cd_flat) lists ---
+        if not hasattr(self, "_lam_pairs_cache"):
+            self._lam_pairs_cache = {}  # key: nsites -> {lam: (ab_flat, cd_flat)}
+        if nsites not in self._lam_pairs_cache:
             ident = np.identity(nsites)
             ones  = np.ones((nsites, nsites, nsites, nsites))
             lamdas = (np.einsum('ac, abcd->abcd', ident, ones)
                     + np.einsum('bd, abcd->abcd', ident, ones)
                     - np.einsum('ad, abcd->abcd', ident, ones)
                     - np.einsum('bc, abcd->abcd', ident, ones))
-            idx_dict = {}
+            pairs = {}
             for lam in lamdalist:
                 idxs = np.argwhere(lamdas == lam)
                 if idxs.size == 0:
-                    idx_dict[lam] = (np.array([], dtype=int),
-                                    np.array([], dtype=int),
-                                    np.array([], dtype=int),
-                                    np.array([], dtype=int))
+                    pairs[lam] = (np.array([], dtype=np.intp), np.array([], dtype=np.intp))
                 else:
                     a_idx, b_idx, c_idx, d_idx = idxs.T
-                    idx_dict[lam] = (a_idx, b_idx, c_idx, d_idx)
-            self._lam_idx_cache[nsites] = idx_dict
-            del lamdas
-        idx_dict = self._lam_idx_cache[nsites]
-
-        # --- build sparse maps A_map[λ] once per nsites (maps (a,b)->(c,d)) ---
-        if not hasattr(self, "_A_lambda_cache"):
-            self._A_lambda_cache = {}  # key: nsites -> { lam -> csr_matrix or None }
-        if nsites not in self._A_lambda_cache:
-            AB = nsites * nsites
-            A_map = {}
-            for lam in lamdalist:
-                a_idx, b_idx, c_idx, d_idx = idx_dict[lam]
-                if a_idx.size == 0:
-                    A_map[lam] = None
-                else:
                     ab_flat = (a_idx * nsites + b_idx).astype(np.intp)
                     cd_flat = (c_idx * nsites + d_idx).astype(np.intp)
-                    data = np.ones_like(ab_flat, dtype=np.float64)
-                    A_map[lam] = sparse.csr_matrix((data, (ab_flat, cd_flat)), shape=(AB, AB))
-            self._A_lambda_cache[nsites] = A_map
-        A_map = self._A_lambda_cache[nsites]
+                    pairs[lam] = (ab_flat, cd_flat)
+            self._lam_pairs_cache[nsites] = pairs
+            del lamdas
+        pairs = self._lam_pairs_cache[nsites]
 
         # --- cache sysbath in eigenbasis (dense) per (a_idx,b_idx) ---
-        # We keep a cache on the Redfield instance to avoid modifying Hamiltonian.
         if not hasattr(self, "_sysbath_eig_cache"):
-            self._sysbath_eig_cache = {}  # key: (a_idx,b_idx) -> dense np.ndarray in eigenbasis
+            self._sysbath_eig_cache = {}  # key: (a_idx,b_idx) -> dense np.ndarray (global eigenbasis)
 
         t1 = time.time()
         Gs = np.empty((nsites, nsites, npols, npols), dtype=np.complex128)
@@ -367,62 +348,66 @@ class NewRedfield(Unitary):
                 key = (int(a_idx), int(b_idx))
                 G_full = self._sysbath_eig_cache.get(key)
                 if G_full is None:
-                    # transform once and cache full dense eigen-basis operator
                     G_full = self.ham.site2eig(self.ham.sysbath[a_idx][b_idx])
-                    # ensure dense, C-contiguous
                     G_full = np.asarray(G_full, dtype=np.complex128, order='C')
                     self._sysbath_eig_cache[key] = G_full
-                # slice to current polaron box
                 Gs[aa, bb] = G_full[np.ix_(pol_idxs, pol_idxs)]
         if self.time_verbose:
             print('time(site→eig from cache)', time.time() - t1, flush=True)
 
         # --- vectorized bath integrals over i for each λ ---
         t2 = time.time()
-        omega_vec = self.ham.omega_diff[pol_idxs, center_idx]  # energies; correlationFT converts to ω internally
+        omega_vec = self.ham.omega_diff[pol_idxs, center_idx]  # ΔE; correlationFT divides by ħ
         bath_integrals = []
         for lam in lamdalist:
             if lam == 0.0:
                 bath_integrals.append(np.zeros(npols, dtype=np.complex128))
             else:
-                # vectorized call; hits FFT cache inside correlationFT
-                vec = self.ham.spec.correlationFT(omega_vec, lam, self.kappa)
-                bath_integrals.append(vec)
+                bath_integrals.append(self.ham.spec.correlationFT(omega_vec, lam, self.kappa))
         if self.time_verbose:
             print('time(bath integrals)', time.time() - t2, flush=True)
 
-        # --- prepare R and C (flatten (a,b)->ab) ---
+        # --- flatten R and C (ab rows) ---
         AB = nsites * nsites
-        # R[ab, n] = G[a,b][center_i, n]
-        R = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))
-        # C[ab, n] = G[a,b][n, center_i]
-        C = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))
+        R = np.ascontiguousarray(Gs[:, :, center_i, :].reshape(AB, npols))  # R[ab, n]
+        C = np.ascontiguousarray(Gs[:, :, :, center_i].reshape(AB, npols))  # C[ab, n]
 
-        # optional pruning of strictly-zero rows/cols to speed up CSR×dense
+        # optional: prune strict-zero rows to shrink gather size
         row_mask = np.any(R != 0, axis=1)
         col_mask = np.any(C != 0, axis=1)
         ab_keep = row_mask | col_mask
         if ab_keep.sum() < AB:
+            map_keep = np.nonzero(ab_keep)[0].astype(np.intp)
+            inv = -np.ones(AB, dtype=np.intp)
+            inv[map_keep] = np.arange(map_keep.size, dtype=np.intp)
             R = R[ab_keep, :]
             C = C[ab_keep, :]
-            A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
-                    for lam in lamdalist}
-            AB = ab_keep.sum()
+            # remap all pair lists to the kept indices
+            new_pairs = {}
+            for lam in lamdalist:
+                ab_flat, cd_flat = pairs[lam]
+                if ab_flat.size == 0:
+                    new_pairs[lam] = (ab_flat, cd_flat)
+                else:
+                    ab_m = inv[ab_flat]; cd_m = inv[cd_flat]
+                    mask_ok = (ab_m >= 0) & (cd_m >= 0)
+                    new_pairs[lam] = (ab_m[mask_ok], cd_m[mask_ok])
+            pairs = new_pairs
+            AB = R.shape[0]
 
-        # --- accumulate gamma_plus via sparse–dense matmul per λ ---
+        # --- accumulate gamma_plus via pair-lists (no CSR) ---
         t3 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
-
         for lam_idx, lam in enumerate(lamdalist):
-            A = A_map[lam]
-            if A is None:
+            ab_flat, cd_flat = pairs[lam]
+            if ab_flat.size == 0:
                 continue
-            # Y = A @ C  -> shape (AB, npols)
-            Y = A.dot(C)  # CSR × dense; uses optimized SciPy kernels
-            # contrib[n] = sum_ab R[ab,n] * Y[ab,n]
-            contrib = np.einsum('an,an->n', R, Y, optimize=True)
+            # Gather the rows once: shapes (K, npols)
+            Rg = R[ab_flat, :]
+            Cg = C[cd_flat, :]
+            # contrib[n] = sum_k Rg[k,n] * Cg[k,n]
+            contrib = np.einsum('kn,kn->n', Rg, Cg, optimize=True)
             gamma_plus += bath_integrals[lam_idx] * contrib
-
         if self.time_verbose:
             print('time(gamma accumulation)', time.time() - t3, flush=True)
 
