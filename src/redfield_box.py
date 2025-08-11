@@ -408,6 +408,8 @@ class NewRedfield(Unitary):
 
         if self.time_verbose:
             print('time(total)', time.time() - start_tot, flush=True)
+
+        print('rates', self.rates)  
         return rates, final_site_idxs, time.time() - start_tot
 
     # VERSION 3 : currently at test
