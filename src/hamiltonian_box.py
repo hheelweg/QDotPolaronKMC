@@ -265,7 +265,7 @@ class SpecDens:
         return self._fft.eval(
                                 omega, lamda=float(lamda), kappa=float(kappa),
                                 eta=eta, return_grid=return_grid,
-                                do_eta_extrap=True         # set True if you want a bit more accuracy
+                                do_eta_extrap=False         # set True if you want a bit more accuracy
                             )
     
 
