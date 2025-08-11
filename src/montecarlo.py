@@ -624,9 +624,9 @@ class KMCRunner():
 
             # re-initialize Hamiltonian (i.e. different realizations of noise)
             # NOTE (08/11/2025): do we need this?
-            #if n % qd_array_refresh == 0:
-            #    self.make_qd_array()
-            #    self.set_temp(self.temp)
+            if n > 0 and n % qd_array_refresh == 0:
+               self.make_qd_array()
+               self.set_temp(self.temp)
             
             while self.time < t_final:
 
