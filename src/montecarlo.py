@@ -257,17 +257,6 @@ class KMCRunner():
         J_off = self.hamil - np.diag(np.diag(self.hamil))
         self.J_dense = J_off.copy()
 
-        # Build Hamiltonian object exactly as before (no physics change)
-        # (If your refactor removed sysbath, keep it for now to avoid any behavior drift.)
-        ham_sysbath = []
-        for i in range(self.n):
-            row = []
-            for j in range(self.n):
-                M = np.zeros((self.n, self.n))
-                M[i, j] = J_off[i, j]
-                row.append(M)
-            ham_sysbath.append(row)
-
         self.full_ham = hamiltonian_box.Hamiltonian(
             self.eignrgs, self.eigstates, self.qd_locations,
             spec_density=self.spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
