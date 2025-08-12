@@ -99,9 +99,8 @@ class NewRedfield(Unitary):
             "center_global not in pol_idxs_global after box selection; "
             "ensure the box always includes the center polaron."
         )
-        center_local = int(np.where(pol_g == int(center_global))[0][0])
 
-        return pol_g, site_g, center_local
+        return pol_g, site_g
  
 
     def get_idxs(self, center_idx):

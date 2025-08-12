@@ -309,7 +309,7 @@ class KMCRunner():
         center_global = self.center_global        # global index inside pol_idxs
 
 
-        pol_g, site_g, center_local = self.redfield.refine_by_radius(
+        pol_g, site_g = self.redfield.refine_by_radius(
                     pol_idxs_global=self.pol_idxs_last,
                     site_idxs_global=self.site_idxs_last,
                     center_global=self.center_global,      # global index of the center polaron
@@ -325,7 +325,7 @@ class KMCRunner():
         # # Baseline-style:
         # cB = center_local
         # polB, siteB = self.redfield.get_idxs(self.get_closest_idx(self.eigstates_locs_abs[cB], self.polaron_locs))
-        # print('polB, siteB, cB', polB, siteB, cB)
+        print('polB, siteB, cB', pol_g, site_g, center_global)
 
         # 3) Cache by global center index
         overall_idx_start = center_global
