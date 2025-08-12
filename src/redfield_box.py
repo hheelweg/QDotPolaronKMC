@@ -365,6 +365,9 @@ class Redfield(Unitary):
 
         # --- (BIG WIN) Build R and C directly from cached full eigen-operators
         t1 = time.time()
+
+        J_mat = self.ham.J_dense[np.ix_(site_g, site_g)]  # (nsites, nsites)
+        print('Jmat shape', J_mat.shape)
     
         U = self.ham.Umat                           # shape (nsite, nsite)
         m0 = int(center_global)                     # global pol index (center)

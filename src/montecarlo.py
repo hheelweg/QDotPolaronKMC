@@ -55,7 +55,7 @@ class KMCRunner():
         if self.dims == 2:
             self.grid = self.qd_locations.reshape((self.sidelength, self.sidelength, self.dims))/self.qd_spacing
     
-    
+
     # HH : here is the definition of the box_radius based on the minimum of 
     # r_hop, r_ove rounded to the next higher integer (this is arbitary and
     # we might want to modify this moving forward)
@@ -187,11 +187,16 @@ class KMCRunner():
                 ham_list.append(ham_coupl)
             ham_sysbath.append(ham_list)
         
+        self.J_dense = J.copy()  # (nsite x nsite) dense float array
+        
         # Build ONE global Hamiltonian and ONE Redfield instance
         self.full_ham = hamiltonian_box.Hamiltonian(
                                                     self.eignrgs, self.eigstates, self.qd_locations,
                                                     ham_sysbath, self.spectrum, const.kB * self.temp
                                                     )
+        
+        self.full_ham.J_dense = self.J_dense
+
         self.redfield = redfield_box.Redfield(
                                                 self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
                                                 time_verbose=True

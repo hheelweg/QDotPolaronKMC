@@ -74,6 +74,7 @@ class Hamiltonian(HamiltonianSystem):
         const.kT = float(kT)
 
         self.init_system(self.evals, eigstates)
+        self.J_dense = np.asarray(kwargs.get("J_dense", None))
 
         # NEW: persistent cache: (a_idx, b_idx) -> dense eigen-basis operator (nsite x nsite)
         self._sysbath_eig_cache = {}
