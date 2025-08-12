@@ -368,6 +368,8 @@ class NewRedfield(Unitary):
 
         if self.time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
+        
+        print('gammaplus', np.linalg.norm(gamma_plus))
 
         # --- outgoing rates (unchanged)
         self.red_R_tensor = 2.0 * np.real(gamma_plus)
