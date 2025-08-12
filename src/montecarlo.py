@@ -191,10 +191,10 @@ class KMCRunner():
                                                     self.eignrgs, self.eigstates, self.qd_locations,
                                                     ham_sysbath, self.spectrum, const.kB * self.temp
                                                     )
-        self.redfield = redfield_box.NewRedfield(
-                                                 self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
-                                                 time_verbose=True
-                                                )
+        self.redfield = redfield_box.Redfield(
+                                                self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
+                                                time_verbose=True
+                                             )
 
  
     def make_kmatrix_box(self, center_global):

@@ -16,7 +16,7 @@ class Unitary(object):
     def setup(self):
         pass
 
-class NewRedfield(Unitary):
+class Redfield(Unitary):
     """ class to compute the Redfield tensor
     """
 
@@ -131,7 +131,7 @@ class NewRedfield(Unitary):
         final_site_idxs : 1D int array, GLOBAL destination polaron indices (center removed)
         tot_time : float, wall time spent (seconds)
         """
-        import time
+
         t_all = time.time()
         time_verbose = getattr(self, "time_verbose", False)
 
@@ -414,7 +414,7 @@ class NewRedfield(Unitary):
 
 
 
-class Redfield(Unitary):
+class OldRedfield(Unitary):
     """ class to compute the Redfield tensor
     """
 
