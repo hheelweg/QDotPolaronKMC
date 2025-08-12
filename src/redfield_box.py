@@ -354,7 +354,7 @@ class Redfield(Unitary):
             self._lam_idx_cache[nsites] = idx_dict
         idx_dict = self._lam_idx_cache[nsites]
 
-        # --- optional CSR map cache (by nsites), identical to baseline
+        # --- optional CSR map cache (by nsites),
         if not hasattr(self, "_A_lambda_cache"):
             self._A_lambda_cache = {}
         if nsites not in self._A_lambda_cache:
