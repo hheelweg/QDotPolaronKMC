@@ -115,7 +115,7 @@ class NewRedfield(Unitary):
     #     return polaron_idxs, site_idxs
     
     
-    def get_idxsNew(self, center_idx):
+    def get_idxsNEW(self, center_idx):
         """
         Return:
             polaron_idxs: array of polaron indices within r_hop of center
@@ -384,19 +384,9 @@ class NewRedfield(Unitary):
         t0_all = time.time()
         time_verbose = getattr(self, "time_verbose", False)
 
-        center_coord = self.polaron_locations[center_global]
+        pol_g, site_g = self.get_idxsNew(self, center_global, periodic=True, grid_dims=grid_dims,
+                 r_hop=self.r_hop, r_ove=self.r_ove)
 
-        # distances to center
-        dpol = self._dist(self.polaron_locations[pol_idxs_global], center_coord,
-                          periodic=True, grid_dims=grid_dims)
-        dsite = self._dist(self.ham.qd_lattice_rel[site_idxs_global], center_coord,
-                           periodic=True, grid_dims=grid_dims)
-
-        keep_pol  = dpol  < self.r_hop
-        keep_site = dsite < self.r_ove
-
-        pol_g  = np.asarray(pol_idxs_global,  dtype=np.intp)[keep_pol]
-        site_g = np.asarray(site_idxs_global, dtype=np.intp)[keep_site]
         npols, nsites = pol_g.size, site_g.size
         if time_verbose:
             print('npols, nsites', npols, nsites)
