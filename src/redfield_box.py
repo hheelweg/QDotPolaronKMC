@@ -391,7 +391,7 @@ class Redfield(Unitary):
 
         
         t2 = time.time()
-        gamma_plus = _gamma_closed_form_fast(J, Up, u0, bath_map)
+        gamma_plus = _gamma_closed_form_fast(J, J2, Up, u0, bath_map)
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
