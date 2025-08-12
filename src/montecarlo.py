@@ -210,7 +210,6 @@ class KMCRunner():
                     site_idxs_global = site_box,
                     center_global = center_global,                      # global index of the center polaron
                     periodic=True,                                      # or False to match array setup
-                    #grid_dims=[self.sidelength] * int(self.dims)        # needed if periodic=True
                     grid_dims=self.lattice_dimension
                     )
 
