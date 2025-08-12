@@ -293,7 +293,7 @@ class KMCRunner():
         my_redfield = redfield_box.NewRedfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
 
         # get rates and indices of the potential final polaron states we can jump to
-        self.rates, self.final_states, tot_time = my_redfield.make_redfield_box(center)
+        self.rates, self.final_states, tot_time = my_redfield.make_redfield_box(center, self.site_idxs_last, self.pol_idxs_last)
         overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[center], self.polaron_locs)
         self.stored_npolarons_box[overall_idx_start] = len(self.hamil_box)
         self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)

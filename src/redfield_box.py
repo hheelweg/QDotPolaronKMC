@@ -252,13 +252,13 @@ class NewRedfield(Unitary):
     #     return rates, final_site_idxs, time.time() - start_tot
 
     # VERSION 2: Trying to make VERSION 1 even faster, and it indeed is quite a bit faster
-    def make_redfield_box(self, center_idx):
+    def make_redfield_box(self, center_idx, site_idxs_tot, pol_idxs_tot):
         # --- setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
         npols = len(pol_idxs); nsites = len(site_idxs)
         if self.time_verbose:
             print('npols, nsites', npols, nsites)
-            print('pols, sites', pol_idxs, site_idxs)
+            print('pols, sites', [pol_idxs_tot[pol_idx] for pol_idx in pol_idxs], [site_idxs_tot[site_idx] for site_idx in site_idxs])
         start_tot = time.time()
         center_i = int(np.where(pol_idxs == center_idx)[0][0])
 
