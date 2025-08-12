@@ -313,14 +313,15 @@ class NewRedfield(Unitary):
         for lam in lamdalist:
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0.0:
-                for i in pol_idxs:  # local index on purpose
+                for i in range(npols):  # local index on purpose
                     omega_ij = self.ham.omega_diff[i, center_idx]
                     vec[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
         if self.time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
         
-        print(np.array([self.ham.omega_diff[i, center_idx] for i in pol_idxs]))
+        print(self.ham.omega_diff.shape)
+        print(np.array([self.ham.omega_diff[i, center_idx] for i in range(npols)]))
         for k, lam in enumerate(lamdalist):
             print(f"[diag] lam={lam} ||bath[{lam}]||₂ = {np.linalg.norm(bath_integrals[k])}")
 
