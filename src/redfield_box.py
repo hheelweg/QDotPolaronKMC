@@ -459,16 +459,17 @@ class NewRedfield(Unitary):
             self._A_lambda_cache[nsites] = A_map
         A_map = self._A_lambda_cache[nsites]
 
-        # --- Bath integrals: GLOBAL ω-row, but aligned to local order (vectorized)
+        # --- Bath integrals: reproduce baseline's local-row ω indexing & scalar path
         t0 = time.time()
         bath_integrals = []
-        for lam in lamdalist:
-            if lam == 0.0:
-                bath_integrals.append(np.zeros(npols, dtype=np.complex128))
-                continue
-            # this reproduces the boxed ω[i_local, center_local] using globals
-            omega_row = self.ham.omega_diff[pol_g, int(center_global)]    # shape (npols,)
-            vec = self.ham.spec.correlationFT(omega_row, lam, self.kappa) # vectorized evaluation
+        for lam in (-2.0, -1.0, 0.0, 1.0, 2.0):
+            vec = np.zeros(npols, dtype=np.complex128)
+            if lam != 0.0:
+                # IMPORTANT: mimic baseline: use local i (0..npols-1) as the row,
+                # not pol_g[i]. Keep scalar calls to correlationFT.
+                for i_local in range(npols):
+                    omega_ij = self.ham.omega_diff[i_local, int(center_global)]
+                    vec[i_local] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
         if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
