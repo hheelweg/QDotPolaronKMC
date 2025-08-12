@@ -302,12 +302,12 @@ class KMCRunner():
     #     return tot_time
 
 
-    def NEW_kmatrix_box(self, center_local):
+    def NEW_kmatrix_box(self, center_global):
 
         # 1) Use the indices prepared by NEW_get_box (periodic/relative)
-        pol_idxs  = self.pol_idxs_last          # 1D global indices, from NEW_get_box
-        site_idxs = self.site_idxs_last         # 1D global indices, from NEW_get_box
-        center_global = self.center_global        # global index inside pol_idxs
+        # Input sets from NEW_get_box
+        pol_box  = self.pol_idxs_last
+        site_box = self.site_idxs_last
 
         pol_g, site_g = self.redfield.refine_by_radius(
                     pol_idxs_global=self.pol_idxs_last,
@@ -324,7 +324,7 @@ class KMCRunner():
 
         # 3) Cache by global center index
         overall_idx_start = center_global
-        self.stored_npolarons_box[overall_idx_start] = len(pol_idxs)
+        self.stored_npolarons_box[overall_idx_start] = len(pol_g)
         self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)   # global indices
         self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
 
@@ -334,90 +334,52 @@ class KMCRunner():
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
     def NEW_get_box(self, center, periodic=True):
-        # box dimensions (same as original)
+
+        # (1) box size (unchanged)
         self.box_size = self.box_length * self.qd_spacing
 
-        # ---- helpers (same logic as your original) ----
-        def find_indices_within_box(points, center, grid_dimensions, box_size, periodic=True):
+        # (2) helpers (unchanged logic)
+        def find_indices_within_box(points, center, grid_dims, box_size, periodic=True):
             half_box = box_size / 2
             dim = len(center)
-            assert (len(points[0]) == len(center) == len(grid_dimensions))
+            assert len(points[0]) == len(center) == len(grid_dims)
 
             if dim == 1:
                 dx = np.abs(points - center[0])
                 if periodic:
-                    dx = np.minimum(dx, grid_dimensions[0] - dx)
-                mask = (dx <= half_box)
-                return np.where(mask)[0]
+                    dx = np.minimum(dx, grid_dims[0] - dx)
+                return np.where(dx <= half_box)[0]
 
             elif dim == 2:
                 dx = np.abs(points[:, 0] - center[0])
                 dy = np.abs(points[:, 1] - center[1])
                 if periodic:
-                    dx = np.minimum(dx, grid_dimensions[0] - dx)
-                    dy = np.minimum(dy, grid_dimensions[1] - dy)
-                mask = (dx <= half_box) & (dy <= half_box)
-                return np.where(mask)[0]
+                    dx = np.minimum(dx, grid_dims[0] - dx)
+                    dy = np.minimum(dy, grid_dims[1] - dy)
+                return np.where((dx <= half_box) & (dy <= half_box))[0]
 
             else:
                 raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
 
-        def get_relative_positions(points, center, grid_dimensions):
-            dim = len(center)
-            assert (len(points[0]) == len(center) == len(grid_dimensions))
+        # (3) global index sets inside the axis-aligned periodic box
+        pol_idxs = find_indices_within_box(self.polaron_locs, center, self.lattice_dimension, self.box_size, periodic)
+        site_idxs = find_indices_within_box(self.qd_locations,  center, self.lattice_dimension, self.box_size, periodic)
 
-            if dim == 1:
-                dx = points - center[0]
-                if periodic:
-                    dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2
-                return dx
-
-            elif dim == 2:
-                dx = points[:, 0] - center[0]
-                dy = points[:, 1] - center[1]
-                if periodic:
-                    dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2
-                    dy = (dy + grid_dimensions[1] / 2) % grid_dimensions[1] - grid_dimensions[1] / 2
-                return np.column_stack((dx, dy))
-
-            else:
-                raise NotImplementedError("get_relative_positions: only 1D/2D supported.")
-
-        # ---- (1) indices by BOX MASK ONLY (no spherical refinement) ----
-        pol_idxs  = find_indices_within_box(self.polaron_locs, center, self.lattice_dimension, self.box_size, periodic)
-        site_idxs = find_indices_within_box(self.qd_locations, center, self.lattice_dimension, self.box_size, periodic)
-
-        # Keep order exactly as produced (no np.unique), but store contiguous for later
+        # keep order, store contiguously
         self.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
         self.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
 
-        # ---- (2) absolute positions (unchanged) ----
-        self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
-        self.site_locs          = self.qd_locations[self.site_idxs_last]
+        # (4) define the global center index once (no “closest” in the box frame)
+        self.center_global = int(self.get_closest_idx(center, self.polaron_locs))
 
-        # ---- (3) relative positions with periodic wrap (unchanged) ----
-        self.eigstates_locs = get_relative_positions(self.eigstates_locs_abs, center, self.lattice_dimension)
-        self.sites_locs_rel = get_relative_positions(self.site_locs,         center, self.lattice_dimension)
-
-        # ---- (4) eigen-objects in the box (unchanged) ----
-        self.eignrgs_box   = self.eignrgs[self.pol_idxs_last]
-        self.eigstates_box = self.eigstates[self.site_idxs_last, :][:, self.pol_idxs_last]
-
-        # ---- (5) local box Hamiltonian (unchanged) ----
-        self.hamil_box = self.hamil[np.ix_(self.site_idxs_last, self.site_idxs_last)]
-
-
-        center_global_idx = self.get_closest_idx(center, self.polaron_locs)  # search in FULL global coords
-        self.center_global = int(center_global_idx)
-
-        # you can still store the local index if you want to keep it for legacy code
-        self.center_local = np.where(self.pol_idxs_last == self.center_global)[0][0]
+        # (5) optional: local position of the center inside the box (rarely needed now)
+        where = np.nonzero(self.pol_idxs_last == self.center_global)[0]
+        # If the box is tight or discrete, it should be present; if not, refine_by_radius will handle it.
+        self.center_local = int(where[0]) if where.size == 1 else None
 
 
 
 
-
-    
     # def NEW_get_box(self, center, periodic = True):
 
     #     # box dimensions
@@ -502,43 +464,30 @@ class KMCRunner():
 
 
     def NEW_make_kmc_step(self, polaron_start_site):
-        
-        # (1) create box around polaron start_site
+        # (1) build box (just indices + center_global)
         self.NEW_get_box(polaron_start_site)
 
-        # polA, siteA, cA = np.copy(self.pol_idxs_last), np.copy(self.site_idxs_last), int(self.center_local)
-        # print('polA, siteA, cA', polA, siteA, cA)
-        
-        # (2) get idx of polaron eigenstate in box
-        overall_idx_start = self.get_closest_idx(polaron_start_site, self.polaron_locs)
-        box_idx_start = self.get_closest_idx(polaron_start_site, self.eigstates_locs_abs)
-        start_pol = self.eigstates_locs_abs[box_idx_start]
-        
-        # (3) get rates from this polaron (box center) to potential final states
-        if self.stored_npolarons_box[overall_idx_start] == 0:
-            tot_time = self.NEW_kmatrix_box(box_idx_start)
+        center_global = self.center_global
+        start_pol = self.polaron_locs[center_global]
+
+        # (2) compute (or reuse) rates
+        if self.stored_npolarons_box[center_global] == 0:
+            tot_time = self.NEW_kmatrix_box(center_global)
         else:
-            tot_time = 0
-            self.final_states = self.stored_polaron_sites[overall_idx_start]
-            self.rates = self.stored_rate_vectors[overall_idx_start]
-        
-        # (4) rejection-free KMC step
-        # (4a) get cumulative rates
-        cum_rates = np.array([np.sum(self.rates[:i+1]) for i in range(len(self.rates))])
+            tot_time = 0.0
+            self.final_states = self.stored_polaron_sites[center_global]  # global indices
+            self.rates        = self.stored_rate_vectors[center_global]
+
+        # (3) rejection-free KMC step
+        cum_rates = np.cumsum(self.rates)
         S = cum_rates[-1]
-        # (4b) draw random number u and determine j s.t. cumrates[j-1] < u*T < cum_rates[j]
         u = np.random.uniform()
-        self.j = np.searchsorted(cum_rates, u * S)
-        # (4b) update time clock
-        self.time += - np.log(np.random.uniform()) / S
+        self.j = int(np.searchsorted(cum_rates, u * S))
+        self.time += -np.log(np.random.uniform()) / S
 
-        # (5) obtain spatial coordinates of final polaron state j
-        # original version
-        #end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
-
-        # modified version 
+        # (4) final polaron coordinate in GLOBAL frame
         end_pol = self.polaron_locs[self.final_states[self.j]]
-        
+
         return start_pol, end_pol, tot_time
 
     # need to continue here
