@@ -433,7 +433,7 @@ class Redfield(Unitary):
             A = A_map[lam]
             if A is None:
                 continue
-            A.dot(C, out=Y)                 # SciPy will write into Y (SciPy ≥ 1.11 supports out)
+            Y = A.dot(C)                    # SciPy will write into Y (SciPy ≥ 1.11 supports out)
             np.multiply(R, Y, out=tmp)      # reuse buffer
             contrib = tmp.sum(axis=0)       # (npols,)
             gamma_plus += bath_integrals[k] * contrib
