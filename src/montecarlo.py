@@ -284,7 +284,7 @@ class KMCRunner():
 
 
 
-    def NEW_make_kmc_step(self, polaron_start_site):
+    def make_kmc_step(self, polaron_start_site):
 
         # (1) build box (just indices + center_global)
         self.get_box(polaron_start_site)
@@ -313,47 +313,6 @@ class KMCRunner():
         return start_pol, end_pol, tot_time
 
     
-    
-    
-    def make_kmc_step(self, start_site):
-        
-        """
-        perform a single KMC step from site coordinate (start_site) by locally diagonalizing
-        the Hamiltonian in a box around that site.
-        -----
-        Returns:
-            start_pol: coordinates of closest polaron site in box at start of step (closest to start_site)
-            end_pol: coordinates of polaron after KMC step
-        """
-        
-        np.random.seed(None)
-        
-        # (1) create box around start_site (but only if the charge has moved
-        # in the previous step, i.e. if new_diagonalization = True)
-        if self.new_diagonalization:
-            self.get_box(start_site)
-        
-        # (2) get idx of closest polaron eigenstate in box 
-        idx_start = self.get_closest_idx(start_site, self.eigstates_locs)
-        start_pol = self.eigstates_locs[idx_start]
-        self.start_pol = start_pol
-        
-        # (3) get rates from this polaron (box center) to potential final states
-        self.make_kmatrix_box(idx_start)
-        # (4) rejection-free KMC step
-        # (4a) get cumulative rates
-        cum_rates = np.array([np.sum(self.rates[:i+1]) for i in range(len(self.rates))])
-        S = cum_rates[-1]
-        # (4b) draw random number u and determine j s.t. cumrates[j-1] < u*T < cum_rates[j]
-        u = np.random.uniform()
-        self.j = np.searchsorted(cum_rates, u * S)
-        # (4b) update time clock
-        self.time += - np.log(np.random.uniform()) / S
-
-        # (5) obtain spatial coordinates of final polaron state j
-        end_pol = self.eigstates_locs[self.final_states[self.j]]
-        
-        return start_pol, end_pol
     
     # HH : for some arrays of r_hop and r_ove, comopute the rates and check
     # for convergence (you are more than invited to play around with this!)
@@ -544,7 +503,7 @@ class KMCRunner():
                     start_pol = end_pol
             
                 # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
-                start_pol, end_pol, tot_time = self.NEW_make_kmc_step(start_pol)
+                start_pol, end_pol, tot_time = self.make_kmc_step(start_pol)
                 self.simulated_time += tot_time
                 
                 # (3) update trajectory and compute squared displacements 
