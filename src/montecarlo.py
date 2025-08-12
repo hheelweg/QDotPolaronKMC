@@ -322,10 +322,6 @@ class KMCRunner():
     #         pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
     #     )
 
-    #     # # Baseline-style:
-    #     # cB = center_local
-    #     print('polB, siteB, cB', pol_g, site_g, center_global)
-
     #     # 3) Cache by global center index
     #     overall_idx_start = center_global
     #     self.stored_npolarons_box[overall_idx_start] = len(pol_idxs)

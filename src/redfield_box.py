@@ -329,6 +329,8 @@ class NewRedfield(Unitary):
         if self.time_verbose:
             print('time(site→eig)', time.time() - t1, flush=True)
 
+        print('Gs', np.linalg.norm(Gs))
+
         # --- PREP: make center row/col contiguous and flatten (a,b)→ab
         AB = nsites * nsites
         # row R: G[a,b][center_i,:]  -> shape (AB, npols)
@@ -381,6 +383,10 @@ class NewRedfield(Unitary):
             print('polA, siteA, cA', np.array([pol_idxs_tot[pol_idx] for pol_idx in pol_idxs]), np.array([site_idxs_tot[site_idx] for site_idx in site_idxs]), pol_idxs_tot[center_idx])
 
         return rates, final_site_idxs, time.time() - start_tot
+
+
+
+
 
     def make_redfield_box_global(self, *, pol_idxs_global, site_idxs_global, center_global):
         """
@@ -524,6 +530,9 @@ class NewRedfield(Unitary):
             print('time(total)', time.time() - t_all, flush=True)
 
         print('rates', rates)
+
+        if time_verbose:
+            print('polB, siteB, cB', pol_g, site_g, center_global)
         return rates, final_site_idxs, time.time() - t_all
     
     
