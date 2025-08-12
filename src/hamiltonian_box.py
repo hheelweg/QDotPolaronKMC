@@ -64,61 +64,112 @@ class HamiltonianSystem():
 #         else:
 #             self.spec = spec_density
 
+# working code
+# class Hamiltonian(HamiltonianSystem):
+#     def __init__(self, evals, eigstates, qd_lattice_rel, sysbath, spec_density, kT):
+#         self.evals = np.asarray(evals)
+#         self.Umat  = np.asarray(eigstates)
+#         self.qd_lattice_rel = np.asarray(qd_lattice_rel)
+#         self.sysbath = sysbath          # list-of-lists of site-basis operators
+#         self.spec = spec_density            # SpecDens instance
+#         const.kT = float(kT)
+
+#         self.init_system(self.evals, eigstates)
+#         #self.J_dense = np.asarray(kwargs.get("J_dense", None))
+
+#         # NEW: persistent cache: (a_idx, b_idx) -> dense eigen-basis operator (nsite x nsite)
+#         self._sysbath_eig_cache = {}
+
+#          # spectral density
+#         if type(spec_density) != SpecDens:
+#             max_energy_diff = np.max(evals) - np.min(evals)
+#             self.spec = SpecDens(spec_density, max_energy_diff)
+#         else:
+#             self.spec = spec_density
+
+#     def init_system(self, evals, eigstates):
+#         self.nsite = np.size(evals)
+#         self.evals, self.Umat = evals, eigstates
+#         # global omega differences (energies, not divided by ħ — keep as you had)
+#         self.omega_diff = np.subtract.outer(self.evals, self.evals)
+
+#     # unchanged helpers
+#     def site2eig(self, rho):
+#         def _site2eig(rho2):
+#             return utils.matrix_dot(self.Umat.conj().T, rho2, self.Umat)
+#         return utils.transform_rho(_site2eig, rho)
+
+#     def eig2site(self, rho):
+#         def _eig2site(rho2):
+#             return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
+#         return utils.transform_rho(_eig2site, rho)
+
+#     # NEW: cached getter
+#     def get_sysbath_eig(self, a_idx: int, b_idx: int) -> np.ndarray:
+#         key = (int(a_idx), int(b_idx))
+#         op = self._sysbath_eig_cache.get(key)
+#         if op is None:
+#             op = self.site2eig(self.sysbath[a_idx][b_idx])
+#             op = np.asarray(op, dtype=np.complex128, order='C')   # dense & contiguous
+#             self._sysbath_eig_cache[key] = op
+#         return op
+
+#     # Optional: prewarm cache for a set of site indices (handy for repeated boxes)
+#     def warm_sysbath_eig_cache(self, site_idxs):
+#         for a in site_idxs:
+#             for b in site_idxs:
+#                 _ = self.get_sysbath_eig(a, b)
+
 class Hamiltonian(HamiltonianSystem):
-    def __init__(self, evals, eigstates, qd_lattice_rel, sysbath, spec_density, kT):
-        self.evals = np.asarray(evals)
-        self.Umat  = np.asarray(eigstates)
-        self.qd_lattice_rel = np.asarray(qd_lattice_rel)
-        self.sysbath = sysbath          # list-of-lists of site-basis operators
-        self.spec = spec_density            # SpecDens instance
+    def __init__(self, evals, eigstates, qd_lattice_rel, spec_density, kT, J_dense=None):
+        self.evals = np.asarray(evals, dtype=np.float64)
+        self.Umat  = np.asarray(eigstates, dtype=np.complex128, order='C')  # (n,n)
+        self.qd_lattice_rel = np.asarray(qd_lattice_rel, dtype=np.float64)
+        self.spec = spec_density if isinstance(spec_density, SpecDens) \
+                    else SpecDens(spec_density, np.max(evals) - np.min(evals))
         const.kT = float(kT)
 
-        self.init_system(self.evals, eigstates)
-        #self.J_dense = np.asarray(kwargs.get("J_dense", None))
+        self.init_system(self.evals, self.Umat)
+        self.J_dense = None if J_dense is None else np.asarray(J_dense, dtype=np.float64, order='C')
 
-        # NEW: persistent cache: (a_idx, b_idx) -> dense eigen-basis operator (nsite x nsite)
-        self._sysbath_eig_cache = {}
-
-         # spectral density
-        if type(spec_density) != SpecDens:
-            max_energy_diff = np.max(evals) - np.min(evals)
-            self.spec = SpecDens(spec_density, max_energy_diff)
-        else:
-            self.spec = spec_density
+        # cache for eigen-basis operators (optional)
+        self._eig_op_cache = {}
 
     def init_system(self, evals, eigstates):
-        self.nsite = np.size(evals)
+        self.nsite = int(np.size(evals))
         self.evals, self.Umat = evals, eigstates
-        # global omega differences (energies, not divided by ħ — keep as you had)
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
 
-    # unchanged helpers
+    # site->eig and eig->site if you still need them elsewhere
     def site2eig(self, rho):
-        def _site2eig(rho2):
-            return utils.matrix_dot(self.Umat.conj().T, rho2, self.Umat)
-        return utils.transform_rho(_site2eig, rho)
+        def _f(rho2): return utils.matrix_dot(self.Umat.conj().T, rho2, self.Umat)
+        return utils.transform_rho(_f, rho)
 
     def eig2site(self, rho):
-        def _eig2site(rho2):
-            return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
-        return utils.transform_rho(_eig2site, rho)
+        def _f(rho2): return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
+        return utils.transform_rho(_f, rho)
 
-    # NEW: cached getter
+    # NEW: get eigen-basis operator for the (a,b) site pair WITHOUT building a site-basis matrix
+    # E_ab^eig = U^† E_ab U has elements (i,j) = U^*_{a,i} * U_{b,j}  ⇒ outer(U[a,:].conj(), U[b,:])
     def get_sysbath_eig(self, a_idx: int, b_idx: int) -> np.ndarray:
         key = (int(a_idx), int(b_idx))
-        op = self._sysbath_eig_cache.get(key)
+        op = self._eig_op_cache.get(key)
         if op is None:
-            op = self.site2eig(self.sysbath[a_idx][b_idx])
-            op = np.asarray(op, dtype=np.complex128, order='C')   # dense & contiguous
-            self._sysbath_eig_cache[key] = op
+            ua = self.Umat[int(a_idx), :].conj()   # (n,)
+            ub = self.Umat[int(b_idx), :]          # (n,)
+            op = np.outer(ua, ub).astype(np.complex128, copy=False)  # (n,n)
+            self._eig_op_cache[key] = op
         return op
 
-    # Optional: prewarm cache for a set of site indices (handy for repeated boxes)
+    # Optional: prewarm for a box’s indices (only if other code uses the cache)
     def warm_sysbath_eig_cache(self, site_idxs):
+        U = self.Umat
         for a in site_idxs:
+            ua = U[a, :].conj()
             for b in site_idxs:
-                _ = self.get_sysbath_eig(a, b)
-
+                key = (int(a), int(b))
+                if key not in self._eig_op_cache:
+                    self._eig_op_cache[key] = np.outer(ua, U[b, :]).astype(np.complex128, copy=False)
 
 class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
