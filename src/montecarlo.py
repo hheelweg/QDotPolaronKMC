@@ -406,20 +406,7 @@ class KMCRunner():
         box_idx_start = self.get_closest_idx(center, self.eigstates_locs_abs)
         self.center_local = int(box_idx_start)
 
-        # Make center global index (as you already do)
-        overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[self.center_local],
-                                                self.polaron_locs)
-        # Ask Redfield for the baseline index sets (spherical, Redfield frames)
-        polB, siteB = self.redfield.get_idxs(overall_idx_start)
 
-        # You already observed polA==polB; just force the site set to match baseline:
-        self.site_idxs_last = siteB.copy().astype(np.intp)
-
-        # Rebuild the things that depend on site_idxs_last (unchanged logic):
-        self.site_locs          = self.qd_locations[self.site_idxs_last]
-        self.sites_locs_rel     = get_relative_positions(self.site_locs, center, self.lattice_dimension)
-        self.eigstates_box      = self.eigstates[self.site_idxs_last, :][:, self.pol_idxs_last]
-        self.hamil_box          = self.hamil[np.ix_(self.site_idxs_last, self.site_idxs_last)]
     
     # def NEW_get_box(self, center, periodic = True):
 
