@@ -225,7 +225,9 @@ class KMCRunner():
     
 
     def get_hamil(self, periodic=True):
-        # H = diag(ε) + J
+
+        # (1) H = diag(ε) + J
+        # (1.1) coupling Hamiltonian
         J = self._build_J_dense_physics_exact(
             qd_pos=self.qd_locations,
             qd_dip=self.qddipoles,
@@ -233,10 +235,12 @@ class KMCRunner():
             kappa_polaron=self.kappa_polaron,
             boundary=(self.boundary if periodic else None)
         )
+        # (1.2) total Hamiltonian
         self.hamil = np.diag(self.qdnrgs).astype(np.float64, copy=False)
         self.hamil += J
 
         # Keep your original diagonalization routine to avoid solver diffs
+        # NOTE : can we improve this function somehow? 
         self.eignrgs, self.eigstates = utils.diagonalize(self.hamil)
 
         # Polaron positions: unchanged math, just vectorized
@@ -253,7 +257,7 @@ class KMCRunner():
         else:
             self.polaron_locs = (self.qd_locations.T @ (self.eigstates**2)).T
 
-        # Off-diagonal J for Redfield
+        # off-diagonal J for Redfield
         J_off = self.hamil - np.diag(np.diag(self.hamil))
         self.J_dense = J_off.copy()
 
@@ -261,7 +265,8 @@ class KMCRunner():
             self.eignrgs, self.eigstates, self.qd_locations,
             spec_density=self.spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
             )
-        self.full_ham.J_dense = self.J_dense
+        
+        #self.full_ham.J_dense = self.J_dense
 
         self.redfield = redfield_box.Redfield(
             self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
