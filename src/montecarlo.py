@@ -270,8 +270,8 @@ class KMCRunner():
 
         self.full_ham = hamiltonian_box.Hamiltonian(
             self.eignrgs, self.eigstates, self.qd_locations,
-            ham_sysbath, self.spectrum, const.kB * self.temp
-        )
+            spec_density=self.spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
+            )
         self.full_ham.J_dense = self.J_dense
 
         self.redfield = redfield_box.Redfield(
