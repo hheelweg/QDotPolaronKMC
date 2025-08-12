@@ -148,7 +148,7 @@ class KMCRunner():
         self.kappa_polaron = np.exp(-integrate.quad(integrand, 0, freq_max)[0])
   
 
-    def _pairwise_displacements_exact(qd_pos, boundary):
+    def _pairwise_displacements_exact(self, qd_pos, boundary):
         """
         Match get_disp_vector_matrix(): wrapped displacement for magnitude.
         qd_pos: (n, d) with d in {1,2}
@@ -176,7 +176,7 @@ class KMCRunner():
 
 
 
-    def _build_J_dense_physics_exact(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+    def _build_J_dense_physics_exact(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         """
         Vectorized but physics-identical to the original loops:
         J_ij = J_c * kappa_polaron * [ μ_i·μ_j - 3(μ_i·r̂_unwrapped)(μ_j·r̂_unwrapped) ] / (‖r_wrap‖^3),
@@ -189,7 +189,7 @@ class KMCRunner():
 
         # --- Magnitude uses WRAPPED displacement (minimum image), exactly like get_disp_vector_matrix
         if boundary is not None:
-            rij_wrap = _pairwise_displacements_exact(qd_pos, boundary)  # (n,n,3)
+            rij_wrap = self._pairwise_displacements_exact(qd_pos, boundary)  # (n,n,3)
         else:
             rij_wrap = np.zeros((n, n, 3), dtype=np.float64)
             rij_wrap[:, :, :d] = qd_pos[None, :, :] - qd_pos[:, None, :]
