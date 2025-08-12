@@ -344,27 +344,26 @@ class Redfield(Unitary):
             print('time(bath integrals)', time.time() - t0, flush=True)
 
         # --- (BIG WIN) Build R and C directly from cached full eigen-operators
-        #     R[ab,:] = G_full[ pol_g[center_loc], pol_g ]
-        #     C[ab,:] = G_full[ pol_g, pol_g[center_loc] ]
         t1 = time.time()
         AB = nsites * nsites
         R = np.empty((AB, npols), dtype=np.complex128)
         C = np.empty((AB, npols), dtype=np.complex128)
 
-        # optional: prewarm to ensure subsequent calls are cache hits
-        # self.ham.warm_sysbath_eig_cache(site_g)
-
         row = 0
         for aa, a_idx in enumerate(site_g):
             for bb, b_idx in enumerate(site_g):
                 G_full = self.ham.get_sysbath_eig(int(a_idx), int(b_idx))  # cached full eigen-basis operator
+
                 # slice only the needed center row and center column in pol_g order
-                R[row, :] = G_full[ pol_g[center_loc], : ][ pol_g ]
-                C[:, row] = G_full[ :, pol_g[center_loc] ][ pol_g ]  # we will transpose later
+                row_vec = G_full[ pol_g[center_loc], : ][ pol_g ]          # shape (npols,)
+                col_vec = G_full[ :, pol_g[center_loc] ][ pol_g ]          # shape (npols,)
+
+                R[row, :] = row_vec
+                C[row, :] = col_vec
+
                 row += 1
 
-        # C was built as (npols, AB) column-wise; make it (AB, npols) to match algebra
-        C = C.T
+        # no transpose needed anymore
         if time_verbose:
             print('time(site→eig rows/cols)', time.time() - t1, flush=True)
 
