@@ -318,6 +318,9 @@ class NewRedfield(Unitary):
             bath_integrals.append(vec)
         if self.time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
+        
+        for k, lam in enumerate(lamdalist):
+            print(f"[diag] lam={lam} ||bath[{lam}]||₂ = {np.linalg.norm(bath_integrals[k])}")
 
         # --- transform sysbath operators to eigenbasis (same slicing as before)
         t1 = time.time()
@@ -351,6 +354,7 @@ class NewRedfield(Unitary):
             A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
                     for lam in lamdalist}
             AB = ab_keep.sum()  # new size
+        
 
         # --- gamma accumulation via sparse–dense matmul per λ (identical algebra)
         t2 = time.time()
@@ -482,6 +486,9 @@ class NewRedfield(Unitary):
             bath_integrals.append(vec)
         if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
+
+        for k, lam in enumerate(lamdalist):
+            print(f"[diag] lam={lam} ||bath[{lam}]||₂ = {np.linalg.norm(bath_integrals[k])}")
 
         # --- Transform sysbath ops to eigenbasis (FULL), then slice to (pol_g × pol_g)
         t1 = time.time()
