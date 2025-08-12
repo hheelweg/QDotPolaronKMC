@@ -149,140 +149,59 @@ class KMCRunner():
   
 
     # polaron-transformed Hamiltonian, eigenenergies, and polaron positions
-    # def get_hamil(self, periodic = True):
+    def get_hamil(self, periodic = True):
 
-    #     self.hamil = np.diag(self.qdnrgs)
-    #     displacement_vector_matrix = self.get_disp_vector_matrix(self.qd_locations)
-    #     for i in np.arange(self.n):
-    #         for j in np.arange(i+1, self.n):
-    #             self.hamil[i, j] = self.J_c * self.kappa_polaron * self.get_kappa(self.qddipoles[i, :], self.qddipoles[j, :], self.qd_locations[i, :], self.qd_locations[j, :]) \
-    #                 * 1/np.linalg.norm(displacement_vector_matrix[:, i, j])**3
-    #             self.hamil[j, i] = self.hamil[i, j]
-    #     [self.eignrgs, self.eigstates] = utils.diagonalize(self.hamil)
+        self.hamil = np.diag(self.qdnrgs)
+        displacement_vector_matrix = self.get_disp_vector_matrix(self.qd_locations)
+        for i in np.arange(self.n):
+            for j in np.arange(i+1, self.n):
+                self.hamil[i, j] = self.J_c * self.kappa_polaron * self.get_kappa(self.qddipoles[i, :], self.qddipoles[j, :], self.qd_locations[i, :], self.qd_locations[j, :]) \
+                    * 1/np.linalg.norm(displacement_vector_matrix[:, i, j])**3
+                self.hamil[j, i] = self.hamil[i, j]
+        [self.eignrgs, self.eigstates] = utils.diagonalize(self.hamil)
 
-    #     # get the positions of the eigenstates
-    #     if periodic:
-    #         # use circular average for periodic boundary conditions to properly account for wraparound
-    #         # convert all coordinates to vectors with tips on the unit circle 
-    #         locations_unit_circle = self.qd_locations / self.boundary * 2 * np.pi
-    #         unit_circle_ycoords = np.sin(locations_unit_circle)
-    #         unit_circle_xcoords = np.cos(locations_unit_circle)
-    #         # add corresponding vectors of each eigenstate
-    #         unit_circle_eig_xcoords = np.transpose(np.matmul(np.transpose(unit_circle_xcoords), self.eigstates**2))
-    #         unit_circle_eig_ycoords = np.transpose(np.matmul(np.transpose(unit_circle_ycoords), self.eigstates**2))
-    #         # convert back to location coordinates for qds
-    #         eigstate_positions = np.arctan2(unit_circle_eig_ycoords, unit_circle_eig_xcoords) * self.boundary /(2 * np.pi)
-    #         eigstate_positions[eigstate_positions < 0] = eigstate_positions[eigstate_positions < 0] + self.boundary
-    #         self.polaron_locs = eigstate_positions
-    #     else:
-    #         self.polaron_locs = np.transpose(np.matmul(np.transpose(self.qd_locations), self.eigstates**2))
-        
-    #     # does ham_sysbath do anything
-    #     J = self.hamil - np.diag(np.diag(self.hamil)) 
-    #     ham_sysbath = []
-    #     for i in range(self.n):
-    #         ham_list=[]
-    #         for j in range(self.n):
-    #             ham_coupl=np.zeros((self.n, self.n))
-    #             ham_coupl[i,j]=J[i,j]
-    #             ham_list.append(ham_coupl)
-    #         ham_sysbath.append(ham_list)
-        
-    #     self.J_dense = J.copy()  # (nsite x nsite) dense float array
-        
-    #     # Build ONE global Hamiltonian and ONE Redfield instance
-    #     self.full_ham = hamiltonian_box.Hamiltonian(
-    #                                                 self.eignrgs, self.eigstates, self.qd_locations,
-    #                                                 ham_sysbath, self.spectrum, const.kB * self.temp
-    #                                                 )
-        
-    #     self.full_ham.J_dense = self.J_dense
-
-    #     self.redfield = redfield_box.Redfield(
-    #                                             self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
-    #                                             time_verbose=True
-    #                                          )
-
-    @staticmethod
-    def _build_J_dense_vectorized(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
-        # qd_pos: (n, d), qd_dip: (n, d)
-        # boundary: float or arraylike for periodic box length per dim; if None -> aperiodic
-
-        import numpy as np
-        n, d = qd_pos.shape
-
-        # pairwise displacement r_ij with optional minimum image
-        rij = qd_pos[:, None, :] - qd_pos[None, :, :]          # (n, n, d)
-        if boundary is not None:
-            L = np.asarray(boundary, float).reshape(1, 1, d)
-            rij = rij - np.round(rij / L) * L                   # minimum image
-
-        r2  = np.einsum('ijk,ijk->ij', rij, rij)               # (n, n)
-        np.fill_diagonal(r2, np.inf)                            # avoid div by zero on diagonal
-        r   = np.sqrt(r2)                                       # (n, n)
-        rhat = rij / r[:, :, None]                              # (n, n, d)
-
-        # dipole terms
-        mui_dot_muj = qd_dip @ qd_dip.T                         # (n, n)
-        mui_dot_r   = np.einsum('id,ijd->ij', qd_dip, rhat)     # (n, n)
-        muj_dot_r   = np.einsum('jd,ijd->ij', qd_dip, rhat)     # (n, n)
-
-        kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r)     # (n, n)
-        with np.errstate(divide='ignore'):
-            J = (J_c * kappa_polaron) * kappa / (r2 * r)        # = / r^3, but r2*r avoids extra sqrt
-        J[np.diag_indices(n)] = 0.0
-        return J
-
-
-    def get_hamil(self, periodic=True):
-
-
-        n = self.n
-        # 1) Build H = diag(ε) + J (vectorized)
-        J = self._build_J_dense_vectorized(
-            qd_pos=self.qd_locations,
-            qd_dip=self.qddipoles,
-            J_c=self.J_c,
-            kappa_polaron=self.kappa_polaron,
-            boundary=(self.boundary if periodic else None)
-        )
-        H = np.diag(self.qdnrgs).astype(np.float64, copy=False)
-        H += J
-
-        # 2) Diagonalize (Hermitian)
-        eignrgs, eigstates = eigh(H, overwrite_a=True, check_finite=False)
-        self.hamil = H
-        self.eignrgs = eignrgs
-        self.eigstates = eigstates
-
-        # 3) Polaron locations (periodic-aware averaging)
+        # get the positions of the eigenstates
         if periodic:
-            psi2 = eigstates**2
-            theta = (self.qd_locations / self.boundary) * (2*np.pi)     # (n, d)
-            ux = np.cos(theta); uy = np.sin(theta)
-            Ex = psi2.T @ ux; Ey = psi2.T @ uy                          # (n, d)
-            angles = np.arctan2(Ey, Ex)
-            eig_pos = (angles % (2*np.pi)) * (self.boundary / (2*np.pi))
-            self.polaron_locs = eig_pos
+            # use circular average for periodic boundary conditions to properly account for wraparound
+            # convert all coordinates to vectors with tips on the unit circle 
+            locations_unit_circle = self.qd_locations / self.boundary * 2 * np.pi
+            unit_circle_ycoords = np.sin(locations_unit_circle)
+            unit_circle_xcoords = np.cos(locations_unit_circle)
+            # add corresponding vectors of each eigenstate
+            unit_circle_eig_xcoords = np.transpose(np.matmul(np.transpose(unit_circle_xcoords), self.eigstates**2))
+            unit_circle_eig_ycoords = np.transpose(np.matmul(np.transpose(unit_circle_ycoords), self.eigstates**2))
+            # convert back to location coordinates for qds
+            eigstate_positions = np.arctan2(unit_circle_eig_ycoords, unit_circle_eig_xcoords) * self.boundary /(2 * np.pi)
+            eigstate_positions[eigstate_positions < 0] = eigstate_positions[eigstate_positions < 0] + self.boundary
+            self.polaron_locs = eigstate_positions
         else:
-            self.polaron_locs = (eigstates**2).T @ self.qd_locations
-
-        # 4) Minimal Hamiltonian object without ham_sysbath
-        self.J_dense = J.copy()
-        # If your Hamiltonian accepts a ready spectrum, pass cached one here
-        # e.g., spectrum = _get_spectrum_cached({...})
+            self.polaron_locs = np.transpose(np.matmul(np.transpose(self.qd_locations), self.eigstates**2))
+        
+        # does ham_sysbath do anything
+        J = self.hamil - np.diag(np.diag(self.hamil)) 
+        ham_sysbath = []
+        for i in range(self.n):
+            ham_list=[]
+            for j in range(self.n):
+                ham_coupl=np.zeros((self.n, self.n))
+                ham_coupl[i,j]=J[i,j]
+                ham_list.append(ham_coupl)
+            ham_sysbath.append(ham_list)
+        
+        self.J_dense = J.copy()  # (nsite x nsite) dense float array
+        
+        # Build ONE global Hamiltonian and ONE Redfield instance
         self.full_ham = hamiltonian_box.Hamiltonian(
-            self.eignrgs, self.eigstates, self.qd_locations,
-            spectrum=self.spectrum,  # or spectrum handle
-            kT=const.kB * self.temp
-        )
+                                                    self.eignrgs, self.eigstates, self.qd_locations,
+                                                    ham_sysbath, self.spectrum, const.kB * self.temp
+                                                    )
+        
         self.full_ham.J_dense = self.J_dense
 
-        # 5) Redfield
         self.redfield = redfield_box.Redfield(
-            self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
-            time_verbose=False
-        )
+                                                self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
+                                                time_verbose=True
+                                             )
 
  
     def make_kmatrix_box(self, center_global):
