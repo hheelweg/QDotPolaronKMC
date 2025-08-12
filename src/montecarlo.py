@@ -310,9 +310,9 @@ class KMCRunner():
         site_box = self.site_idxs_last
 
         pol_g, site_g = self.redfield.refine_by_radius(
-                    pol_idxs_global=self.pol_idxs_last,
-                    site_idxs_global=self.site_idxs_last,
-                    center_global=self.center_global,                   # global index of the center polaron
+                    pol_idxs_global = pol_box,
+                    site_idxs_global = site_box,
+                    center_global = center_global,                   # global index of the center polaron
                     periodic=True,                                      # or False to match array setup
                     grid_dims=[self.sidelength] * int(self.dims)        # needed if periodic=True
                     )
@@ -369,7 +369,7 @@ class KMCRunner():
         self.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
         self.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
 
-        # (4) define the global center index once (no “closest” in the box frame)
+        # (4) define the GLOBAL center index once
         self.center_global = int(self.get_closest_idx(center, self.polaron_locs))
 
         # (5) optional: local position of the center inside the box (rarely needed now)
@@ -464,6 +464,7 @@ class KMCRunner():
 
 
     def NEW_make_kmc_step(self, polaron_start_site):
+
         # (1) build box (just indices + center_global)
         self.NEW_get_box(polaron_start_site)
 
