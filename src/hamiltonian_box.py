@@ -123,10 +123,9 @@ class HamiltonianSystem():
 # try around with this one
 class Hamiltonian(HamiltonianSystem):
 
-    def __init__(self, evals, eigstates, qd_lattice_rel, spec_density, kT, J_dense=None):
+    def __init__(self, evals, eigstates, spec_density, kT, J_dense=None):
         self.evals = np.asarray(evals, dtype=np.float64)
         self.Umat  = np.asarray(eigstates, dtype=np.complex128, order='C')
-        self.qd_lattice_rel = np.asarray(qd_lattice_rel, dtype=np.float64)
         const.kT = float(kT)  # keep for SpecDens if it expects it
         self.spec = spec_density if isinstance(spec_density, SpecDens) \
                     else SpecDens(spec_density, float(np.ptp(evals)))
