@@ -375,22 +375,54 @@ class Redfield(Unitary):
 
         # --- (BIG WIN) Build R and C directly from cached full eigen-operators
         t1 = time.time()
+        # AB = nsites * nsites
+        # R = np.empty((AB, npols), dtype=np.complex128)
+        # C = np.empty((AB, npols), dtype=np.complex128)
+
+        # row = 0
+        # for aa, a_idx in enumerate(site_g):
+        #     for bb, b_idx in enumerate(site_g):
+        #         G_full = self.ham.get_sysbath_eig(int(a_idx), int(b_idx))  # cached full eigen-basis operator
+
+        #         # slice only the needed center row and center column in pol_g order
+        #         row_vec = G_full[ pol_g[center_loc], : ][ pol_g ]          # shape (npols,)
+        #         col_vec = G_full[ :, pol_g[center_loc] ][ pol_g ]          # shape (npols,)
+
+        #         R[row, :] = row_vec
+        #         C[row, :] = col_vec
+
+        #         row += 1
+        U = self.ham.Umat                           # shape (nsite, nsite)
+        m0 = int(center_global)                     # global pol index (center)
+        U_site_center = U[site_g, m0]               # (nsites,)
+        U_site_pol    = U[np.ix_(site_g, pol_g)]    # (nsites, npols)
+        U_site_pol_c  = np.conj(U_site_pol)         # reuse
+
         AB = nsites * nsites
-        R = np.empty((AB, npols), dtype=np.complex128)
-        C = np.empty((AB, npols), dtype=np.complex128)
+        # Prefer Fortran order for faster CSR @ dense in SciPy
+        R = np.empty((AB, npols), dtype=np.complex128, order='F')
+        C = np.empty((AB, npols), dtype=np.complex128, order='F')
 
         row = 0
-        for aa, a_idx in enumerate(site_g):
-            for bb, b_idx in enumerate(site_g):
-                G_full = self.ham.get_sysbath_eig(int(a_idx), int(b_idx))  # cached full eigen-basis operator
+        for ia, a_idx in enumerate(site_g):
+            Ua_m0_conj = np.conj(U_site_center[ia])    # scalar
+            Ua_pol_conj = U_site_pol_c[ia, :]          # (npols,)
+            for ib, b_idx in enumerate(site_g):
+                # pull scalar J_ab directly from the site-basis operator (single entry)
+                J_ab = self.ham.sysbath[int(a_idx)][int(b_idx)][int(a_idx), int(b_idx)]
+                if J_ab == 0.0:
+                    # fill zeros without touching U (cheap)
+                    R[row, :].fill(0.0)
+                    C[row, :].fill(0.0)
+                else:
+                    Ub_m0 = U_site_center[ib]          # scalar
+                    Ub_pol = U_site_pol[ib, :]         # (npols,)
 
-                # slice only the needed center row and center column in pol_g order
-                row_vec = G_full[ pol_g[center_loc], : ][ pol_g ]          # shape (npols,)
-                col_vec = G_full[ :, pol_g[center_loc] ][ pol_g ]          # shape (npols,)
-
-                R[row, :] = row_vec
-                C[row, :] = col_vec
-
+                    # G(center,:)[pol_g] and G(:,center)[pol_g] in one shot:
+                    # row_vec[n] = J_ab * conj(U[a,m0]) * U[b,n]
+                    # col_vec[n] = J_ab * conj(U[a,n])  * U[b,m0]
+                    R[row, :] = J_ab * Ua_m0_conj * Ub_pol
+                    C[row, :] = J_ab * Ua_pol_conj * Ub_m0
                 row += 1
 
         # no transpose needed anymore
