@@ -522,6 +522,8 @@ class NewRedfield(Unitary):
             gamma_plus += bath_integrals[lam_idx] * contrib
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
+        
+        print('gammaplus', np.linalg.norm(gamma_plus))
 
         # --- outgoing rates (remove center), scale by ħ; return GLOBAL final indices
         red_R_tensor = 2.0 * np.real(gamma_plus)
