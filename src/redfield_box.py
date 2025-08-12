@@ -354,19 +354,21 @@ class Redfield(Unitary):
 
         # --- Bath integrals (vectorized, global ω-row aligned to pol_g order)
         t0 = time.time()
-        bath_integrals = []
-        for lam in lamdalist:
-            if lam == 0.0:
-                bath_integrals.append(np.zeros(npols, dtype=np.complex128))
-            else:
-                omega_row = self.ham.omega_diff[pol_g, int(center_global)]    # shape (npols,)
-                bath_integrals.append(self.ham.spec.correlationFT(omega_row, lam, self.kappa))
+
+        # # WITHOUT caching
+        # bath_integrals = []
+        # for lam in lamdalist:
+        #     if lam == 0.0:
+        #         bath_integrals.append(np.zeros(npols, dtype=np.complex128))
+        #     else:
+        #         omega_row = self.ham.omega_diff[pol_g, int(center_global)]    # shape (npols,)
+        #         bath_integrals.append(self.ham.spec.correlationFT(omega_row, lam, self.kappa))
         
-        # cached way of computing bath correletion FT
-        # bath_integrals = [
-        #                     np.zeros(npols, np.complex128) if lam == 0.0 else self._corr_row(lam, center_global, pol_g)
-        #                     for lam in lamdalist
-        #                  ]
+        # # cached way of computing bath correletion FT
+        bath_integrals = [
+                            np.zeros(npols, np.complex128) if lam == 0.0 else self._corr_row(lam, center_global, pol_g)
+                            for lam in lamdalist
+                         ]
         
         if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
