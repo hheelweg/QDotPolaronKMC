@@ -640,6 +640,7 @@ class NewRedfield(Unitary):
                 R=R.copy(), C=C.copy(),
                 rates=rates.copy(), final=final_site_idxs.copy()
             )
+        print('rates', rates)
         return rates, final_site_idxs, time.time() - t_all
     
 
