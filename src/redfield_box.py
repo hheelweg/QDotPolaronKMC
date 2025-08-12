@@ -258,7 +258,7 @@ class Redfield(Unitary):
         if time_verbose:
             print('time(total)', time.time() - t_all, flush=True)
 
-        print('rates', rates)
+        print('rates sum/shape', np.sum(rates), rates.shape)
 
         return rates, final_site_idxs, time.time() - t_all
     
