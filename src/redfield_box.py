@@ -490,6 +490,8 @@ class NewRedfield(Unitary):
                 Gs[aa, bb] = G_full[np.ix_(pol_g, pol_g)]
         if time_verbose:
             print('time(site→eig)', time.time() - t1, flush=True)
+        
+        print('Gs', np.linalg.norm(Gs))
 
         # --- PREP: make center row/col contiguous and flatten (a,b)→ab (identical to baseline)
         AB = nsites * nsites
