@@ -121,6 +121,7 @@ class HamiltonianSystem():
 #                 _ = self.get_sysbath_eig(a, b)
 
 class Hamiltonian(HamiltonianSystem):
+    
     def __init__(self, evals, eigstates, qd_lattice_rel, spec_density, kT, J_dense=None):
         self.evals = np.asarray(evals, dtype=np.float64)
         self.Umat  = np.asarray(eigstates, dtype=np.complex128, order='C')  # (n,n)

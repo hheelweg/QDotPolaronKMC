@@ -240,9 +240,9 @@ class KMCRunner():
         # 5) Keep your Redfield object setup
         ham_sysbath = 0
         self.full_ham = hamiltonian_box.Hamiltonian(
-                                                     self.eignrgs, self.eigstates, self.qd_locations,
-                                                     self.spectrum, const.kB * self.temp
-                                                     )
+            self.eignrgs, self.eigstates, self.qd_locations,
+            spec_density=self.spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
+        )
         self.full_ham.J_dense = self.J_dense
 
         self.redfield = redfield_box.Redfield(
