@@ -148,109 +148,137 @@ class KMCRunner():
         self.kappa_polaron = np.exp(-integrate.quad(integrand, 0, freq_max)[0])
   
 
-    def _build_J_dense_vectorized(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+    def _pairwise_displacements_exact(self, qd_pos, boundary):
         """
-        qd_pos: (n, d) positions with d ∈ {1,2}
-        qd_dip: (n, 3) (unit) dipoles
-        boundary: None, scalar, or length-d arraylike with box lengths for minimum-image convention.
-                If None -> aperiodic (no wrapping)
-        Returns: J (n, n) real symmetric, off-diagonal dipole-dipole couplings ~ κ_ij / r^3
+        Reproduce get_disp_vector_matrix() precisely, but vectorized.
+        qd_pos: (n, d) with d in {1,2}
+        boundary: scalar box length (your code uses same L on each axis)
+        Returns: rij of shape (n, n, 3); only first d components are used
         """
         import numpy as np
 
         n, d = qd_pos.shape
-        assert d in (1, 2), "Only 1D/2D positions supported here."
+        assert d in (1, 2)
+        L = float(boundary)
 
-        # normalize boundary into a length-d vector if provided
+        # Build (n,n,d) displacement per axis in the same way
+        # old: ycopy - xcopy  with axis-wise wrap using > L/2 and < -L/2
+        rij_d = qd_pos[None, :, :] - qd_pos[:, None, :]     # (n, n, d)
+
+        # Apply *exactly* the same wrap conditions as before:
+        too_high = rij_d >  (L / 2.0)
+        too_low  = rij_d < -(L / 2.0)
+        rij_d = rij_d.copy()
+        rij_d[too_high] -= L
+        rij_d[too_low]  += L
+
+        # Embed into 3D to match dipole dimension without branches
+        rij = np.zeros((n, n, 3), dtype=np.float64)
+        rij[:, :, :d] = rij_d
+        return rij
+
+
+    def _build_J_dense_physics_exact(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+        """
+        Fully vectorized, but bit-for-bit equivalent to:
+            J[i,j] = J_c * kappa_polaron * get_kappa(i,j) * 1/||disp_ij||^3
+        where get_kappa() normalizes mu_d, mu_a, and the separation vector.
+
+        qd_pos: (n, d) positions, d=1 or 2
+        qd_dip: (n, 3) dipoles (not assumed unit; we normalize here to match old code)
+        boundary: scalar box length (if None, no wrapping)
+        """
+        import numpy as np
+
+        n, d = qd_pos.shape
+        # 1) pairwise displacement (old rule)
         if boundary is None:
-            Ld = None
+            rij = np.zeros((n, n, 3), dtype=np.float64)
+            rij[:, :, :d] = qd_pos[None, :, :] - qd_pos[:, None, :]
         else:
-            b = np.asarray(boundary, dtype=np.float64)
-            if b.size == 1:
-                Ld = np.full(d, float(b))
-            elif b.size == d:
-                Ld = b.astype(np.float64, copy=False)
-            else:
-                raise ValueError(f"boundary must be scalar or length {d}, got shape {b.shape}")
+            rij = self._pairwise_displacements_exact(qd_pos, boundary)  # (n,n,3)
 
-        # embed positions into 3D so rij matches dipole dimension (3)
-        pos3 = np.zeros((n, 3), dtype=np.float64)
-        pos3[:, :d] = qd_pos
-
-        # pairwise displacements
-        rij = pos3[:, None, :] - pos3[None, :, :]          # (n, n, 3)
-
-        # minimum-image in the physical positional dimensions only
-        if Ld is not None:
-            L = Ld.reshape(1, 1, d)                         # (1,1,d)
-            rij[:, :, :d] = rij[:, :, :d] - np.round(rij[:, :, :d] / L) * L
-
-        # distances and unit vectors
-        r2 = np.einsum('ijk,ijk->ij', rij, rij)             # (n, n)
-        np.fill_diagonal(r2, np.inf)                        # r_ii -> inf so 1/r^3 = 0 on diag
+        # 2) distances and unit vectors (match get_kappa behavior)
+        r2 = np.einsum('ijk,ijk->ij', rij, rij)                   # (n,n)
+        np.fill_diagonal(r2, np.inf)                              # avoid div by zero
         r  = np.sqrt(r2)
-        rhat = rij / r[:, :, None]                          # (n, n, 3)
+        rhat = rij / r[:, :, None]                                # (n,n,3)
 
-        # dipole-dipole angular factor κ_ij
-        # mu already unit-length per your setup
-        mui_dot_muj = qd_dip @ qd_dip.T                     # (n, n)
-        mui_dot_r   = np.einsum('id,ijd->ij', qd_dip, rhat) # (n, n)
-        muj_dot_r   = np.einsum('jd,ijd->ij', qd_dip, rhat) # (n, n)
+        # 3) normalize dipoles exactly like get_kappa
+        mu = qd_dip.astype(np.float64, copy=False)
+        mu_norms = np.linalg.norm(mu, axis=1, keepdims=True)
+        mu_unit = mu / mu_norms                                   # (n,3)
+
+        # 4) angular part kappa_ij = μ_i·μ_j − 3(μ_i·r̂_ij)(μ_j·r̂_ij)
+        mui_dot_muj = mu_unit @ mu_unit.T                         # (n,n)
+        mui_dot_r   = np.einsum('id,ijd->ij', mu_unit, rhat)      # (n,n)
+        muj_dot_r   = np.einsum('jd,ijd->ij', mu_unit, rhat)      # (n,n)
         kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r)
 
-        # J_ij = J_c * kappa_polaron * κ_ij / r^3
+        # 5) 1/r^3 factor (match your loop's 1/np.linalg.norm(...)**3)
         with np.errstate(divide='ignore', invalid='ignore'):
-            inv_r3 = 1.0 / (r2 * r)                         # r^3 = r2 * r
+            inv_r3 = 1.0 / (r * r2)                               # == 1/r^3
         J = (J_c * kappa_polaron) * kappa * inv_r3
         np.fill_diagonal(J, 0.0)
         return J
     
-    
+
     def get_hamil(self, periodic=True):
-        # 1) Dense Hamiltonian: H = diag(ε) + J (vectorized)
-        J = self._build_J_dense_vectorized(
+        # H = diag(ε) + J
+        J = _build_J_dense_physics_exact(
             qd_pos=self.qd_locations,
             qd_dip=self.qddipoles,
             J_c=self.J_c,
             kappa_polaron=self.kappa_polaron,
             boundary=(self.boundary if periodic else None)
         )
-        H = np.diag(self.qdnrgs).astype(np.float64, copy=False)
-        H += J
+        self.hamil = np.diag(self.qdnrgs).astype(np.float64, copy=False)
+        self.hamil += J
 
-        # 2) Diagonalize (use Hermitian path)
-        self.eignrgs, self.eigstates = eigh(H, overwrite_a=True, check_finite=False)
-        self.hamil = H
+        # Keep your original diagonalization routine to avoid solver diffs
+        self.eignrgs, self.eigstates = utils.diagonalize(self.hamil)
 
-        # 3) Polaron positions (same circular averaging, vectorized)
+        # Polaron positions: unchanged math, just vectorized
         if periodic:
-            psi2 = self.eigstates**2                             # (n, n)
-            theta = (self.qd_locations / self.boundary) * (2*np.pi)  # (n, d)
-            ux = np.cos(theta); uy = np.sin(theta)
-            Ex = psi2.T @ ux                                      # (n, d)
-            Ey = psi2.T @ uy                                      # (n, d)
-            angles = np.arctan2(Ey, Ex)
-            eig_pos = (angles % (2*np.pi)) * (self.boundary / (2*np.pi))
-            self.polaron_locs = eig_pos
+            locations_unit_circle = (self.qd_locations / self.boundary) * (2*np.pi)  # (n,d)
+            unit_circle_ycoords = np.sin(locations_unit_circle)
+            unit_circle_xcoords = np.cos(locations_unit_circle)
+            psi2 = self.eigstates**2                                                 # (n,n)
+            unit_circle_eig_xcoords = (unit_circle_xcoords.T @ psi2).T               # == your transpose/matmul pattern
+            unit_circle_eig_ycoords = (unit_circle_ycoords.T @ psi2).T
+            eigstate_positions = np.arctan2(unit_circle_eig_ycoords, unit_circle_eig_xcoords) * (self.boundary / (2*np.pi))
+            eigstate_positions[eigstate_positions < 0] += self.boundary
+            self.polaron_locs = eigstate_positions
         else:
-            self.polaron_locs = (self.eigstates**2).T @ self.qd_locations
+            self.polaron_locs = (self.qd_locations.T @ (self.eigstates**2)).T
 
-        # 4) Just keep the dense J; drop ham_sysbath (huge allocation before)
-        self.J_dense = (H - np.diag(np.diag(H))).copy()
+        # Off-diagonal J for Redfield
+        J_off = self.hamil - np.diag(np.diag(self.hamil))
+        self.J_dense = J_off.copy()
 
-        # 5) Keep your Redfield object setup
-        ham_sysbath = 0
+        # Build Hamiltonian object exactly as before (no physics change)
+        # (If your refactor removed sysbath, keep it for now to avoid any behavior drift.)
+        ham_sysbath = []
+        for i in range(self.n):
+            row = []
+            for j in range(self.n):
+                M = np.zeros((self.n, self.n))
+                M[i, j] = J_off[i, j]
+                row.append(M)
+            ham_sysbath.append(row)
+
         self.full_ham = hamiltonian_box.Hamiltonian(
             self.eignrgs, self.eigstates, self.qd_locations,
-            spec_density=self.spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
+            ham_sysbath, self.spectrum, const.kB * self.temp
         )
         self.full_ham.J_dense = self.J_dense
 
         self.redfield = redfield_box.Redfield(
             self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
-            time_verbose=True
+            time_verbose=False
         )
 
+    # NOTE : working
     # polaron-transformed Hamiltonian, eigenenergies, and polaron positions
     # def get_hamil(self, periodic = True):
 
