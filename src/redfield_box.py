@@ -428,17 +428,14 @@ class Redfield(Unitary):
         # --- gamma accumulation via CSR×dense and einsum (identical algebra/order)
         t2 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
-        tmp = np.empty_like(R, order='F')
         for k, lam in enumerate(lamdalist):
             A = A_map[lam]
             if A is None:
                 continue
-            Y = A.dot(C)                    # SciPy will write into Y (SciPy ≥ 1.11 supports out)
-            np.multiply(R, Y, out=tmp)      # reuse buffer
-            contrib = tmp.sum(axis=0)       # (npols,)
+            Y = A.dot(C)                          # (AB×AB) @ (AB×npols) → (AB×npols)
+            contrib = np.einsum('an,an->n', R, Y) # per-state sum over ab
             gamma_plus += bath_integrals[k] * contrib
-
-
+            
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
