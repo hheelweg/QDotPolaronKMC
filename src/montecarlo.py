@@ -85,42 +85,6 @@ class KMCRunner():
                 elif coords[j] < -self.box_radius*self.qd_spacing < 0: coords[j] = int(coords[j] + self.boundary)
         return recentered_grid
 
-    def get_box(self, center):
-        
-        """
-        create box around center coordinate and get box Hamiltonian as well as the eigenstates, 
-        eigenenergies and locations of the polarons in that box
-        """
-
-        # create relative grid
-        relative_grid = self.get_relative_grid(center)
-        grid = [list(x) for x in relative_grid] # transform relative grid to list for index search
-
-        box_idxs = []
-        # TODO : add dims == 3.
-        if self.dims == 1:
-            for i in range(self.box_length):
-                box_coord = list(np.array([self.qd_spacing])*(i-self.box_radius))
-                box_idxs.append(grid.index(box_coord))
-        if self.dims == 2:
-            for i in range(self.box_length):
-                for j in range(self.box_length):
-                    box_coord = list(np.array([self.qd_spacing, 0])*(i-self.box_radius)+np.array([0, self.qd_spacing])*(j-self.box_radius))
-                    box_idxs.append(grid.index(box_coord))
-        
-        # for the array slicing to work, the indices in box_indxs need to be sorted
-        box_idxs = sorted(box_idxs)
-        
-        # extract non-spatial information for the box
-        self.n_box = self.box_length**self.dims
-        self.hamil_box = self.hamil[box_idxs, :][:, box_idxs]
-        # compute eigenenergies and polaron eigenstates in box
-        [self.eignrgs_box, self.eigstates_box] = utils.diagonalize(self.hamil_box) 
-        # retrieve spatial information
-        self.sites_locs = self.qd_locations[box_idxs]
-        self.sites_locs_rel = relative_grid[box_idxs]
-        # compute positions of polaron eigenstates
-        self.eigstates_locs = np.matmul(self.eigstates_box ** 2, self.sites_locs_rel) + center
         
     # QD array setup
     # TODO make this compatible with non-periodic boundary conditions
@@ -242,34 +206,8 @@ class KMCRunner():
                                                  time_verbose=True
                                                 )
 
-
-    def make_kmatrix_box(self, center):
-        
-        """
-        make rates and return indices of final polaron states, as well as index i
-        of the start polaron
-        """
-        # system-bath Hamiltonian
-        J = self.hamil_box - np.diag(np.diag(self.hamil_box)) 
-        dim = len(self.hamil_box)
-        ham_sysbath = []
-        for i in range(dim):
-            ham_list=[]
-            for j in range(dim):
-                ham_coupl=np.zeros((dim,dim))
-                ham_coupl[i,j]=J[i,j]
-                ham_list.append(ham_coupl)
-            ham_sysbath.append(ham_list)   
-        
-        my_ham = hamiltonian_box.Hamiltonian(self.eignrgs_box, self.eigstates_box, self.sites_locs_rel,
-                                             ham_sysbath, self.spectrum, const.kB * self.temp)
-        my_redfield = redfield_box.Redfield(my_ham, self.kappa_polaron, self.r_hop, self.r_ove)
-
-        # get rates and indices of the potential final polaron states we can jump to
-        self.rates, self.final_states = my_redfield.make_redfield_box(center)
-
  
-    def NEW_kmatrix_box(self, center_global):
+    def make_kmatrix_box(self, center_global):
 
         # (1) use the global indices of polaron and site inside box
         pol_box  = self.pol_idxs_last
@@ -300,7 +238,7 @@ class KMCRunner():
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
-    def NEW_get_box(self, center, periodic=True):
+    def get_box(self, center, periodic=True):
 
         # (1) box size (unchanged)
         self.box_size = self.box_length * self.qd_spacing
@@ -349,14 +287,14 @@ class KMCRunner():
     def NEW_make_kmc_step(self, polaron_start_site):
 
         # (1) build box (just indices + center_global)
-        self.NEW_get_box(polaron_start_site)
+        self.get_box(polaron_start_site)
 
         center_global = self.center_global
         start_pol = self.polaron_locs[center_global]
 
         # (2) compute (or reuse) rates
         if self.stored_npolarons_box[center_global] == 0:
-            tot_time = self.NEW_kmatrix_box(center_global)
+            tot_time = self.make_kmatrix_box(center_global)
         else:
             tot_time = 0.0
             self.final_states = self.stored_polaron_sites[center_global]  # global indices
