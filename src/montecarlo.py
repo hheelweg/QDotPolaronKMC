@@ -237,7 +237,6 @@ class KMCRunner():
         self.full_ham = hamiltonian_box.Hamiltonian(self.eignrgs, self.eigstates, self.qd_locations,
                                              ham_sysbath, self.spectrum, const.kB * self.temp)
         # do we need this?
-        self.spectrum_calc = self.full_ham.spec
         self.redfield = redfield_box.NewRedfield(
                                                  self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
                                                  time_verbose=True
@@ -269,60 +268,28 @@ class KMCRunner():
         # get rates and indices of the potential final polaron states we can jump to
         self.rates, self.final_states = my_redfield.make_redfield_box(center)
 
-    # need to add this function! 
-    # def NEW_kmatrix_box(self, center):
-    #     # TODO: consider checking that enough fraction of an eigenstate is included in the box before summing
-    #     """
-    #     make rates and return indices of final polaron states, as well as index i
-    #     of the start polaron
-    #     """
-    #     # system-bath Hamiltonian
-    #     J = self.hamil_box - np.diag(np.diag(self.hamil_box)) 
-    #     dim = len(self.hamil_box)
-    #     ham_sysbath = []
-    #     for i in range(dim):
-    #         ham_list=[]
-    #         for j in range(dim):
-    #             ham_coupl=np.zeros((dim,dim))
-    #             ham_coupl[i,j]=J[i,j]
-    #             ham_list.append(ham_coupl)
-    #         ham_sysbath.append(ham_list)   
-        
-    #     my_ham = hamiltonian_box.Hamiltonian(self.eignrgs_box, self.eigstates_box, self.sites_locs_rel,
-    #                                          ham_sysbath, self.spectrum_calc, const.kB * self.temp)
-    #     my_redfield = redfield_box.NewRedfield(my_ham, self.eigstates_locs, self.kappa_polaron, self.r_hop, self.r_ove)
-
-    #     # get rates and indices of the potential final polaron states we can jump to
-    #     self.rates, self.final_states, tot_time = my_redfield.make_redfield_box(center, self.site_idxs_last, self.pol_idxs_last)
-    #     overall_idx_start = self.get_closest_idx(self.eigstates_locs_abs[center], self.polaron_locs)
-    #     self.stored_npolarons_box[overall_idx_start] = len(self.hamil_box)
-    #     self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)
-    #     self.stored_rate_vectors[overall_idx_start] = np.copy(self.rates)
-        
-    #     return tot_time
-
-
+ 
     def NEW_kmatrix_box(self, center_global):
 
-        # 1) Use the indices prepared by NEW_get_box (periodic/relative)
-        # Input sets from NEW_get_box
+        # (1) use the global indices of polaron and site inside box
         pol_box  = self.pol_idxs_last
         site_box = self.site_idxs_last
 
+        # (2) refine the polaron and site indices by additional constraints on r_hop and r_ove
         pol_g, site_g = self.redfield.refine_by_radius(
                     pol_idxs_global = pol_box,
                     site_idxs_global = site_box,
-                    center_global = center_global,                   # global index of the center polaron
+                    center_global = center_global,                      # global index of the center polaron
                     periodic=True,                                      # or False to match array setup
                     grid_dims=[self.sidelength] * int(self.dims)        # needed if periodic=True
                     )
 
-        # 2) Compute rates on those exact indices (no re-derivation)
+        # 2) compute rates on those exact indices (no re-derivation)
         self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_global(
             pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
         )
 
-        # 3) Cache by global center index
+        # 3) cache by global center index
         overall_idx_start = center_global
         self.stored_npolarons_box[overall_idx_start] = len(pol_g)
         self.stored_polaron_sites[overall_idx_start] = np.copy(self.final_states)   # global indices
@@ -379,90 +346,6 @@ class KMCRunner():
 
 
 
-
-    # def NEW_get_box(self, center, periodic = True):
-
-    #     # box dimensions
-    #     self.box_size = self.box_length * self.qd_spacing
-
-    #     # (1)function that finds indices of points array within box_size of center
-    #     def find_indices_within_box(points, center, grid_dimensions, box_size, periodic = True):
-    #         # half box size
-    #         half_box = box_size /2
-    #         # get dimensiona of lattice and make sure all dimensions are equal
-    #         dim = len(center)
-    #         assert(len(points[0]) == len(center) == len(grid_dimensions))
-
-    #         # TODO : implement for 3D
-    #         if dim == 1:
-    #             # Compute periodic distances in x direction
-    #             dx = np.abs(points - center[0])
-
-    #             # Apply periodic boundary conditions
-    #             dx = np.minimum(dx, grid_dimensions[0] - dx)  # Distance considering periodic wrapping
-
-    #             # Find indices where points are within the box
-    #             mask = (dx <= half_box)
-    #             return np.where(mask)[0]
-
-    #         elif dim == 2:
-    #             # Compute periodic distances in x and y directions
-    #             dx = np.abs(points[:, 0] - center[0])
-    #             dy = np.abs(points[:, 1] - center[1])
-
-    #             # Apply periodic boundary conditions
-    #             dx = np.minimum(dx, grid_dimensions[0] - dx)  # Distance considering periodic wrapping
-    #             dy = np.minimum(dy, grid_dimensions[1] - dy)
-
-    #             # Find indices where points are within the square box
-    #             mask = (dx <= half_box) & (dy <= half_box)
-    #             return np.where(mask)[0]
-
-    #     # (2) function that finds relative position of points array w.r.t. centerx
-    #     def get_relative_positions(points, center, grid_dimensions):
-
-    #         # get dimensiona of lattice and make sure all dimensions are equal
-    #         dim = len(center)
-    #         assert(len(points[0]) == len(center) == len(grid_dimensions))
-    #         if dim == 1:
-    #             # Compute raw relative distances
-    #             dx = points - center[0]
-
-    #             # Apply periodic boundary conditions: adjust distances for wrap-around
-    #             dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2  # Wrap around midpoint
-    #             return dx
-    #         elif dim == 2:
-    #             # Compute raw relative distances
-    #             dx = points[:, 0] - center[0]
-    #             dy = points[:, 1] - center[1]
-
-    #             # Apply periodic boundary conditions: adjust distances for wrap-around
-    #             dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2  # Wrap around midpoint
-    #             dy = (dy + grid_dimensions[1] / 2) % grid_dimensions[1] - grid_dimensions[1] / 2
-    #             return np.column_stack((dx, dy)) 
-
-    #     # get indices of polarons that are inside the box
-    #     pol_idxs = find_indices_within_box(self.polaron_locs, center, self.lattice_dimension, self.box_size)
-    #     # get indices of sites that are within the box
-    #     site_idxs = find_indices_within_box(self.qd_locations, center, self.lattice_dimension, self.box_size)
-
-    #     # get absolute positions of polarons and sites in box
-    #     self.eigstates_locs_abs = self.polaron_locs[pol_idxs]
-    #     self.site_locs = self.qd_locations[site_idxs]
-
-    #     # get relative positions of polarons and sites in box
-    #     self.eigstates_locs = get_relative_positions(self.eigstates_locs_abs, center, self.lattice_dimension)
-    #     self.sites_locs_rel = get_relative_positions(self.site_locs, center, self.lattice_dimension)
-
-    #     # get eigenstate energies and eigenstates in box
-    #     self.eignrgs_box = self.eignrgs[pol_idxs]
-    #     self.eigstates_box = self.eigstates[site_idxs, :][:, pol_idxs]
-
-    #     # get box Hamiltonian
-    #     # TODO : how can we use the new Hamiltonian for Redfield?
-    #     self.hamil_box = self.hamil[site_idxs, :][:, site_idxs]
-
-
     def NEW_make_kmc_step(self, polaron_start_site):
 
         # (1) build box (just indices + center_global)
@@ -491,52 +374,6 @@ class KMCRunner():
 
         return start_pol, end_pol, tot_time
 
-    # need to continue here
-    # def NEW_make_kmc_step(self, polaron_start_site):
-
-    #     # find global center index as before (using absolute polaron positions)
-    #     center_idx = int(self.get_closest_idx(polaron_start_site, self.polaron_locs))
-
-    #     # use the ORIGINAL selection (lives in NewRedfield and matches old physics)
-    #     pol_idxs, site_idxs = self.redfield.get_idxs(center_idx)
-
-    #     # store for downstream use
-    #     self.pol_idxs_last  = pol_idxs.astype(np.intp)
-    #     self.site_idxs_last = site_idxs.astype(np.intp)
-
-    #     # local center index inside pol_idxs
-    #     where = np.nonzero(self.pol_idxs_last == center_idx)[0]
-    #     if where.size != 1:
-    #         raise RuntimeError("Center not uniquely in pol_idxs")
-    #     self.center_local = int(where[0])
-
-    #     # absolute positions for output (unchanged)
-    #     self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
-    #     start_pol = self.eigstates_locs_abs[self.center_local]
-
-    #     # compute/use rates
-    #     overall_idx_start = int(self.pol_idxs_last[self.center_local])
-    #     if self.stored_npolarons_box[overall_idx_start] == 0:
-    #         tot_time = self.NEW_kmatrix_box(self.center_local)  # uses stored indices
-    #     else:
-    #         tot_time = 0.0
-    #         self.final_states = self.stored_polaron_sites[overall_idx_start]
-    #         self.rates        = self.stored_rate_vectors[overall_idx_start]
-
-    #     # KMC step
-    #     cum_rates = np.cumsum(self.rates)
-    #     S = cum_rates[-1]
-    #     if S <= 0.0:
-    #         self.j = 0
-    #         end_pol = start_pol
-    #         return start_pol, end_pol, tot_time
-
-    #     u = np.random.uniform()
-    #     self.j = int(np.searchsorted(cum_rates, u * S))
-    #     self.time += -np.log(np.random.uniform()) / S
-
-    #     end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
-    #     return start_pol, end_pol, tot_time
     
     
     
