@@ -275,6 +275,7 @@ class Redfield(Unitary):
     #     print('rates sum/shape', np.sum(rates), rates.shape)
     #     return rates, final_site_idxs, time.time() - t_all
 
+    # (08/12/2015) does the same physics but incredibly fast for rates
     def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global):
         """
         Exact-physics clone (global indexing), optimized with closed-form λ-contraction:
