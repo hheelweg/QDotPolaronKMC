@@ -34,23 +34,23 @@ class Redfield(Unitary):
         # bath-correlation cache
         self._corr_cache = {}  # key: (lam, self.kappa, center_global) -> dict[int -> complex]
 
-        def _corr_row(self, lam, center_global, pol_g):
-            key = (float(lam), float(self.kappa), int(center_global))
-            row_cache = self._corr_cache.get(key)
-            if row_cache is None:
-                row_cache = {}
-                self._corr_cache[key] = row_cache
+    def _corr_row(self, lam, center_global, pol_g):
+        key = (float(lam), float(self.kappa), int(center_global))
+        row_cache = self._corr_cache.get(key)
+        if row_cache is None:
+            row_cache = {}
+            self._corr_cache[key] = row_cache
 
-            # gather missing indices
-            need = [int(i) for i in pol_g if int(i) not in row_cache]
-            if need:
-                omega = self.ham.omega_diff[need, int(center_global)]
-                vals  = self.ham.spec.correlationFT(omega, lam, self.kappa)  # vectorized
-                for i, v in zip(need, vals):
-                    row_cache[i] = v
+        # gather missing indices
+        need = [int(i) for i in pol_g if int(i) not in row_cache]
+        if need:
+            omega = self.ham.omega_diff[need, int(center_global)]
+            vals  = self.ham.spec.correlationFT(omega, lam, self.kappa)  # vectorized
+            for i, v in zip(need, vals):
+                row_cache[i] = v
 
-            # assemble in pol_g order
-            return np.array([row_cache[int(i)] for i in pol_g], dtype=np.complex128)
+        # assemble in pol_g order
+        return np.array([row_cache[int(i)] for i in pol_g], dtype=np.complex128)
     
     
     # NOTE : might move this to montecarlo.py since this is not effectively being used here
