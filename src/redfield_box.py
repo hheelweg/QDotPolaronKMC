@@ -339,10 +339,6 @@ class Redfield(Unitary):
         u0 = U[site_g, m0]                          # (n,)
         Up = U[np.ix_(site_g, pol_g)]               # (n,P)
 
-        # --- Closed-form λ-bucket contraction (no pairs, no CSR)
-        # We need, for each p, the sums over indices in the 5 λ-classes. Do this by
-        # computing T[mask] for the 4 equalities {ac, bd, ad, bc}, then Möbius inversion
-        # to get exact-class sums, and finally aggregating by score s = (#ac + #bd) - (#ad + #bc).
 
         def _gamma_closed_form_fast(J, Up, u0, bath_map):
             """
@@ -422,70 +418,7 @@ class Redfield(Unitary):
                         + bath_map[ 2.0] * H2)
             return gamma_plus
 
-        def _lambda_contraction(R3D, C3D, bath_map):
-            n, _, P = R3D.shape
-            R = R3D; C = C3D
-
-            # Basic reductions (all vectorized over P)
-            rowR = R.sum(axis=1)             # (n, P)  sum over b
-            colR = R.sum(axis=0)             # (n, P)  sum over a
-            rowC = C.sum(axis=1)             # (n, P)
-            colC = C.sum(axis=0)             # (n, P)
-            diagR = np.einsum('aap->ap', R)  # (n, P)
-            diagC = np.einsum('aap->ap', C)  # (n, P)
-
-            # T[mask] = sum over indices where equalities in 'mask' hold (others unconstrained)
-            # mask bits order: 0=ac, 1=bd, 2=ad, 3=bc
-            def m(*bits): return sum(1 << b for b in bits)
-            T = {}
-
-            # empty set (no constraints)
-            T[m()]       = (R.sum(axis=(0,1)) * C.sum(axis=(0,1)))               # (P,)
-            # singletons
-            T[m(0)]      = (rowR * rowC).sum(axis=0)                             # ac
-            T[m(1)]      = (colR * colC).sum(axis=0)                             # bd
-            T[m(2)]      = (rowR * colC).sum(axis=0)                             # ad
-            T[m(3)]      = (colR * rowC).sum(axis=0)                             # bc
-            # pairs
-            T[m(0,1)]    = (R * C).sum(axis=(0,1))                               # ac & bd -> (a=c, b=d)
-            T[m(0,2)]    = (rowR * diagC).sum(axis=0)                            # ac & ad -> c=d=a
-            T[m(0,3)]    = (diagR * rowC).sum(axis=0)                            # ac & bc -> a=b=c
-            T[m(1,2)]    = (diagR * colC).sum(axis=0)                            # bd & ad -> a=b=d
-            T[m(1,3)]    = (colR * diagC).sum(axis=0)                            # bd & bc -> b=c=d
-            T[m(2,3)]    = (R * C.swapaxes(0,1)).sum(axis=(0,1))                 # ad & bc -> (a=d, b=c)
-            # triples and quadruple (all indices equal)
-            diag_prod    = (diagR * diagC).sum(axis=0)
-            T[m(0,1,2)]  = diag_prod
-            T[m(0,1,3)]  = diag_prod
-            T[m(0,2,3)]  = diag_prod
-            T[m(1,2,3)]  = diag_prod
-            T[m(0,1,2,3)] = diag_prod
-
-            # Möbius inversion on the 4-variable Boolean lattice:
-            # Exact[mask] = T[mask] - sum_{superset ⊃ mask} Exact[superset]
-            masks = sorted(T.keys(), key=lambda x: bin(x).count("1"), reverse=True)
-            Exact = {}
-            for mask in masks:
-                val = T[mask]
-                for sup in Exact:
-                    if (sup & mask) == mask and sup != mask:  # sup is a strict superset
-                        val = val - Exact[sup]
-                Exact[mask] = val
-
-            # Aggregate by λ score s = (#ac + #bd) - (#ad + #bc) ∈ {-2,-1,0,1,2}
-            H = {s: np.zeros(npols, dtype=np.complex128) for s in (-2, -1, 0, 1, 2)}
-            for mask, vec in Exact.items():
-                countX = ((mask >> 0) & 1) + ((mask >> 1) & 1)  # ac + bd
-                countZ = ((mask >> 2) & 1) + ((mask >> 3) & 1)  # ad + bc
-                s = countX - countZ
-                H[s] += vec
-
-            # Combine with bath integrals per λ
-            out = np.zeros(npols, dtype=np.complex128)
-            for s, vec in H.items():
-                out += bath_map[float(s)] * vec
-            return out
-
+        
         t2 = time.time()
         gamma_plus = _gamma_closed_form_fast(J, Up, u0, bath_map)
         if time_verbose:

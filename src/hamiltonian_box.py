@@ -135,7 +135,7 @@ class Hamiltonian(HamiltonianSystem):
         self.init_system(self.evals, self.Umat)
         self.J_dense = np.asarray(J_dense, dtype=np.float64, order='C')
 
-        self._eig_op_cache = {}
+        #self._eig_op_cache = {}
 
     def init_system(self, evals, eigstates):
         self.nsite = int(np.size(evals))
@@ -151,27 +151,27 @@ class Hamiltonian(HamiltonianSystem):
         def _f(rho2): return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
         return utils.transform_rho(_f, rho)
 
-    # NEW: get eigen-basis operator for the (a,b) site pair WITHOUT building a site-basis matrix
-    # E_ab^eig = U^† E_ab U has elements (i,j) = U^*_{a,i} * U_{b,j}  ⇒ outer(U[a,:].conj(), U[b,:])
-    def get_sysbath_eig(self, a_idx: int, b_idx: int) -> np.ndarray:
-        key = (int(a_idx), int(b_idx))
-        op = self._eig_op_cache.get(key)
-        if op is None:
-            ua = self.Umat[int(a_idx), :].conj()   
-            ub = self.Umat[int(b_idx), :]          
-            op = np.outer(ua, ub).astype(np.complex128, copy=False)  # (n,n)
-            self._eig_op_cache[key] = op
-        return op
+    # # NEW: get eigen-basis operator for the (a,b) site pair WITHOUT building a site-basis matrix
+    # # E_ab^eig = U^† E_ab U has elements (i,j) = U^*_{a,i} * U_{b,j}  ⇒ outer(U[a,:].conj(), U[b,:])
+    # def get_sysbath_eig(self, a_idx: int, b_idx: int) -> np.ndarray:
+    #     key = (int(a_idx), int(b_idx))
+    #     op = self._eig_op_cache.get(key)
+    #     if op is None:
+    #         ua = self.Umat[int(a_idx), :].conj()   
+    #         ub = self.Umat[int(b_idx), :]          
+    #         op = np.outer(ua, ub).astype(np.complex128, copy=False)  # (n,n)
+    #         self._eig_op_cache[key] = op
+    #     return op
 
-    # Optional: prewarm for a box’s indices (only if other code uses the cache)
-    def warm_sysbath_eig_cache(self, site_idxs):
-        U = self.Umat
-        for a in site_idxs:
-            ua = U[a, :].conj()
-            for b in site_idxs:
-                key = (int(a), int(b))
-                if key not in self._eig_op_cache:
-                    self._eig_op_cache[key] = np.outer(ua, U[b, :]).astype(np.complex128, copy=False)
+    # # Optional: prewarm for a box’s indices (only if other code uses the cache)
+    # def warm_sysbath_eig_cache(self, site_idxs):
+    #     U = self.Umat
+    #     for a in site_idxs:
+    #         ua = U[a, :].conj()
+    #         for b in site_idxs:
+    #             key = (int(a), int(b))
+    #             if key not in self._eig_op_cache:
+    #                 self._eig_op_cache[key] = np.outer(ua, U[b, :]).astype(np.complex128, copy=False)
 
 
 class _PhiTransformer:
