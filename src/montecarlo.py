@@ -538,10 +538,10 @@ class KMCRunner():
 
         # (5) obtain spatial coordinates of final polaron state j
         # original version
-        #end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
+        end_pol = self.eigstates_locs_abs[self.final_states[self.j]]
 
         # modified version 
-        end_pol = self.polaron_locs[self.final_states[self.j]]
+        #end_pol = self.polaron_locs[self.final_states[self.j]]
         
         return start_pol, end_pol, tot_time
 
