@@ -252,7 +252,7 @@ class KMCRunner():
         
         # (6) set up Redfield instance
         self.redfield = redfield_box.Redfield(
-            self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
+            self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron, self.r_hop, self.r_ove,
             time_verbose=True
         )
 

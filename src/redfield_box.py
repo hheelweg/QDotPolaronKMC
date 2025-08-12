@@ -20,10 +20,11 @@ class Redfield(Unitary):
     """ class to compute the Redfield tensor
     """
 
-    def __init__(self, hamiltonian, polaron_locations, kappa, r_hop, r_ove, time_verbose = True):
+    def __init__(self, hamiltonian, polaron_locations, site_locations, kappa, r_hop, r_ove, time_verbose = True):
 
         self.ham = hamiltonian
-        self.polaron_locations = polaron_locations         # polaron locations (in relative frame)
+        self.polaron_locations = polaron_locations          # polaron locations (global frame)
+        self.site_locations = site_locations                # site locations (global frame)
 
         self.kappa=kappa
         self.r_hop = r_hop
