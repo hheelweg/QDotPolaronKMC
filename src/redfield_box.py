@@ -34,6 +34,11 @@ class Redfield(Unitary):
         # bath-correlation cache
         self._corr_cache = {}  # key: (lam, self.kappa, center_global) -> dict[int -> complex]
 
+        # cache pruned A-maps
+        self._A_lambda_cache = {}          # { nsites : {lam: CSR} }
+        self._A_lambda_pruned = {}         # { (nsites, mask_sig) : {lam: CSR_pruned} }
+
+    # bath correlation function
     def _corr_row(self, lam, center_global, pol_g):
         key = (float(lam), float(self.kappa), int(center_global))
         row_cache = self._corr_cache.get(key)
@@ -51,6 +56,22 @@ class Redfield(Unitary):
 
         # assemble in pol_g order
         return np.array([row_cache[int(i)] for i in pol_g], dtype=np.complex128)
+
+    # pruned A-maps
+    def _get_pruned_A_map(self, nsites, A_map, ab_keep):
+        key = (nsites, ab_keep.tobytes())  # mask signature
+        P = self._A_lambda_pruned.get(key)
+        if P is not None:
+            return P
+        # build and store once
+        P = {}
+        for lam, A in A_map.items():
+            if A is None:
+                P[lam] = None
+            else:
+                P[lam] = A[ab_keep][:, ab_keep]
+        self._A_lambda_pruned[key] = P
+        return P
     
     
     # NOTE : might move this to montecarlo.py since this is not effectively being used here
@@ -366,7 +387,7 @@ class Redfield(Unitary):
         # --- (BIG WIN) Build R and C directly from cached full eigen-operators
         t1 = time.time()
 
-        
+
         J_mat = self.ham.J_dense[np.ix_(site_g, site_g)]  # (nsites, nsites)
         U = self.ham.Umat
         m0 = int(center_global)
@@ -396,14 +417,20 @@ class Redfield(Unitary):
             print('time(site→eig rows/cols)', time.time() - t1, flush=True)
 
         # --- prune exactly-zero rows/cols (same logic as baseline)
-        row_mask = np.any(R != 0, axis=1)
-        col_mask = np.any(C != 0, axis=1)
-        ab_keep = row_mask | col_mask
+        # row_mask = np.any(R != 0, axis=1)
+        # col_mask = np.any(C != 0, axis=1)
+        # ab_keep = row_mask | col_mask
+        # if ab_keep.sum() < AB:
+        #     R = R[ab_keep, :]
+        #     C = C[ab_keep, :]
+        #     A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
+        #             for lam in lamdalist}
+        #     AB = ab_keep.sum()
+        ab_keep = np.any(R != 0, axis=1) | np.any(C != 0, axis=1)
         if ab_keep.sum() < AB:
             R = R[ab_keep, :]
             C = C[ab_keep, :]
-            A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
-                    for lam in lamdalist}
+            A_map = self._get_pruned_A_map(nsites, A_map, ab_keep)
             AB = ab_keep.sum()
 
         # --- gamma accumulation via CSR×dense and einsum (identical algebra/order)
