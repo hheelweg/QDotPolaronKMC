@@ -225,7 +225,7 @@ class KMCRunner():
 
     def get_hamil(self, periodic=True):
         # H = diag(ε) + J
-        J = _build_J_dense_physics_exact(
+        J = self._build_J_dense_physics_exact(
             qd_pos=self.qd_locations,
             qd_dip=self.qddipoles,
             J_c=self.J_c,
