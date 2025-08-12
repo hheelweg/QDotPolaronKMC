@@ -17,7 +17,7 @@ class Unitary(object):
         pass
 
 class Redfield(Unitary):
-    """ class to compute the Redfield tensor
+    """ class to compute the Redfield rates for KMC
     """
 
     def __init__(self, hamiltonian, polaron_locations, site_locations, kappa, r_hop, r_ove, time_verbose = True):
@@ -27,8 +27,11 @@ class Redfield(Unitary):
         self.site_locations = site_locations                # site locations (global frame)
 
         self.kappa=kappa
+
+        # hopping and overlap radii
         self.r_hop = r_hop
         self.r_ove = r_ove
+
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
 
@@ -128,7 +131,152 @@ class Redfield(Unitary):
         return pol_g, site_g
  
 
+    # (08/12/2015) this is a bit black box but super fast (and correct!)
+    def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global):
+        """
+        Exact-physics clone (global indexing), optimized with closed-form λ-contraction:
+        - No CSR / no (ab,cd) pair loops
+        - γ accumulation in O(nsites^2 * npols) using row/col/diag reductions + Möbius inversion
+        """
+        import time
+        import numpy as np
+
+        t_all = time.time()
+        time_verbose = getattr(self, "time_verbose", False)
+
+        # --- local views (preserve order)
+        pol_g  = np.asarray(pol_idxs_global,  dtype=np.intp)
+        site_g = np.asarray(site_idxs_global, dtype=np.intp)
+        npols  = int(pol_g.size)
+        nsites = int(site_g.size)
+        if time_verbose:
+            print('npols, nsites', npols, nsites)
+
+        # Map center_global -> local index
+        where = np.nonzero(pol_g == int(center_global))[0]
+        assert where.size == 1, "center_global is not (uniquely) inside pol_idxs_global"
+        center_loc = int(where[0])
+
+        # --- Bath integrals (vectorized, aligned to pol_g order)
+        #     We will combine them by λ ∈ {-2,-1,0,1,2} after the closed-form contraction.
+        t0 = time.time()
+        lamvals = (-2.0, -1.0, 0.0, 1.0, 2.0)
+        bath_map = {
+            lam: (np.zeros(npols, np.complex128) if lam == 0.0
+                else self._corr_row(lam, center_global, pol_g))
+            for lam in lamvals
+        }
+        if time_verbose:
+            print('time(bath integrals)', time.time() - t0, flush=True)
+
+        # --- Build dense R and C once (nsites, nsites, npols)
+        t1 = time.time()
+        J_mat = self.ham.J_dense[np.ix_(site_g, site_g)]  # (n, n)
+        U = self.ham.Umat
+        m0 = int(center_global)
+
+        U_site_center = U[site_g, m0]                 # (n,)
+        U_site_pol    = U[np.ix_(site_g, pol_g)]      # (n, P)
+        U_site_pol_c  = np.conj(U_site_pol)           # (n, P)
+
+        # R3D[a,b,p] = J[a,b] * conj(U[a,m0]) * U[b,p]
+        # C3D[a,b,p] = J[a,b] * conj(U[a,p]) * U[b,m0]
+        R3D = (J_mat[:, :, None]
+            * np.conj(U_site_center)[:, None, None]
+            * U_site_pol[None, :, :])              # (n, n, P)
+        C3D = (J_mat[:, :, None]
+            * U_site_pol_c[:, None, :]
+            * U_site_center[None, :, None])        # (n, n, P)
+        if time_verbose:
+            print('time(site→eig rows/cols)', time.time() - t1, flush=True)
+
+        # --- Closed-form λ-bucket contraction (no pairs, no CSR)
+        # We need, for each p, the sums over indices in the 5 λ-classes. Do this by
+        # computing T[mask] for the 4 equalities {ac, bd, ad, bc}, then Möbius inversion
+        # to get exact-class sums, and finally aggregating by score s = (#ac + #bd) - (#ad + #bc).
+
+        def _lambda_contraction(R3D, C3D, bath_map):
+            n, _, P = R3D.shape
+            R = R3D; C = C3D
+
+            # Basic reductions (all vectorized over P)
+            rowR = R.sum(axis=1)             # (n, P)  sum over b
+            colR = R.sum(axis=0)             # (n, P)  sum over a
+            rowC = C.sum(axis=1)             # (n, P)
+            colC = C.sum(axis=0)             # (n, P)
+            diagR = np.einsum('aap->ap', R)  # (n, P)
+            diagC = np.einsum('aap->ap', C)  # (n, P)
+
+            # T[mask] = sum over indices where equalities in 'mask' hold (others unconstrained)
+            # mask bits order: 0=ac, 1=bd, 2=ad, 3=bc
+            def m(*bits): return sum(1 << b for b in bits)
+            T = {}
+
+            # empty set (no constraints)
+            T[m()]       = (R.sum(axis=(0,1)) * C.sum(axis=(0,1)))               # (P,)
+            # singletons
+            T[m(0)]      = (rowR * rowC).sum(axis=0)                             # ac
+            T[m(1)]      = (colR * colC).sum(axis=0)                             # bd
+            T[m(2)]      = (rowR * colC).sum(axis=0)                             # ad
+            T[m(3)]      = (colR * rowC).sum(axis=0)                             # bc
+            # pairs
+            T[m(0,1)]    = (R * C).sum(axis=(0,1))                               # ac & bd -> (a=c, b=d)
+            T[m(0,2)]    = (rowR * diagC).sum(axis=0)                            # ac & ad -> c=d=a
+            T[m(0,3)]    = (diagR * rowC).sum(axis=0)                            # ac & bc -> a=b=c
+            T[m(1,2)]    = (diagR * colC).sum(axis=0)                            # bd & ad -> a=b=d
+            T[m(1,3)]    = (colR * diagC).sum(axis=0)                            # bd & bc -> b=c=d
+            T[m(2,3)]    = (R * C.swapaxes(0,1)).sum(axis=(0,1))                 # ad & bc -> (a=d, b=c)
+            # triples and quadruple (all indices equal)
+            diag_prod    = (diagR * diagC).sum(axis=0)
+            T[m(0,1,2)]  = diag_prod
+            T[m(0,1,3)]  = diag_prod
+            T[m(0,2,3)]  = diag_prod
+            T[m(1,2,3)]  = diag_prod
+            T[m(0,1,2,3)] = diag_prod
+
+            # Möbius inversion on the 4-variable Boolean lattice:
+            # Exact[mask] = T[mask] - sum_{superset ⊃ mask} Exact[superset]
+            masks = sorted(T.keys(), key=lambda x: bin(x).count("1"), reverse=True)
+            Exact = {}
+            for mask in masks:
+                val = T[mask]
+                for sup in Exact:
+                    if (sup & mask) == mask and sup != mask:  # sup is a strict superset
+                        val = val - Exact[sup]
+                Exact[mask] = val
+
+            # Aggregate by λ score s = (#ac + #bd) - (#ad + #bc) ∈ {-2,-1,0,1,2}
+            H = {s: np.zeros(npols, dtype=np.complex128) for s in (-2, -1, 0, 1, 2)}
+            for mask, vec in Exact.items():
+                countX = ((mask >> 0) & 1) + ((mask >> 1) & 1)  # ac + bd
+                countZ = ((mask >> 2) & 1) + ((mask >> 3) & 1)  # ad + bc
+                s = countX - countZ
+                H[s] += vec
+
+            # Combine with bath integrals per λ
+            out = np.zeros(npols, dtype=np.complex128)
+            for s, vec in H.items():
+                out += bath_map[float(s)] * vec
+            return out
+
+        t2 = time.time()
+        gamma_plus = _lambda_contraction(R3D, C3D, bath_map)  # (npols,)
+        if time_verbose:
+            print('time(gamma accumulation)', time.time() - t2, flush=True)
+
+        # --- outgoing rates (remove center), scale by ħ; return GLOBAL final indices
+        red_R_tensor = 2.0 * np.real(gamma_plus)
+        rates = np.delete(red_R_tensor, center_loc) / const.hbar
+        final_site_idxs = np.delete(pol_g, center_loc).astype(int)
+
+        if time_verbose:
+            print('time(total)', time.time() - t_all, flush=True)
+
+        print('rates sum/shape', np.sum(rates), rates.shape)
+        return rates, final_site_idxs, time.time() - t_all
+
     # (08/12/2025) working code
+    # NOTE : keep this as legacy code somewhere
     # def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global):
     #     """
     #     Exact-physics clone (global indexing), optimized:
@@ -276,153 +424,6 @@ class Redfield(Unitary):
     #     print('rates sum/shape', np.sum(rates), rates.shape)
     #     return rates, final_site_idxs, time.time() - t_all
 
-    # (08/12/2015) does the same physics but incredibly fast for rates
-    def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global):
-        """
-        Exact-physics clone (global indexing), optimized with closed-form λ-contraction:
-        - No CSR / no (ab,cd) pair loops
-        - γ accumulation in O(nsites^2 * npols) using row/col/diag reductions + Möbius inversion
-        """
-        import time
-        import numpy as np
-
-        t_all = time.time()
-        time_verbose = getattr(self, "time_verbose", False)
-
-        # --- local views (preserve order)
-        pol_g  = np.asarray(pol_idxs_global,  dtype=np.intp)
-        site_g = np.asarray(site_idxs_global, dtype=np.intp)
-        npols  = int(pol_g.size)
-        nsites = int(site_g.size)
-        if time_verbose:
-            print('npols, nsites', npols, nsites)
-
-        # Map center_global -> local index
-        where = np.nonzero(pol_g == int(center_global))[0]
-        assert where.size == 1, "center_global is not (uniquely) inside pol_idxs_global"
-        center_loc = int(where[0])
-
-        # --- Bath integrals (vectorized, aligned to pol_g order)
-        #     We will combine them by λ ∈ {-2,-1,0,1,2} after the closed-form contraction.
-        t0 = time.time()
-        lamvals = (-2.0, -1.0, 0.0, 1.0, 2.0)
-        bath_map = {
-            lam: (np.zeros(npols, np.complex128) if lam == 0.0
-                else self._corr_row(lam, center_global, pol_g))
-            for lam in lamvals
-        }
-        if time_verbose:
-            print('time(bath integrals)', time.time() - t0, flush=True)
-
-        # --- Build dense R and C once (nsites, nsites, npols)
-        t1 = time.time()
-        J_mat = self.ham.J_dense[np.ix_(site_g, site_g)]  # (n, n)
-        U = self.ham.Umat
-        m0 = int(center_global)
-
-        U_site_center = U[site_g, m0]                 # (n,)
-        U_site_pol    = U[np.ix_(site_g, pol_g)]      # (n, P)
-        U_site_pol_c  = np.conj(U_site_pol)           # (n, P)
-
-        # R3D[a,b,p] = J[a,b] * conj(U[a,m0]) * U[b,p]
-        # C3D[a,b,p] = J[a,b] * conj(U[a,p]) * U[b,m0]
-        R3D = (J_mat[:, :, None]
-            * np.conj(U_site_center)[:, None, None]
-            * U_site_pol[None, :, :])              # (n, n, P)
-        C3D = (J_mat[:, :, None]
-            * U_site_pol_c[:, None, :]
-            * U_site_center[None, :, None])        # (n, n, P)
-        if time_verbose:
-            print('time(site→eig rows/cols)', time.time() - t1, flush=True)
-
-        # --- Closed-form λ-bucket contraction (no pairs, no CSR)
-        # We need, for each p, the sums over indices in the 5 λ-classes. Do this by
-        # computing T[mask] for the 4 equalities {ac, bd, ad, bc}, then Möbius inversion
-        # to get exact-class sums, and finally aggregating by score s = (#ac + #bd) - (#ad + #bc).
-
-        def _lambda_contraction(R3D, C3D, bath_map):
-            n, _, P = R3D.shape
-            R = R3D; C = C3D
-
-            # Basic reductions (all vectorized over P)
-            rowR = R.sum(axis=1)             # (n, P)  sum over b
-            colR = R.sum(axis=0)             # (n, P)  sum over a
-            rowC = C.sum(axis=1)             # (n, P)
-            colC = C.sum(axis=0)             # (n, P)
-            diagR = np.einsum('aap->ap', R)  # (n, P)
-            diagC = np.einsum('aap->ap', C)  # (n, P)
-
-            # T[mask] = sum over indices where equalities in 'mask' hold (others unconstrained)
-            # mask bits order: 0=ac, 1=bd, 2=ad, 3=bc
-            def m(*bits): return sum(1 << b for b in bits)
-            T = {}
-
-            # empty set (no constraints)
-            T[m()]       = (R.sum(axis=(0,1)) * C.sum(axis=(0,1)))               # (P,)
-            # singletons
-            T[m(0)]      = (rowR * rowC).sum(axis=0)                             # ac
-            T[m(1)]      = (colR * colC).sum(axis=0)                             # bd
-            T[m(2)]      = (rowR * colC).sum(axis=0)                             # ad
-            T[m(3)]      = (colR * rowC).sum(axis=0)                             # bc
-            # pairs
-            T[m(0,1)]    = (R * C).sum(axis=(0,1))                               # ac & bd -> (a=c, b=d)
-            T[m(0,2)]    = (rowR * diagC).sum(axis=0)                            # ac & ad -> c=d=a
-            T[m(0,3)]    = (diagR * rowC).sum(axis=0)                            # ac & bc -> a=b=c
-            T[m(1,2)]    = (diagR * colC).sum(axis=0)                            # bd & ad -> a=b=d
-            T[m(1,3)]    = (colR * diagC).sum(axis=0)                            # bd & bc -> b=c=d
-            T[m(2,3)]    = (R * C.swapaxes(0,1)).sum(axis=(0,1))                 # ad & bc -> (a=d, b=c)
-            # triples and quadruple (all indices equal)
-            diag_prod    = (diagR * diagC).sum(axis=0)
-            T[m(0,1,2)]  = diag_prod
-            T[m(0,1,3)]  = diag_prod
-            T[m(0,2,3)]  = diag_prod
-            T[m(1,2,3)]  = diag_prod
-            T[m(0,1,2,3)] = diag_prod
-
-            # Möbius inversion on the 4-variable Boolean lattice:
-            # Exact[mask] = T[mask] - sum_{superset ⊃ mask} Exact[superset]
-            masks = sorted(T.keys(), key=lambda x: bin(x).count("1"), reverse=True)
-            Exact = {}
-            for mask in masks:
-                val = T[mask]
-                for sup in Exact:
-                    if (sup & mask) == mask and sup != mask:  # sup is a strict superset
-                        val = val - Exact[sup]
-                Exact[mask] = val
-
-            # Aggregate by λ score s = (#ac + #bd) - (#ad + #bc) ∈ {-2,-1,0,1,2}
-            H = {s: np.zeros(npols, dtype=np.complex128) for s in (-2, -1, 0, 1, 2)}
-            for mask, vec in Exact.items():
-                countX = ((mask >> 0) & 1) + ((mask >> 1) & 1)  # ac + bd
-                countZ = ((mask >> 2) & 1) + ((mask >> 3) & 1)  # ad + bc
-                s = countX - countZ
-                H[s] += vec
-
-            # Combine with bath integrals per λ
-            out = np.zeros(npols, dtype=np.complex128)
-            for s, vec in H.items():
-                out += bath_map[float(s)] * vec
-            return out
-
-        t2 = time.time()
-        gamma_plus = _lambda_contraction(R3D, C3D, bath_map)  # (npols,)
-        if time_verbose:
-            print('time(gamma accumulation)', time.time() - t2, flush=True)
-
-        # --- outgoing rates (remove center), scale by ħ; return GLOBAL final indices
-        red_R_tensor = 2.0 * np.real(gamma_plus)
-        rates = np.delete(red_R_tensor, center_loc) / const.hbar
-        final_site_idxs = np.delete(pol_g, center_loc).astype(int)
-
-        if time_verbose:
-            print('time(total)', time.time() - t_all, flush=True)
-
-        print('rates sum/shape', np.sum(rates), rates.shape)
-        return rates, final_site_idxs, time.time() - t_all
-
-
-    
-    
 
     
         # legcy code, should be removed eventually. 

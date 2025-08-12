@@ -120,15 +120,17 @@ class HamiltonianSystem():
 #             for b in site_idxs:
 #                 _ = self.get_sysbath_eig(a, b)
 
-# try around with this one
+# this seems to be a working thing now
 class Hamiltonian(HamiltonianSystem):
 
     def __init__(self, evals, eigstates, spec_density, kT, J_dense=None):
+
         self.evals = np.asarray(evals, dtype=np.float64)
         self.Umat  = np.asarray(eigstates, dtype=np.complex128, order='C')
-        const.kT = float(kT)  # keep for SpecDens if it expects it
-        self.spec = spec_density if isinstance(spec_density, SpecDens) \
-                    else SpecDens(spec_density, float(np.ptp(evals)))
+
+        const.kT = float(kT)
+
+        self.spec = spec_density if isinstance(spec_density, SpecDens) else SpecDens(spec_density, float(np.ptp(evals)))
 
         self.init_system(self.evals, self.Umat)
         self.J_dense = np.asarray(J_dense, dtype=np.float64, order='C')
@@ -155,8 +157,8 @@ class Hamiltonian(HamiltonianSystem):
         key = (int(a_idx), int(b_idx))
         op = self._eig_op_cache.get(key)
         if op is None:
-            ua = self.Umat[int(a_idx), :].conj()   # (n,)
-            ub = self.Umat[int(b_idx), :]          # (n,)
+            ua = self.Umat[int(a_idx), :].conj()   
+            ub = self.Umat[int(b_idx), :]          
             op = np.outer(ua, ub).astype(np.complex128, copy=False)  # (n,n)
             self._eig_op_cache[key] = op
         return op
@@ -170,6 +172,7 @@ class Hamiltonian(HamiltonianSystem):
                 key = (int(a), int(b))
                 if key not in self._eig_op_cache:
                     self._eig_op_cache[key] = np.outer(ua, U[b, :]).astype(np.complex128, copy=False)
+
 
 class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
