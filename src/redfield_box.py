@@ -384,7 +384,7 @@ class NewRedfield(Unitary):
         t0_all = time.time()
         time_verbose = getattr(self, "time_verbose", False)
 
-        pol_g, site_g = self.get_idxsNew(self, center_global, periodic=True, grid_dims=grid_dims,
+        pol_g, site_g = self.get_idxsNew(center_global, periodic=True, grid_dims=grid_dims,
                  r_hop=self.r_hop, r_ove=self.r_ove)
 
         npols, nsites = pol_g.size, site_g.size
