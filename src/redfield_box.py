@@ -344,7 +344,7 @@ class Redfield(Unitary):
         # computing T[mask] for the 4 equalities {ac, bd, ad, bc}, then Möbius inversion
         # to get exact-class sums, and finally aggregating by score s = (#ac + #bd) - (#ad + #bc).
 
-        def _gamma_closed_form_fast(self, J, Up, u0, bath_map):
+        def _gamma_closed_form_fast(J, Up, u0, bath_map):
             """
             Exact-physics λ-contraction without building R3D/C3D.
             Inputs:
