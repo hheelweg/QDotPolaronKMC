@@ -385,6 +385,7 @@ class NewRedfield(Unitary):
         Internally we build a global→local map once, slice operators to the local
         subspace, and use the local center position only where slicing requires it.
         """
+        print('hi')
         t0_all = time.time()
         time_verbose = getattr(self, "time_verbose", False)
 
