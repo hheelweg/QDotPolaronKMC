@@ -378,7 +378,7 @@ class NewRedfield(Unitary):
         print('rates', rates)
 
         if self.time_verbose:
-            print('polA, siteA, cA', [pol_idxs_tot[pol_idx] for pol_idx in pol_idxs], [site_idxs_tot[site_idx] for site_idx in site_idxs], pol_idxs_tot[center_idx])
+            print('polA, siteA, cA', np.array([pol_idxs_tot[pol_idx] for pol_idx in pol_idxs]), np.array([site_idxs_tot[site_idx] for site_idx in site_idxs]), pol_idxs_tot[center_idx])
 
         return rates, final_site_idxs, time.time() - start_tot
 
