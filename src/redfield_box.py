@@ -51,54 +51,59 @@ class NewRedfield(Unitary):
                 "Hamiltonian must expose eigenvalues as .evals or .eignrgs"
             )
     
-    @staticmethod
-    def _min_image(d, L):
-        # bring displacement d into [-L/2, L/2] for each component
-        return d - np.round(d / L) * L
+    def refine_by_radius(self, *,
+                     pol_idxs_global, site_idxs_global, center_global,
+                     periodic=False, grid_dims=None,
+                     r_hop=None, r_ove=None):
+        """
+        Returns subsets pol_g ⊆ pol_idxs_global and site_g ⊆ site_idxs_global
+        that are within r_hop / r_ove of center_global, preserving order.
+        Also returns center_local (the position of center_global inside pol_g).
 
-    def _dist(self, pts, center, periodic=False, grid_dims=None):
-        """
-        pts: (N, D) or (N,) if 1D
-        center: (D,) coordinate
-        grid_dims: (D,) box lengths, required if periodic=True
-        returns: Euclidean distances (N,)
-        """
-        pts = np.atleast_2d(pts)
-        center = np.asarray(center, float).reshape(1, -1)
-        disp = pts - center  # raw displacement
-        if periodic:
-            if grid_dims is None:
-                raise ValueError("grid_dims must be provided for periodic distances.")
-            L = np.asarray(grid_dims, float).reshape(1, -1)
-            disp = self._min_image(disp, L)
-        return np.linalg.norm(disp, axis=1)
-
-    def get_idxsNew(self, center_idx, *, periodic=False, grid_dims=None,
-                 r_hop=None, r_ove=None):
-        """
-        Reproduces the original selection but with optional periodic wrap.
-        center_idx: global polaron index of the center
-        periodic: bool
-        grid_dims: (D,) lengths for PBC (same units as positions)
-        r_hop / r_ove: override radii (default to self.r_hop/self.r_ove)
+        Assumes:
+        - self.polaron_locations are absolute coordinates (shape: [N, D])
+        - self.ham.qd_lattice_rel are site coordinates in the same frame
         """
         if r_hop is None: r_hop = self.r_hop
         if r_ove is None: r_ove = self.r_ove
 
-        center_coord = self.polaron_locations[center_idx]  # ABSOLUTE frame
+        pol_idxs_global  = np.asarray(pol_idxs_global,  dtype=np.intp)
+        site_idxs_global = np.asarray(site_idxs_global, dtype=np.intp)
 
-        # polaron indices by radius
-        dpol = self._dist(self.polaron_locations, center_coord,
-                          periodic=periodic, grid_dims=grid_dims)
-        polaron_idxs = np.where(dpol < r_hop)[0]
+        # center position in the same frame used for distances
+        center_coord = self.polaron_locations[int(center_global)]
 
-        # site indices by radius (same frame as used in your original code)
-        dsite = self._dist(self.ham.qd_lattice_rel, center_coord,
-                           periodic=periodic, grid_dims=grid_dims)
-        site_idxs = np.where(dsite < r_ove)[0]
+        # periodic minimum-image displacement (vectorized)
+        def _dist(pts):
+            pts = np.atleast_2d(pts)
+            disp = pts - center_coord
+            if periodic:
+                if grid_dims is None:
+                    raise ValueError("grid_dims must be provided when periodic=True.")
+                L = np.asarray(grid_dims, float)
+                disp = disp - np.round(disp / L) * L
+            return np.linalg.norm(disp, axis=1)
 
-        return polaron_idxs, site_idxs
+        # distances for *subset* (keep original order with boolean masks)
+        dpol  = _dist(self.polaron_locations[pol_idxs_global])
+        dsite = _dist(self.ham.qd_lattice_rel[site_idxs_global])
+
+        keep_pol_mask  = (dpol  < r_hop)
+        keep_site_mask = (dsite < r_ove)
+
+        pol_g  = pol_idxs_global[keep_pol_mask]
+        site_g = site_idxs_global[keep_site_mask]
+
+        # center must remain inside pol_g (since it came from the box)
+        assert center_global in pol_g, (
+            "center_global not in pol_idxs_global after box selection; "
+            "ensure the box always includes the center polaron."
+        )
+        center_local = int(np.where(pol_g == int(center_global))[0][0])
+
+        return pol_g, site_g, center_local
  
+
     def get_idxs(self, center_idx):
         # location of center polaron i (given by idx center_idx) around which we have constructed the box
         center_coord = self.polaron_locations[center_idx]
@@ -375,7 +380,7 @@ class NewRedfield(Unitary):
 
         return rates, final_site_idxs, time.time() - start_tot
 
-    def make_redfield_box_global(self, *, pol_idxs_global, site_idxs_global, center_global, grid_dims):
+    def make_redfield_box_global(self, *, pol_idxs_global, site_idxs_global, center_global):
         """
         Same physics as make_redfield_box, but indexing is purely GLOBAL on input.
         Internally we build a global→local map once, slice operators to the local
@@ -384,9 +389,8 @@ class NewRedfield(Unitary):
         t0_all = time.time()
         time_verbose = getattr(self, "time_verbose", False)
 
-        pol_g, site_g = self.get_idxsNew(center_global, periodic=True, grid_dims=grid_dims,
-                 r_hop=self.r_hop, r_ove=self.r_ove)
-
+        pol_g  = np.asarray(pol_idxs_global,  dtype=np.intp)
+        site_g = np.asarray(site_idxs_global, dtype=np.intp)
         npols, nsites = pol_g.size, site_g.size
         if time_verbose:
             print('npols, nsites', npols, nsites)

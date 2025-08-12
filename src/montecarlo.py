@@ -308,10 +308,18 @@ class KMCRunner():
         site_idxs = self.site_idxs_last         # 1D global indices, from NEW_get_box
         center_global = self.center_global        # global index inside pol_idxs
 
+
+        pol_g, site_g, center_local = self.redfield.refine_by_radius(
+                    pol_idxs_global=self.pol_idxs_last,
+                    site_idxs_global=self.site_idxs_last,
+                    center_global=self.center_global,      # global index of the center polaron
+                    periodic=True,                         # or False to match your physics
+                    grid_dims=[self.sidelength] * int(self.dims)       # needed if periodic=True
+                    )
+
         # 2) Compute rates on those exact indices (no re-derivation)
         self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_global(
-            pol_idxs_global=pol_idxs, site_idxs_global=site_idxs, center_global=center_global,
-            grid_dims=[self.sidelength] * self.dims
+            pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
         )
 
         # # Baseline-style:
