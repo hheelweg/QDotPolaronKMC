@@ -30,6 +30,27 @@ class Redfield(Unitary):
         self.r_ove = r_ove
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
+
+        # bath-correlation cache
+        self._corr_cache = {}  # key: (lam, self.kappa, center_global) -> dict[int -> complex]
+
+        def _corr_row(self, lam, center_global, pol_g):
+            key = (float(lam), float(self.kappa), int(center_global))
+            row_cache = self._corr_cache.get(key)
+            if row_cache is None:
+                row_cache = {}
+                self._corr_cache[key] = row_cache
+
+            # gather missing indices
+            need = [int(i) for i in pol_g if int(i) not in row_cache]
+            if need:
+                omega = self.ham.omega_diff[need, int(center_global)]
+                vals  = self.ham.spec.correlationFT(omega, lam, self.kappa)  # vectorized
+                for i, v in zip(need, vals):
+                    row_cache[i] = v
+
+            # assemble in pol_g order
+            return np.array([row_cache[int(i)] for i in pol_g], dtype=np.complex128)
     
     
     # NOTE : might move this to montecarlo.py since this is not effectively being used here
@@ -333,13 +354,18 @@ class Redfield(Unitary):
 
         # --- Bath integrals (vectorized, global ω-row aligned to pol_g order)
         t0 = time.time()
-        bath_integrals = []
-        for lam in lamdalist:
-            if lam == 0.0:
-                bath_integrals.append(np.zeros(npols, dtype=np.complex128))
-            else:
-                omega_row = self.ham.omega_diff[pol_g, int(center_global)]    # shape (npols,)
-                bath_integrals.append(self.ham.spec.correlationFT(omega_row, lam, self.kappa))
+        # bath_integrals = []
+        # for lam in lamdalist:
+        #     if lam == 0.0:
+        #         bath_integrals.append(np.zeros(npols, dtype=np.complex128))
+        #     else:
+        #         omega_row = self.ham.omega_diff[pol_g, int(center_global)]    # shape (npols,)
+        #         bath_integrals.append(self.ham.spec.correlationFT(omega_row, lam, self.kappa))
+        
+        bath_integrals = [
+                            np.zeros(npols, np.complex128) if lam == 0.0 else self._corr_row(lam, center_global, pol_g)
+                            for lam in lamdalist
+                         ]
         if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
 
