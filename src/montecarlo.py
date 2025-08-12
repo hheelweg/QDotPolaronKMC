@@ -118,7 +118,8 @@ class KMCRunner():
         displacement_vector_matrix[too_low_indices] = displacement_vector_matrix[too_low_indices] + self.boundary
         return displacement_vector_matrix
     
-
+    
+    # NOTE : we should be able to remove this now
     def get_kappa(self, mu_d, mu_a, loc_d, loc_a):
         dist = np.zeros(3)
         # convert distance to 3D
@@ -176,7 +177,7 @@ class KMCRunner():
 
 
 
-    def _build_J_dense_physics_exact(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+    def _build_J_dense(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         """
         Vectorized but physics-identical to the original loops:
         J_ij = J_c * kappa_polaron * [ μ_i·μ_j - 3(μ_i·r̂_unwrapped)(μ_j·r̂_unwrapped) ] / (‖r_wrap‖^3),
@@ -198,18 +199,18 @@ class KMCRunner():
         np.fill_diagonal(r2, np.inf)                        # avoid div by zero
         r = np.sqrt(r2)
 
-        # --- Direction uses UNWRAPPED displacement (exactly what get_kappa did)
+        # --- direction uses UNWRAPPED displacement (exactly what get_kappa did)
         rij_unwrap = np.zeros((n, n, 3), dtype=np.float64)
         rij_unwrap[:, :, :d] = qd_pos[None, :, :] - qd_pos[:, None, :]
         r2_dir = np.einsum('ijk,ijk->ij', rij_unwrap, rij_unwrap)
         np.fill_diagonal(r2_dir, 1.0)                       # any nonzero to prevent NaN on diagonal
         rhat_dir = rij_unwrap / np.sqrt(r2_dir)[:, :, None] # unit vector from UNWRAPPED coords
 
-        # --- Pairwise dipole normalization (mirror get_kappa)
+        # --- pairwise dipole normalization (mirror get_kappa)
         mu = qd_dip.astype(np.float64, copy=False)
         mu_unit = mu / np.linalg.norm(mu, axis=1, keepdims=True)
 
-        # Angular factor κ_ij using r̂_unwrapped
+        # angular factor κ_ij using r̂_unwrapped
         mui_dot_muj = mu_unit @ mu_unit.T                                   # (n,n)
         mui_dot_r   = np.einsum('id,ijd->ij', mu_unit, rhat_dir)            # (n,n)
         muj_dot_r   = np.einsum('jd,ijd->ij', mu_unit, rhat_dir)            # (n,n)
@@ -226,24 +227,26 @@ class KMCRunner():
 
     def get_hamil(self, periodic=True):
 
-        # (1) H = diag(ε) + J
+        # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling Hamiltonian
-        J = self._build_J_dense_physics_exact(
-            qd_pos=self.qd_locations,
-            qd_dip=self.qddipoles,
-            J_c=self.J_c,
-            kappa_polaron=self.kappa_polaron,
-            boundary=(self.boundary if periodic else None)
-        )
-        # (1.2) total Hamiltonian
+        J = self._build_J_dense(
+                                qd_pos=self.qd_locations,
+                                qd_dip=self.qddipoles,
+                                J_c=self.J_c,
+                                kappa_polaron=self.kappa_polaron,
+                                boundary=(self.boundary if periodic else None)
+                                )
+        # (1.2) site nergies and total Hamiltonian
         self.hamil = np.diag(self.qdnrgs).astype(np.float64, copy=False)
         self.hamil += J
 
-        # Keep your original diagonalization routine to avoid solver diffs
+        print('hamil shape', self.hamil.shape)
+
+        # (2) keep original diagonalization routine
         # NOTE : can we improve this function somehow? 
         self.eignrgs, self.eigstates = utils.diagonalize(self.hamil)
 
-        # Polaron positions: unchanged math, just vectorized
+        # (3) polaron positions 
         if periodic:
             locations_unit_circle = (self.qd_locations / self.boundary) * (2*np.pi)  # (n,d)
             unit_circle_ycoords = np.sin(locations_unit_circle)
@@ -257,17 +260,17 @@ class KMCRunner():
         else:
             self.polaron_locs = (self.qd_locations.T @ (self.eigstates**2)).T
 
-        # off-diagonal J for Redfield
+        # (4) off-diagonal J for Redfield
         J_off = self.hamil - np.diag(np.diag(self.hamil))
         self.J_dense = J_off.copy()
 
+        # (5) set up Hamilonian instance, spectral density, etc. 
         self.full_ham = hamiltonian_box.Hamiltonian(
             self.eignrgs, self.eigstates, self.qd_locations,
             spec_density=self.spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
             )
         
-        #self.full_ham.J_dense = self.J_dense
-
+        # (6) set up Redfield instance
         self.redfield = redfield_box.Redfield(
             self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
             time_verbose=True
