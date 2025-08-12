@@ -148,76 +148,77 @@ class KMCRunner():
         self.kappa_polaron = np.exp(-integrate.quad(integrand, 0, freq_max)[0])
   
 
-    def _pairwise_displacements_exact(self, qd_pos, boundary):
+    def _pairwise_displacements_exact(qd_pos, boundary):
         """
-        Reproduce get_disp_vector_matrix() precisely, but vectorized.
+        Match get_disp_vector_matrix(): wrapped displacement for magnitude.
         qd_pos: (n, d) with d in {1,2}
-        boundary: scalar box length (your code uses same L on each axis)
-        Returns: rij of shape (n, n, 3); only first d components are used
+        boundary: scalar box length
+        Returns: rij_wrap (n, n, 3) with wrap applied on first d coords
         """
         import numpy as np
-
         n, d = qd_pos.shape
-        assert d in (1, 2)
         L = float(boundary)
 
-        # Build (n,n,d) displacement per axis in the same way
-        # old: ycopy - xcopy  with axis-wise wrap using > L/2 and < -L/2
-        rij_d = qd_pos[None, :, :] - qd_pos[:, None, :]     # (n, n, d)
+        # unwrapped per-axis differences (j - i), shape (n,n,d)
+        rij_d = qd_pos[None, :, :] - qd_pos[:, None, :]
 
-        # Apply *exactly* the same wrap conditions as before:
+        # exact same wrap rule as original code (> L/2 and < -L/2)
         too_high = rij_d >  (L / 2.0)
         too_low  = rij_d < -(L / 2.0)
         rij_d = rij_d.copy()
         rij_d[too_high] -= L
         rij_d[too_low]  += L
 
-        # Embed into 3D to match dipole dimension without branches
-        rij = np.zeros((n, n, 3), dtype=np.float64)
-        rij[:, :, :d] = rij_d
-        return rij
+        # embed into 3D (dipoles are 3D)
+        rij_wrap = np.zeros((n, n, 3), dtype=np.float64)
+        rij_wrap[:, :, :d] = rij_d
+        return rij_wrap
 
 
-    def _build_J_dense_physics_exact(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+
+    def _build_J_dense_physics_exact(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         """
-        Fully vectorized, but bit-for-bit equivalent to:
-            J[i,j] = J_c * kappa_polaron * get_kappa(i,j) * 1/||disp_ij||^3
-        where get_kappa() normalizes mu_d, mu_a, and the separation vector.
-
-        qd_pos: (n, d) positions, d=1 or 2
-        qd_dip: (n, 3) dipoles (not assumed unit; we normalize here to match old code)
-        boundary: scalar box length (if None, no wrapping)
+        Vectorized but physics-identical to the original loops:
+        J_ij = J_c * kappa_polaron * [ μ_i·μ_j - 3(μ_i·r̂_unwrapped)(μ_j·r̂_unwrapped) ] / (‖r_wrap‖^3),
+        with pairwise normalization of μ_i, μ_j, and r̂_unwrapped (as in get_kappa).
         """
         import numpy as np
 
         n, d = qd_pos.shape
-        # 1) pairwise displacement (old rule)
-        if boundary is None:
-            rij = np.zeros((n, n, 3), dtype=np.float64)
-            rij[:, :, :d] = qd_pos[None, :, :] - qd_pos[:, None, :]
+        assert d in (1, 2)
+
+        # --- Magnitude uses WRAPPED displacement (minimum image), exactly like get_disp_vector_matrix
+        if boundary is not None:
+            rij_wrap = _pairwise_displacements_exact(qd_pos, boundary)  # (n,n,3)
         else:
-            rij = self._pairwise_displacements_exact(qd_pos, boundary)  # (n,n,3)
+            rij_wrap = np.zeros((n, n, 3), dtype=np.float64)
+            rij_wrap[:, :, :d] = qd_pos[None, :, :] - qd_pos[:, None, :]
 
-        # 2) distances and unit vectors (match get_kappa behavior)
-        r2 = np.einsum('ijk,ijk->ij', rij, rij)                   # (n,n)
-        np.fill_diagonal(r2, np.inf)                              # avoid div by zero
-        r  = np.sqrt(r2)
-        rhat = rij / r[:, :, None]                                # (n,n,3)
+        r2 = np.einsum('ijk,ijk->ij', rij_wrap, rij_wrap)  # (n,n)
+        np.fill_diagonal(r2, np.inf)                        # avoid div by zero
+        r = np.sqrt(r2)
 
-        # 3) normalize dipoles exactly like get_kappa
+        # --- Direction uses UNWRAPPED displacement (exactly what get_kappa did)
+        rij_unwrap = np.zeros((n, n, 3), dtype=np.float64)
+        rij_unwrap[:, :, :d] = qd_pos[None, :, :] - qd_pos[:, None, :]
+        r2_dir = np.einsum('ijk,ijk->ij', rij_unwrap, rij_unwrap)
+        np.fill_diagonal(r2_dir, 1.0)                       # any nonzero to prevent NaN on diagonal
+        rhat_dir = rij_unwrap / np.sqrt(r2_dir)[:, :, None] # unit vector from UNWRAPPED coords
+
+        # --- Pairwise dipole normalization (mirror get_kappa)
         mu = qd_dip.astype(np.float64, copy=False)
-        mu_norms = np.linalg.norm(mu, axis=1, keepdims=True)
-        mu_unit = mu / mu_norms                                   # (n,3)
+        mu_unit = mu / np.linalg.norm(mu, axis=1, keepdims=True)
 
-        # 4) angular part kappa_ij = μ_i·μ_j − 3(μ_i·r̂_ij)(μ_j·r̂_ij)
-        mui_dot_muj = mu_unit @ mu_unit.T                         # (n,n)
-        mui_dot_r   = np.einsum('id,ijd->ij', mu_unit, rhat)      # (n,n)
-        muj_dot_r   = np.einsum('jd,ijd->ij', mu_unit, rhat)      # (n,n)
+        # Angular factor κ_ij using r̂_unwrapped
+        mui_dot_muj = mu_unit @ mu_unit.T                                   # (n,n)
+        mui_dot_r   = np.einsum('id,ijd->ij', mu_unit, rhat_dir)            # (n,n)
+        muj_dot_r   = np.einsum('jd,ijd->ij', mu_unit, rhat_dir)            # (n,n)
         kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r)
 
-        # 5) 1/r^3 factor (match your loop's 1/np.linalg.norm(...)**3)
+        # 1 / ‖r_wrap‖^3   (exactly matches 1/np.linalg.norm(disp_ij)**3 in your loop)
         with np.errstate(divide='ignore', invalid='ignore'):
-            inv_r3 = 1.0 / (r * r2)                               # == 1/r^3
+            inv_r3 = 1.0 / (r2 * r)  # r^3 = r2 * r
+
         J = (J_c * kappa_polaron) * kappa * inv_r3
         np.fill_diagonal(J, 0.0)
         return J
