@@ -510,8 +510,8 @@ class KMCRunner():
         # (1) create box around polaron start_site
         self.NEW_get_box(polaron_start_site)
 
-        polA, siteA, cA = np.copy(self.pol_idxs_last), np.copy(self.site_idxs_last), int(self.center_local)
-        print('polA, siteA, cA', polA, siteA, cA)
+        # polA, siteA, cA = np.copy(self.pol_idxs_last), np.copy(self.site_idxs_last), int(self.center_local)
+        # print('polA, siteA, cA', polA, siteA, cA)
         
         # (2) get idx of polaron eigenstate in box
         overall_idx_start = self.get_closest_idx(polaron_start_site, self.polaron_locs)
