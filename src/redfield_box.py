@@ -319,6 +319,8 @@ class NewRedfield(Unitary):
         if self.time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
         
+        print(self.ham.omega_diff.shape)
+
         for k, lam in enumerate(lamdalist):
             print(f"[diag] lam={lam} ||bath[{lam}]||₂ = {np.linalg.norm(bath_integrals[k])}")
 
@@ -332,7 +334,7 @@ class NewRedfield(Unitary):
         if self.time_verbose:
             print('time(site→eig)', time.time() - t1, flush=True)
 
-        print('Gs', np.linalg.norm(Gs))
+        #print('Gs', np.linalg.norm(Gs))
 
         # --- PREP: make center row/col contiguous and flatten (a,b)→ab
         AB = nsites * nsites
@@ -487,6 +489,7 @@ class NewRedfield(Unitary):
         if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
 
+        print(self.ham.omega_diff.shape)
         for k, lam in enumerate(lamdalist):
             print(f"[diag] lam={lam} ||bath[{lam}]||₂ = {np.linalg.norm(bath_integrals[k])}")
 
@@ -500,7 +503,7 @@ class NewRedfield(Unitary):
         if time_verbose:
             print('time(site→eig)', time.time() - t1, flush=True)
         
-        print('Gs', np.linalg.norm(Gs))
+        #print('Gs', np.linalg.norm(Gs))
 
         # --- PREP: make center row/col contiguous and flatten (a,b)→ab (identical to baseline)
         AB = nsites * nsites
