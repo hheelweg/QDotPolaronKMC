@@ -318,7 +318,7 @@ class KMCRunner():
                     )
 
         # 2) Compute rates on those exact indices (no re-derivation)
-        self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_global_exact(
+        self.rates, self.final_states, tot_time = self.redfield.make_redfield_box_global(
             pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
         )
 
