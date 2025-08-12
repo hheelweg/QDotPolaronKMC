@@ -258,6 +258,7 @@ class NewRedfield(Unitary):
         npols = len(pol_idxs); nsites = len(site_idxs)
         if self.time_verbose:
             print('npols, nsites', npols, nsites)
+            print('pols, sites', pol_idxs, site_idxs)
         start_tot = time.time()
         center_i = int(np.where(pol_idxs == center_idx)[0][0])
 
