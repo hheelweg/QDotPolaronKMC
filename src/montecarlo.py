@@ -329,82 +329,147 @@ class KMCRunner():
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
+    # def NEW_get_box(self, center, periodic=True):
+    #     # box dimensions (same as original)
+    #     self.box_size = self.box_length * self.qd_spacing
+
+    #     # ---- helpers (same logic as your original) ----
+    #     def find_indices_within_box(points, center, grid_dimensions, box_size, periodic=True):
+    #         half_box = box_size / 2
+    #         dim = len(center)
+    #         assert (len(points[0]) == len(center) == len(grid_dimensions))
+
+    #         if dim == 1:
+    #             dx = np.abs(points - center[0])
+    #             if periodic:
+    #                 dx = np.minimum(dx, grid_dimensions[0] - dx)
+    #             mask = (dx <= half_box)
+    #             return np.where(mask)[0]
+
+    #         elif dim == 2:
+    #             dx = np.abs(points[:, 0] - center[0])
+    #             dy = np.abs(points[:, 1] - center[1])
+    #             if periodic:
+    #                 dx = np.minimum(dx, grid_dimensions[0] - dx)
+    #                 dy = np.minimum(dy, grid_dimensions[1] - dy)
+    #             mask = (dx <= half_box) & (dy <= half_box)
+    #             return np.where(mask)[0]
+
+    #         else:
+    #             raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
+
+    #     def get_relative_positions(points, center, grid_dimensions):
+    #         dim = len(center)
+    #         assert (len(points[0]) == len(center) == len(grid_dimensions))
+
+    #         if dim == 1:
+    #             dx = points - center[0]
+    #             if periodic:
+    #                 dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2
+    #             return dx
+
+    #         elif dim == 2:
+    #             dx = points[:, 0] - center[0]
+    #             dy = points[:, 1] - center[1]
+    #             if periodic:
+    #                 dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2
+    #                 dy = (dy + grid_dimensions[1] / 2) % grid_dimensions[1] - grid_dimensions[1] / 2
+    #             return np.column_stack((dx, dy))
+
+    #         else:
+    #             raise NotImplementedError("get_relative_positions: only 1D/2D supported.")
+
+    #     # ---- (1) indices by BOX MASK ONLY (no spherical refinement) ----
+    #     pol_idxs  = find_indices_within_box(self.polaron_locs, center, self.lattice_dimension, self.box_size, periodic)
+    #     site_idxs = find_indices_within_box(self.qd_locations, center, self.lattice_dimension, self.box_size, periodic)
+
+    #     # Keep order exactly as produced (no np.unique), but store contiguous for later
+    #     self.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
+    #     self.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
+
+    #     # ---- (2) absolute positions (unchanged) ----
+    #     self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
+    #     self.site_locs          = self.qd_locations[self.site_idxs_last]
+
+    #     # ---- (3) relative positions with periodic wrap (unchanged) ----
+    #     self.eigstates_locs = get_relative_positions(self.eigstates_locs_abs, center, self.lattice_dimension)
+    #     self.sites_locs_rel = get_relative_positions(self.site_locs,         center, self.lattice_dimension)
+
+    #     # ---- (4) eigen-objects in the box (unchanged) ----
+    #     self.eignrgs_box   = self.eignrgs[self.pol_idxs_last]
+    #     self.eigstates_box = self.eigstates[self.site_idxs_last, :][:, self.pol_idxs_last]
+
+    #     # ---- (5) local box Hamiltonian (unchanged) ----
+    #     self.hamil_box = self.hamil[np.ix_(self.site_idxs_last, self.site_idxs_last)]
+
+    #     # ---- (6) center mapping: closest *in local box*, exactly like original ----
+    #     box_idx_start = self.get_closest_idx(center, self.eigstates_locs_abs)
+    #     self.center_local = int(box_idx_start)
+
     def NEW_get_box(self, center, periodic=True):
-        # box dimensions (same as original)
-        self.box_size = self.box_length * self.qd_spacing
+        """
+        Independent reimplementation of baseline selection. Does NOT call baseline code.
+        Selects polaron/site indices exactly like the original Redfield.get_idxs:
+        - frames:   redfield.polaron_locations, redfield.ham.qd_lattice_rel
+        - metric:   Euclidean
+        - cutoff:   strict '< r'
+        - periodic: NO wrap here (baseline didn't)
+        Fills the same cached fields you use downstream.
+        """
+        # 1) find global center polaron index (same method you used)
+        overall_idx_start = self.get_closest_idx(center, self.polaron_locs)
 
-        # ---- helpers (same logic as your original) ----
-        def find_indices_within_box(points, center, grid_dimensions, box_size, periodic=True):
-            half_box = box_size / 2
-            dim = len(center)
-            assert (len(points[0]) == len(center) == len(grid_dimensions))
+        # 2) frames + radii used by the Redfield path
+        pol_coords  = self.redfield.polaron_locations      # (Npol, dim)
+        site_coords = self.redfield.ham.qd_lattice_rel     # (Nsite, dim)
+        center_coord = pol_coords[overall_idx_start]
 
+        r_hop_abs = float(self.redfield.r_hop)
+        r_ove_abs = float(self.redfield.r_ove)
+
+        # 3) spherical, strict < r, no wrap
+        pol_mask  = np.linalg.norm(pol_coords  - center_coord, axis=1) < r_hop_abs
+        site_mask = np.linalg.norm(site_coords - center_coord, axis=1) < r_ove_abs
+
+        pol_idxs  = np.where(pol_mask)[0].astype(np.intp)
+        site_idxs = np.where(site_mask)[0].astype(np.intp)
+
+        # 4) cache indices (ascending order by construction)
+        self.pol_idxs_last  = pol_idxs
+        self.site_idxs_last = site_idxs
+
+        # 5) fill your cached fields (same semantics as before)
+        self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
+        self.site_locs          = self.qd_locations[self.site_idxs_last]
+
+        def get_relative_positions(points, center_, grid_dimensions):
+            dim = len(center_)
+            assert(len(points[0]) == len(center_) == len(grid_dimensions))
             if dim == 1:
-                dx = np.abs(points - center[0])
-                if periodic:
-                    dx = np.minimum(dx, grid_dimensions[0] - dx)
-                mask = (dx <= half_box)
-                return np.where(mask)[0]
-
-            elif dim == 2:
-                dx = np.abs(points[:, 0] - center[0])
-                dy = np.abs(points[:, 1] - center[1])
-                if periodic:
-                    dx = np.minimum(dx, grid_dimensions[0] - dx)
-                    dy = np.minimum(dy, grid_dimensions[1] - dy)
-                mask = (dx <= half_box) & (dy <= half_box)
-                return np.where(mask)[0]
-
-            else:
-                raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
-
-        def get_relative_positions(points, center, grid_dimensions):
-            dim = len(center)
-            assert (len(points[0]) == len(center) == len(grid_dimensions))
-
-            if dim == 1:
-                dx = points - center[0]
+                dx = points - center_[0]
                 if periodic:
                     dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2
                 return dx
-
             elif dim == 2:
-                dx = points[:, 0] - center[0]
-                dy = points[:, 1] - center[1]
+                dx = points[:, 0] - center_[0]
+                dy = points[:, 1] - center_[1]
                 if periodic:
                     dx = (dx + grid_dimensions[0] / 2) % grid_dimensions[0] - grid_dimensions[0] / 2
                     dy = (dy + grid_dimensions[1] / 2) % grid_dimensions[1] - grid_dimensions[1] / 2
                 return np.column_stack((dx, dy))
 
-            else:
-                raise NotImplementedError("get_relative_positions: only 1D/2D supported.")
-
-        # ---- (1) indices by BOX MASK ONLY (no spherical refinement) ----
-        pol_idxs  = find_indices_within_box(self.polaron_locs, center, self.lattice_dimension, self.box_size, periodic)
-        site_idxs = find_indices_within_box(self.qd_locations, center, self.lattice_dimension, self.box_size, periodic)
-
-        # Keep order exactly as produced (no np.unique), but store contiguous for later
-        self.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
-        self.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
-
-        # ---- (2) absolute positions (unchanged) ----
-        self.eigstates_locs_abs = self.polaron_locs[self.pol_idxs_last]
-        self.site_locs          = self.qd_locations[self.site_idxs_last]
-
-        # ---- (3) relative positions with periodic wrap (unchanged) ----
         self.eigstates_locs = get_relative_positions(self.eigstates_locs_abs, center, self.lattice_dimension)
         self.sites_locs_rel = get_relative_positions(self.site_locs,         center, self.lattice_dimension)
 
-        # ---- (4) eigen-objects in the box (unchanged) ----
+        # local eigenobjects + H_box
         self.eignrgs_box   = self.eignrgs[self.pol_idxs_last]
         self.eigstates_box = self.eigstates[self.site_idxs_last, :][:, self.pol_idxs_last]
+        self.hamil_box     = self.hamil[np.ix_(self.site_idxs_last, self.site_idxs_last)]
 
-        # ---- (5) local box Hamiltonian (unchanged) ----
-        self.hamil_box = self.hamil[np.ix_(self.site_idxs_last, self.site_idxs_last)]
-
-        # ---- (6) center mapping: closest *in local box*, exactly like original ----
-        box_idx_start = self.get_closest_idx(center, self.eigstates_locs_abs)
-        self.center_local = int(box_idx_start)
+        # local center index (exact match)
+        where = np.nonzero(self.pol_idxs_last == overall_idx_start)[0]
+        assert where.size == 1, "Center polaron not uniquely found in pol_idxs_last"
+        self.center_local = int(where[0])
 
 
     
