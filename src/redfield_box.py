@@ -375,23 +375,7 @@ class Redfield(Unitary):
 
         # --- (BIG WIN) Build R and C directly from cached full eigen-operators
         t1 = time.time()
-        # AB = nsites * nsites
-        # R = np.empty((AB, npols), dtype=np.complex128)
-        # C = np.empty((AB, npols), dtype=np.complex128)
-
-        # row = 0
-        # for aa, a_idx in enumerate(site_g):
-        #     for bb, b_idx in enumerate(site_g):
-        #         G_full = self.ham.get_sysbath_eig(int(a_idx), int(b_idx))  # cached full eigen-basis operator
-
-        #         # slice only the needed center row and center column in pol_g order
-        #         row_vec = G_full[ pol_g[center_loc], : ][ pol_g ]          # shape (npols,)
-        #         col_vec = G_full[ :, pol_g[center_loc] ][ pol_g ]          # shape (npols,)
-
-        #         R[row, :] = row_vec
-        #         C[row, :] = col_vec
-
-        #         row += 1
+    
         U = self.ham.Umat                           # shape (nsite, nsite)
         m0 = int(center_global)                     # global pol index (center)
         U_site_center = U[site_g, m0]               # (nsites,)
@@ -402,6 +386,7 @@ class Redfield(Unitary):
         # Prefer Fortran order for faster CSR @ dense in SciPy
         R = np.empty((AB, npols), dtype=np.complex128, order='F')
         C = np.empty((AB, npols), dtype=np.complex128, order='F')
+        Y = np.empty_like(R, order='F')
 
         row = 0
         for ia, a_idx in enumerate(site_g):
@@ -443,13 +428,17 @@ class Redfield(Unitary):
         # --- gamma accumulation via CSR×dense and einsum (identical algebra/order)
         t2 = time.time()
         gamma_plus = np.zeros(npols, dtype=np.complex128)
+        tmp = np.empty_like(R, order='F')
         for k, lam in enumerate(lamdalist):
             A = A_map[lam]
             if A is None:
                 continue
-            Y = A.dot(C)                          # (AB×AB) @ (AB×npols) → (AB×npols)
-            contrib = np.einsum('an,an->n', R, Y) # per-state sum over ab
+            A.dot(C, out=Y)                 # SciPy will write into Y (SciPy ≥ 1.11 supports out)
+            np.multiply(R, Y, out=tmp)      # reuse buffer
+            contrib = tmp.sum(axis=0)       # (npols,)
             gamma_plus += bath_integrals[k] * contrib
+
+
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
