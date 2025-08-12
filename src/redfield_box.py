@@ -354,17 +354,7 @@ class Redfield(Unitary):
 
         # --- Bath integrals (vectorized, global ω-row aligned to pol_g order)
         t0 = time.time()
-
-        # # WITHOUT caching
-        # bath_integrals = []
-        # for lam in lamdalist:
-        #     if lam == 0.0:
-        #         bath_integrals.append(np.zeros(npols, dtype=np.complex128))
-        #     else:
-        #         omega_row = self.ham.omega_diff[pol_g, int(center_global)]    # shape (npols,)
-        #         bath_integrals.append(self.ham.spec.correlationFT(omega_row, lam, self.kappa))
-        
-        # # cached way of computing bath correletion FT
+        # cached way of computing bath correletion FT
         bath_integrals = [
                             np.zeros(npols, np.complex128) if lam == 0.0 else self._corr_row(lam, center_global, pol_g)
                             for lam in lamdalist
@@ -435,7 +425,7 @@ class Redfield(Unitary):
             Y = A.dot(C)                          # (AB×AB) @ (AB×npols) → (AB×npols)
             contrib = np.einsum('an,an->n', R, Y) # per-state sum over ab
             gamma_plus += bath_integrals[k] * contrib
-            
+
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
