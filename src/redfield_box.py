@@ -327,81 +327,129 @@ class Redfield(Unitary):
             print('time(site→eig rows/cols)', time.time() - t1, flush=True)
 
 
-        def _gamma_closed_form_fast(J, Up, u0, bath_map):
-            """
-            Exact-physics λ-contraction without building R3D/C3D.
-            Inputs:
-            J   : (n, n) real symmetric, diag(J)=0
-            Up  : (n, P) complex, Up[a,p] = U[site_g[a], pol_g[p]]
-            u0  : (n,)   complex, u0[a]   = U[site_g[a], m0]
-            bath_map: dict {lam in {-2,-1,0,1,2}: (P,) complex}
-            Returns:
-            gamma_plus: (P,) complex
-            """
-            import numpy as np
+        # def _gamma_closed_form_fast(J, Up, u0, bath_map):
+        #     """
+        #     Exact-physics λ-contraction without building R3D/C3D.
+        #     Inputs:
+        #     J   : (n, n) real symmetric, diag(J)=0
+        #     Up  : (n, P) complex, Up[a,p] = U[site_g[a], pol_g[p]]
+        #     u0  : (n,)   complex, u0[a]   = U[site_g[a], m0]
+        #     bath_map: dict {lam in {-2,-1,0,1,2}: (P,) complex}
+        #     Returns:
+        #     gamma_plus: (P,) complex
+        #     """
+        #     import numpy as np
 
+        #     n, P = Up.shape
+        #     Upc  = Up.conj()
+
+        #     # Shared matmuls
+        #     Ju0  = J @ u0            # (n,)
+        #     JUp  = J @ Up            # (n,P)
+        #     JUpc = J @ Upc           # (n,P)
+
+        #     # Row/col sums of R and C:
+        #     rowR = (u0.conj()[:, None]) * JUp          # (n,P) = sum_b R[a,b,p]
+        #     colR = (J @ u0.conj())[:, None] * Up       # (n,P) = sum_a R[a,b,p]
+        #     rowC = Upc * Ju0[:, None]                  # (n,P) = sum_b C[a,b,p]
+        #     colC = (u0[:, None]) * JUpc                # (n,P) = sum_a C[a,b,p]
+
+        #     # Base totals
+        #     sum_rowR = rowR.sum(axis=0)                # (P,)
+        #     sum_rowC = rowC.sum(axis=0)                # (P,)
+        #     T0  = sum_rowR * sum_rowC                  # ∅
+        #     Tac = (rowR * rowC).sum(axis=0)            # ac
+        #     Tbd = (colR * colC).sum(axis=0)            # bd
+        #     Tad = (rowR * colC).sum(axis=0)            # ad
+        #     Tbc = (colR * rowC).sum(axis=0)            # bc
+
+        #     # Pair terms (ac&bd) and (ad&bc), computed exactly
+        #     J2 = J * J                                  # (n,n), real
+
+        #     # ac & bd: ∑_{a,b} J^2[a,b] * conj(u0[a]) * u0[b] * Up[b,p] * conj(Up[a,p])
+        #     # Use diag( (V^T @ J2) ⊙ W ), where:
+        #     #   V[a,p] = conj(u0[a]) * conj(Up[a,p])     -> (n,P)
+        #     #   W[p,b] = u0[b] * Up[b,p]                 -> (P,n)
+        #     V = u0.conj()[:, None] * Upc                # (n,P)
+        #     W = (u0[None, :] * Up.T)                    # (P,n)
+        #     Tpair = np.einsum('pi,pi->p', (V.T @ J2), W)  # (P,)
+
+        #     # ad & bc: ∑_{a,b} J^2[a,b] * |u0[a]|^2 * |Up[b,p]|^2
+        #     Au0    = np.abs(u0)**2                      # (n,)
+        #     AUp    = (np.abs(Up)**2)                    # (n,P)
+        #     t_b    = J2 @ Au0                           # (n,)
+        #     Tcross = (AUp.T @ t_b)                      # (P,)
+
+        #     # Möbius aggregation with diag terms = 0:
+        #     # exact +2: E_acbd = Tpair
+        #     # exact -2: E_adbc = Tcross
+        #     # exact +1: (ac only) + (bd only) = (E_ac - E_acbd) + (E_bd - E_acbd) = E_ac + E_bd - 2*E_acbd
+        #     # exact -1: (ad only) + (bc only) = E_ad + E_bc - 2*E_adbc
+        #     E_ac, E_bd, E_ad, E_bc = Tac, Tbd, Tad, Tbc
+        #     E_acbd  = Tpair
+        #     E_adbc  = Tcross
+
+        #     H2   = E_acbd
+        #     Hm2  = E_adbc
+        #     H1   = E_ac + E_bd - 2.0 * E_acbd
+        #     Hm1  = E_ad + E_bc - 2.0 * E_adbc
+        #     H0   = T0 - (H2 + Hm2 + H1 + Hm1)
+
+        #     # Combine buckets with bath rows
+        #     gamma_plus = (bath_map[-2.0] * Hm2
+        #                 + bath_map[-1.0] * Hm1
+        #                 + bath_map[ 0.0] * H0
+        #                 + bath_map[ 1.0] * H1
+        #                 + bath_map[ 2.0] * H2)
+        #     return gamma_plus
+        def _gamma_closed_form_fast(J, Up, u0, bath_map):
             n, P = Up.shape
             Upc  = Up.conj()
 
-            # Shared matmuls
-            Ju0  = J @ u0            # (n,)
-            JUp  = J @ Up            # (n,P)
-            JUpc = J @ Upc           # (n,P)
+            # Shared matmuls (1 fewer than before)
+            Ju0 = J @ u0            # (n,)
+            JUp = J @ Up            # (n,P)
 
-            # Row/col sums of R and C:
-            rowR = (u0.conj()[:, None]) * JUp          # (n,P) = sum_b R[a,b,p]
-            colR = (J @ u0.conj())[:, None] * Up       # (n,P) = sum_a R[a,b,p]
-            rowC = Upc * Ju0[:, None]                  # (n,P) = sum_b C[a,b,p]
-            colC = (u0[:, None]) * JUpc                # (n,P) = sum_a C[a,b,p]
+            # Row/col sums
+            rowR = (u0.conj()[:, None]) * JUp          # (n,P)
+            colR = (Ju0.conj()[:, None]) * Up          # (n,P)
+            rowC = Upc * Ju0[:, None]                  # (n,P)
+            colC = (u0[:, None]) * JUp.conj()          # (n,P)  # uses conj(JUp), avoids JUpc matmul
 
-            # Base totals
             sum_rowR = rowR.sum(axis=0)                # (P,)
             sum_rowC = rowC.sum(axis=0)                # (P,)
-            T0  = sum_rowR * sum_rowC                  # ∅
+            T0  = sum_rowR * sum_rowC
             Tac = (rowR * rowC).sum(axis=0)            # ac
             Tbd = (colR * colC).sum(axis=0)            # bd
             Tad = (rowR * colC).sum(axis=0)            # ad
             Tbc = (colR * rowC).sum(axis=0)            # bc
 
-            # Pair terms (ac&bd) and (ad&bc), computed exactly
-            J2 = J * J                                  # (n,n), real
+            # Pair buckets via one matmul + a couple of elementwise ops
+            J2   = J * J                                # (n,n)
+            U0Up = u0[None, :] * Up.T                   # (P,n)   target vector batch (per p)
+            Z    = (J2 @ U0Up.T)                        # (n,P)
+            V    = u0.conj()[:, None] * Upc             # (n,P)
+            Tpair  = (V * Z).sum(axis=0)                # (P,)  -> ac & bd
 
-            # ac & bd: ∑_{a,b} J^2[a,b] * conj(u0[a]) * u0[b] * Up[b,p] * conj(Up[a,p])
-            # Use diag( (V^T @ J2) ⊙ W ), where:
-            #   V[a,p] = conj(u0[a]) * conj(Up[a,p])     -> (n,P)
-            #   W[p,b] = u0[b] * Up[b,p]                 -> (P,n)
-            V = u0.conj()[:, None] * Upc                # (n,P)
-            W = (u0[None, :] * Up.T)                    # (P,n)
-            Tpair = np.einsum('pi,pi->p', (V.T @ J2), W)  # (P,)
-
-            # ad & bc: ∑_{a,b} J^2[a,b] * |u0[a]|^2 * |Up[b,p]|^2
             Au0    = np.abs(u0)**2                      # (n,)
             AUp    = (np.abs(Up)**2)                    # (n,P)
             t_b    = J2 @ Au0                           # (n,)
-            Tcross = (AUp.T @ t_b)                      # (P,)
+            Tcross = (AUp.T @ t_b)                      # (P,)  -> ad & bc
 
-            # Möbius aggregation with diag terms = 0:
-            # exact +2: E_acbd = Tpair
-            # exact -2: E_adbc = Tcross
-            # exact +1: (ac only) + (bd only) = (E_ac - E_acbd) + (E_bd - E_acbd) = E_ac + E_bd - 2*E_acbd
-            # exact -1: (ad only) + (bc only) = E_ad + E_bc - 2*E_adbc
             E_ac, E_bd, E_ad, E_bc = Tac, Tbd, Tad, Tbc
             E_acbd  = Tpair
             E_adbc  = Tcross
-
             H2   = E_acbd
             Hm2  = E_adbc
             H1   = E_ac + E_bd - 2.0 * E_acbd
             Hm1  = E_ad + E_bc - 2.0 * E_adbc
             H0   = T0 - (H2 + Hm2 + H1 + Hm1)
 
-            # Combine buckets with bath rows
-            gamma_plus = (bath_map[-2.0] * Hm2
-                        + bath_map[-1.0] * Hm1
-                        + bath_map[ 0.0] * H0
-                        + bath_map[ 1.0] * H1
-                        + bath_map[ 2.0] * H2)
-            return gamma_plus
+            return (bath_map[-2.0] * Hm2
+                    + bath_map[-1.0] * Hm1
+                    + bath_map[ 0.0] * H0
+                    + bath_map[ 1.0] * H1
+                    + bath_map[ 2.0] * H2)
 
         
         t2 = time.time()
