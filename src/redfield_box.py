@@ -416,16 +416,7 @@ class Redfield(Unitary):
         if time_verbose:
             print('time(site→eig rows/cols)', time.time() - t1, flush=True)
 
-        # --- prune exactly-zero rows/cols (same logic as baseline)
-        # row_mask = np.any(R != 0, axis=1)
-        # col_mask = np.any(C != 0, axis=1)
-        # ab_keep = row_mask | col_mask
-        # if ab_keep.sum() < AB:
-        #     R = R[ab_keep, :]
-        #     C = C[ab_keep, :]
-        #     A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
-        #             for lam in lamdalist}
-        #     AB = ab_keep.sum()
+        # --- prune exactly-zero rows/cols 
         ab_keep = np.any(R != 0, axis=1) | np.any(C != 0, axis=1)
         if ab_keep.sum() < AB:
             R = R[ab_keep, :]
@@ -435,13 +426,17 @@ class Redfield(Unitary):
 
         # --- gamma accumulation via CSR×dense and einsum (identical algebra/order)
         t2 = time.time()
+        Y = np.empty_like(R, order='F')
+        tmp = np.empty_like(R, order='F')
+
         gamma_plus = np.zeros(npols, dtype=np.complex128)
         for k, lam in enumerate(lamdalist):
             A = A_map[lam]
             if A is None:
                 continue
-            Y = A.dot(C)                          # (AB×AB) @ (AB×npols) → (AB×npols)
-            contrib = np.einsum('an,an->n', R, Y) # per-state sum over ab
+            Y[:] = A.dot(C)                # or A.dot(C, out=Y) on newer SciPy
+            np.multiply(R, Y, out=tmp)
+            contrib = tmp.sum(axis=0)
             gamma_plus += bath_integrals[k] * contrib
 
         if time_verbose:
