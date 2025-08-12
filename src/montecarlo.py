@@ -238,12 +238,11 @@ class KMCRunner():
         self.J_dense = (H - np.diag(np.diag(H))).copy()
 
         # 5) Keep your Redfield object setup
+        ham_sysbath = 0
         self.full_ham = hamiltonian_box.Hamiltonian(
-            self.eignrgs, self.eigstates, self.qd_locations,
-            # Pass whatever your class expects for the spectrum handle;
-            # you've already optimized SpecDens paths.
-            self.spectrum, const.kB * self.temp
-        )
+                                                     self.eignrgs, self.eigstates, self.qd_locations,
+                                                     ham_sysbath, self.spectrum, const.kB * self.temp
+                                                     )
         self.full_ham.J_dense = self.J_dense
 
         self.redfield = redfield_box.Redfield(
