@@ -150,37 +150,57 @@ class KMCRunner():
 
     def _build_J_dense_vectorized(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         """
-        qd_pos: (n, d) positions (d=1 or 2), meters (same units across code)
-        qd_dip: (n, 3) unit dipoles (already normalized in make_qd_array)
-        boundary: float or arraylike length-d for periodic minimum image; None = aperiodic
-
-        Returns: J (n, n) with J[ii]=0, J symmetric, J_ij ∝ κ_ij / r^3
+        qd_pos: (n, d) positions with d ∈ {1,2}
+        qd_dip: (n, 3) (unit) dipoles
+        boundary: None, scalar, or length-d arraylike with box lengths for minimum-image convention.
+                If None -> aperiodic (no wrapping)
+        Returns: J (n, n) real symmetric, off-diagonal dipole-dipole couplings ~ κ_ij / r^3
         """
+        import numpy as np
 
         n, d = qd_pos.shape
-        # embed positions into 3D to match dipoles without branching
+        assert d in (1, 2), "Only 1D/2D positions supported here."
+
+        # normalize boundary into a length-d vector if provided
+        if boundary is None:
+            Ld = None
+        else:
+            b = np.asarray(boundary, dtype=np.float64)
+            if b.size == 1:
+                Ld = np.full(d, float(b))
+            elif b.size == d:
+                Ld = b.astype(np.float64, copy=False)
+            else:
+                raise ValueError(f"boundary must be scalar or length {d}, got shape {b.shape}")
+
+        # embed positions into 3D so rij matches dipole dimension (3)
         pos3 = np.zeros((n, 3), dtype=np.float64)
         pos3[:, :d] = qd_pos
 
-        rij = pos3[:, None, :] - pos3[None, :, :]       # (n, n, 3)
-        if boundary is not None:
-            # allow scalar or per-axis boundary
-            L = np.asarray(boundary, dtype=np.float64).reshape(1, 1, d)
+        # pairwise displacements
+        rij = pos3[:, None, :] - pos3[None, :, :]          # (n, n, 3)
+
+        # minimum-image in the physical positional dimensions only
+        if Ld is not None:
+            L = Ld.reshape(1, 1, d)                         # (1,1,d)
             rij[:, :, :d] = rij[:, :, :d] - np.round(rij[:, :, :d] / L) * L
 
-        r2  = np.einsum('ijk,ijk->ij', rij, rij)        # (n, n)
-        np.fill_diagonal(r2, np.inf)                    # avoid division by zero
-        r   = np.sqrt(r2)
-        rhat = rij / r[:, :, None]                      # (n, n, 3)
+        # distances and unit vectors
+        r2 = np.einsum('ijk,ijk->ij', rij, rij)             # (n, n)
+        np.fill_diagonal(r2, np.inf)                        # r_ii -> inf so 1/r^3 = 0 on diag
+        r  = np.sqrt(r2)
+        rhat = rij / r[:, :, None]                          # (n, n, 3)
 
-        # dipole–dipole angular factor
-        mui_dot_muj = qd_dip @ qd_dip.T                                 # (n, n)
-        mui_dot_r   = np.einsum('id,ijd->ij', qd_dip, rhat)             # (n, n)
-        muj_dot_r   = np.einsum('jd,ijd->ij', qd_dip, rhat)             # (n, n)
-        kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r)             # (n, n)
+        # dipole-dipole angular factor κ_ij
+        # mu already unit-length per your setup
+        mui_dot_muj = qd_dip @ qd_dip.T                     # (n, n)
+        mui_dot_r   = np.einsum('id,ijd->ij', qd_dip, rhat) # (n, n)
+        muj_dot_r   = np.einsum('jd,ijd->ij', qd_dip, rhat) # (n, n)
+        kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r)
 
-        with np.errstate(divide='ignore'):
-            inv_r3 = 1.0 / (r2 * r)                                     # 1/r^3
+        # J_ij = J_c * kappa_polaron * κ_ij / r^3
+        with np.errstate(divide='ignore', invalid='ignore'):
+            inv_r3 = 1.0 / (r2 * r)                         # r^3 = r2 * r
         J = (J_c * kappa_polaron) * kappa * inv_r3
         np.fill_diagonal(J, 0.0)
         return J
