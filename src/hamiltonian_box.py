@@ -121,19 +121,23 @@ class HamiltonianSystem():
 #                 _ = self.get_sysbath_eig(a, b)
 
 class Hamiltonian(HamiltonianSystem):
-    
     def __init__(self, evals, eigstates, qd_lattice_rel, spec_density, kT, J_dense=None):
-        self.evals = np.asarray(evals, dtype=np.float64)
-        self.Umat  = np.asarray(eigstates, dtype=np.complex128, order='C')  # (n,n)
-        self.qd_lattice_rel = np.asarray(qd_lattice_rel, dtype=np.float64)
-        self.spec = spec_density if isinstance(spec_density, SpecDens) \
-                    else SpecDens(spec_density, np.max(evals) - np.min(evals))
-        const.kT = float(kT)
+        self.evals = np.asarray(evals)
+        self.Umat  = np.asarray(eigstates)
+        self.qd_lattice_rel = np.asarray(qd_lattice_rel)
+        const.kT = float(kT)                     
+
+        # Accept either a ready SpecDens or params
+        if isinstance(spec_density, SpecDens):
+            self.spec = spec_density
+        else:
+            max_energy_diff = float(np.max(evals) - np.min(evals))
+            self.spec = SpecDens(spec_density, max_energy_diff)  # uses const.kT
 
         self.init_system(self.evals, self.Umat)
         self.J_dense = None if J_dense is None else np.asarray(J_dense, dtype=np.float64, order='C')
 
-        # cache for eigen-basis operators (optional)
+        # optional cache
         self._eig_op_cache = {}
 
     def init_system(self, evals, eigstates):
