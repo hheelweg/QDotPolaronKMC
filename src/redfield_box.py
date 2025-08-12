@@ -480,9 +480,6 @@ class NewRedfield(Unitary):
         if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
 
-        print(self.ham.omega_diff[pol_g, center_global])
-        for k, lam in enumerate(lamdalist):
-            print(f"[diag] lam={lam} ||bath[{lam}]||₂ = {np.linalg.norm(bath_integrals[k])}")
 
         # --- Transform sysbath ops to eigenbasis (FULL), then slice to (pol_g × pol_g)
         t1 = time.time()
@@ -526,7 +523,6 @@ class NewRedfield(Unitary):
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
         
-        print('gammaplus', np.linalg.norm(gamma_plus))
 
         # --- outgoing rates (remove center), scale by ħ; return GLOBAL final indices
         red_R_tensor = 2.0 * np.real(gamma_plus)
@@ -538,8 +534,6 @@ class NewRedfield(Unitary):
 
         print('rates', rates)
 
-        if time_verbose:
-            print('polB, siteB, cB', pol_g, site_g, center_global)
         return rates, final_site_idxs, time.time() - t_all
     
     
