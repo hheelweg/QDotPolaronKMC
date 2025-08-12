@@ -313,8 +313,8 @@ class NewRedfield(Unitary):
         for lam in lamdalist:
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0.0:
-                for i in range(npols):  # local index on purpose
-                    omega_ij = self.ham.omega_diff[i, center_idx]
+                for i, idx in enumerate(pol_idxs):  # local index on purpose
+                    omega_ij = self.ham.omega_diff[idx, center_idx]
                     vec[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
         if self.time_verbose:
