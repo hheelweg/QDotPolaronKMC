@@ -51,74 +51,9 @@ class NewRedfield(Unitary):
                 "Hamiltonian must expose eigenvalues as .evals or .eignrgs"
             )
     
-    def refine_by_radius(self, *,
-                     pol_idxs_global, site_idxs_global, center_global,
-                     periodic=False, grid_dims=None,
-                     r_hop=None, r_ove=None):
-        """
-        Returns subsets pol_g ⊆ pol_idxs_global and site_g ⊆ site_idxs_global
-        that are within r_hop / r_ove of center_global, preserving order.
-        Also returns center_local (the position of center_global inside pol_g).
-
-        Assumes:
-        - self.polaron_locations are absolute coordinates (shape: [N, D])
-        - self.ham.qd_lattice_rel are site coordinates in the same frame
-        """
-        if r_hop is None: r_hop = self.r_hop
-        if r_ove is None: r_ove = self.r_ove
-
-        pol_idxs_global  = np.asarray(pol_idxs_global,  dtype=np.intp)
-        site_idxs_global = np.asarray(site_idxs_global, dtype=np.intp)
-
-        # center position in the same frame used for distances
-        center_coord = self.polaron_locations[int(center_global)]
-
-        # periodic minimum-image displacement (vectorized)
-        def _dist(pts):
-            pts = np.atleast_2d(pts)
-            disp = pts - center_coord
-            if periodic:
-                if grid_dims is None:
-                    raise ValueError("grid_dims must be provided when periodic=True.")
-                L = np.asarray(grid_dims, float)
-                disp = disp - np.round(disp / L) * L
-            return np.linalg.norm(disp, axis=1)
-
-        # distances for *subset* (keep original order with boolean masks)
-        dpol  = _dist(self.polaron_locations[pol_idxs_global])
-        dsite = _dist(self.ham.qd_lattice_rel[site_idxs_global])
-
-        keep_pol_mask  = (dpol  < r_hop)
-        keep_site_mask = (dsite < r_ove)
-
-        pol_g  = pol_idxs_global[keep_pol_mask]
-        site_g = site_idxs_global[keep_site_mask]
-
-        # center must remain inside pol_g (since it came from the box)
-        assert center_global in pol_g, (
-            "center_global not in pol_idxs_global after box selection; "
-            "ensure the box always includes the center polaron."
-        )
-
-        return pol_g, site_g
- 
-
-    def get_idxs(self, center_idx):
-        # location of center polaron i (given by idx center_idx) around which we have constructed the box
-        center_coord = self.polaron_locations[center_idx]
-        # (1) get indices of all polaron states j that are within r_hop of the center polaron 
-        polaron_idxs = np.where(np.array([np.linalg.norm(polaron_pos - center_coord) for polaron_pos in self.polaron_locations]) < self.r_hop )[0]
-        # (2) get indices of the site basis states that are within r_ove of the center polaron
-        site_idxs = np.where(np.array([np.linalg.norm(site_pos - center_coord) for site_pos in self.ham.qd_lattice_rel]) < self.r_ove )[0]
-        return polaron_idxs, site_idxs
-
-    # def get_idxs(self, center_idx):
-    #     center_coord = self.polaron_locations[center_idx]
-    #     polaron_idxs = np.where(np.linalg.norm(self.polaron_locations - center_coord, axis=1) < self.r_hop)[0]
-    #     site_idxs = np.where(np.linalg.norm(self.ham.qd_lattice_rel - center_coord, axis=1) < self.r_ove)[0]
-    #     return polaron_idxs, site_idxs
     
     
+    # legacy code (should be removed)
     def get_idxsNEW(self, center_idx):
         """
         Return:
