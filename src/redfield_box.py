@@ -312,32 +312,18 @@ class Redfield(Unitary):
         if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
 
-        # --- Build dense R and C once (nsites, nsites, npols)
+        # --- Build gamma_plus
         t1 = time.time()
-        # J_mat = self.ham.J_dense[np.ix_(site_g, site_g)]  # (n, n)
-        # U = self.ham.Umat
-        # m0 = int(center_global)
 
-        # U_site_center = U[site_g, m0]                 # (n,)
-        # U_site_pol    = U[np.ix_(site_g, pol_g)]      # (n, P)
-        # U_site_pol_c  = np.conj(U_site_pol)           # (n, P)
-
-        # # R3D[a,b,p] = J[a,b] * conj(U[a,m0]) * U[b,p]
-        # # C3D[a,b,p] = J[a,b] * conj(U[a,p]) * U[b,m0]
-        # R3D = (J_mat[:, :, None]
-        #     * np.conj(U_site_center)[:, None, None]
-        #     * U_site_pol[None, :, :])              # (n, n, P)
-        # C3D = (J_mat[:, :, None]
-        #     * U_site_pol_c[:, None, :]
-        #     * U_site_center[None, :, None])        # (n, n, P)
-        if time_verbose:
-            print('time(site→eig rows/cols)', time.time() - t1, flush=True)
-
+        # system-bath operator J_dense
         J = np.asarray(self.ham.J_dense[np.ix_(site_g, site_g)], dtype=np.float64, order='C')  # (n,n)
         U = self.ham.Umat
         m0 = int(center_global)
         u0 = U[site_g, m0]                          # (n,)
         Up = U[np.ix_(site_g, pol_g)]               # (n,P)
+
+        if time_verbose:
+            print('time(site→eig rows/cols)', time.time() - t1, flush=True)
 
 
         def _gamma_closed_form_fast(J, Up, u0, bath_map):
@@ -362,8 +348,6 @@ class Redfield(Unitary):
             JUpc = J @ Upc           # (n,P)
 
             # Row/col sums of R and C:
-            # R[a,b,p] = J[a,b] * conj(u0[a]) * Up[b,p]
-            # C[a,b,p] = J[a,b] * conj(Up[a,p]) * u0[b]
             rowR = (u0.conj()[:, None]) * JUp          # (n,P) = sum_b R[a,b,p]
             colR = (J @ u0.conj())[:, None] * Up       # (n,P) = sum_a R[a,b,p]
             rowC = Upc * Ju0[:, None]                  # (n,P) = sum_b C[a,b,p]

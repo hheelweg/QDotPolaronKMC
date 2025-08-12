@@ -240,7 +240,7 @@ class KMCRunner():
         else:
             self.polaron_locs = (self.qd_locations.T @ (self.eigstates**2)).T
 
-        # (4) off-diagonal J for Redfield
+        # (4) off-diagonal J for Redfield (system-bath operator)
         J_off = self.hamil - np.diag(np.diag(self.hamil))
         self.J_dense = J_off.copy()
 
