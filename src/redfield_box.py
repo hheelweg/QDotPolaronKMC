@@ -334,7 +334,6 @@ class NewRedfield(Unitary):
         Internally we build a global→local map once, slice operators to the local
         subspace, and use the local center position only where slicing requires it.
         """
-        import time
         t0_all = time.time()
         time_verbose = getattr(self, "time_verbose", False)
 
@@ -409,7 +408,7 @@ class NewRedfield(Unitary):
             print('time(total)', time.time() - t0_all, flush=True)
 
         # optional: print/compare
-        # print('rates', rates)
+        print('rates', rates)
         return rates, final_site_idxs, time.time() - t0_all
 
     # VERSION 3 : currently at test
