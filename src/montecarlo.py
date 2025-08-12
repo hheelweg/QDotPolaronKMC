@@ -247,7 +247,7 @@ class KMCRunner():
 
         self.redfield = redfield_box.Redfield(
             self.full_ham, self.polaron_locs, self.kappa_polaron, self.r_hop, self.r_ove,
-            time_verbose=False
+            time_verbose=True
         )
 
     # polaron-transformed Hamiltonian, eigenenergies, and polaron positions
