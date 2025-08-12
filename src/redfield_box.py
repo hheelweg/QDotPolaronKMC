@@ -149,7 +149,7 @@ class NewRedfield(Unitary):
     def make_redfield_box(self, center_idx, site_idxs_tot, pol_idxs_tot):
         # --- setup
         pol_idxs, site_idxs = self.get_idxs(center_idx)
-        print('site_idxs', site_idxs)
+        print('site_idxs', pol_idxs)
         npols = len(pol_idxs); nsites = len(site_idxs)
         if self.time_verbose:
             print('npols, nsites', npols, nsites)
@@ -201,7 +201,7 @@ class NewRedfield(Unitary):
             vec = np.zeros(npols, dtype=np.complex128)
             if lam != 0.0:
                 for i, idx in enumerate(pol_idxs):  # local index on purpose
-                    omega_ij = self.ham.omega_diff[i, center_idx]
+                    omega_ij = self.ham.omega_diff[idx, center_idx]
                     vec[i] = self.ham.spec.correlationFT(omega_ij, lam, self.kappa)
             bath_integrals.append(vec)
         if self.time_verbose:
