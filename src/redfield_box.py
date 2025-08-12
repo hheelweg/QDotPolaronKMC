@@ -111,7 +111,7 @@ class Redfield(Unitary):
 
         # distances for *subset* (keep original order with boolean masks)
         dpol  = _dist(self.polaron_locations[pol_idxs_global])
-        dsite = _dist(self.ham.qd_lattice_rel[site_idxs_global])
+        dsite = _dist(self.site_locations[site_idxs_global])
 
         keep_pol_mask  = (dpol  < r_hop)
         keep_site_mask = (dsite < r_ove)
