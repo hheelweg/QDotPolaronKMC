@@ -64,7 +64,7 @@ class HamiltonianSystem():
 #         else:
 #             self.spec = spec_density
 
-class Hamiltonian:
+class Hamiltonian(HamiltonianSystem):
     def __init__(self, evals, eigstates, qd_lattice_rel, sysbath, spec_density, kT):
         self.evals = np.asarray(evals)
         self.Umat  = np.asarray(eigstates)
