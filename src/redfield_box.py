@@ -31,29 +31,62 @@ class NewRedfield(Unitary):
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
     
-        # NEW: capture global eigenvectors in site basis (match what site2eig uses)
-        if hasattr(self.ham, "Umat"):
-            self._U_global = self.ham.Umat
-        elif hasattr(self.ham, "eigstates"):
-            self._U_global = self.ham.eigstates
-        else:
-            raise AttributeError(
-                "Hamiltonian must expose eigenvectors as .Umat or .eigstates"
-            )
+    
+    # NOTE : might move this to montecarlo.py since this is not effectively being used here
+    def refine_by_radius(self, *,
+                     pol_idxs_global, site_idxs_global, center_global,
+                     periodic=False, grid_dims=None,
+                     r_hop=None, r_ove=None):
+        """
+        Returns subsets pol_g ⊆ pol_idxs_global and site_g ⊆ site_idxs_global
+        that are within r_hop / r_ove of center_global, preserving order.
+        Also returns center_local (the position of center_global inside pol_g).
 
-        # Energies (used for local ω_ij); prefer .evals if present
-        if hasattr(self.ham, "evals"):
-            self._E_global = self.ham.evals
-        elif hasattr(self.ham, "eignrgs"):
-            self._E_global = self.ham.eignrgs
-        else:
-            raise AttributeError(
-                "Hamiltonian must expose eigenvalues as .evals or .eignrgs"
-            )
-    
-    
-    
-    # legacy code (should be removed)
+        Assumes:
+        - self.polaron_locations are absolute coordinates (shape: [N, D])
+        - self.ham.qd_lattice_rel are site coordinates in the same frame
+        """
+        if r_hop is None: r_hop = self.r_hop
+        if r_ove is None: r_ove = self.r_ove
+
+        pol_idxs_global  = np.asarray(pol_idxs_global,  dtype=np.intp)
+        site_idxs_global = np.asarray(site_idxs_global, dtype=np.intp)
+
+        # center position in the same frame used for distances
+        center_coord = self.polaron_locations[int(center_global)]
+
+        # periodic minimum-image displacement (vectorized)
+        def _dist(pts):
+            pts = np.atleast_2d(pts)
+            disp = pts - center_coord
+            if periodic:
+                if grid_dims is None:
+                    raise ValueError("grid_dims must be provided when periodic=True.")
+                L = np.asarray(grid_dims, float)
+                disp = disp - np.round(disp / L) * L
+            return np.linalg.norm(disp, axis=1)
+
+        # distances for *subset* (keep original order with boolean masks)
+        dpol  = _dist(self.polaron_locations[pol_idxs_global])
+        dsite = _dist(self.ham.qd_lattice_rel[site_idxs_global])
+
+        keep_pol_mask  = (dpol  < r_hop)
+        keep_site_mask = (dsite < r_ove)
+
+        pol_g  = pol_idxs_global[keep_pol_mask]
+        site_g = site_idxs_global[keep_site_mask]
+
+        # center must remain inside pol_g (since it came from the box)
+        assert center_global in pol_g, (
+            "center_global not in pol_idxs_global after box selection; "
+            "ensure the box always includes the center polaron."
+        )
+
+        return pol_g, site_g
+ 
+
+
+    # legcy code, should be removed eventually. 
     def get_idxsNEW(self, center_idx):
         """
         Return:
