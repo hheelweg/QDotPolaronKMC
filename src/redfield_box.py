@@ -372,7 +372,6 @@ class Redfield(Unitary):
         col_mask = np.any(C != 0, axis=1)
         ab_keep = row_mask | col_mask
         if ab_keep.sum() < AB:
-            from scipy import sparse
             R = R[ab_keep, :]
             C = C[ab_keep, :]
             A_map = {lam: (None if A_map[lam] is None else A_map[lam][ab_keep][:, ab_keep])
