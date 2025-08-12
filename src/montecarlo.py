@@ -108,26 +108,26 @@ class KMCRunner():
         self.stored_rate_vectors = [np.array([]) for i in np.arange(self.n)]
         return
     
-    def get_disp_vector_matrix(self, positions):
-        positions_xcopy = np.array([np.array([np.ones(self.n) * positions[:, i] for j in np.arange(self.n)]) for i in np.arange(self.dims)])
-        positions_ycopy = np.array([np.transpose(positions_xcopy[i, :, :]) for i in np.arange(self.dims)])
-        displacement_vector_matrix = positions_ycopy - positions_xcopy
-        too_high_indices = displacement_vector_matrix > self.boundary/2
-        too_low_indices = displacement_vector_matrix < -self.boundary/2
-        displacement_vector_matrix[too_high_indices] = displacement_vector_matrix[too_high_indices] - self.boundary
-        displacement_vector_matrix[too_low_indices] = displacement_vector_matrix[too_low_indices] + self.boundary
-        return displacement_vector_matrix
+    # def get_disp_vector_matrix(self, positions):
+    #     positions_xcopy = np.array([np.array([np.ones(self.n) * positions[:, i] for j in np.arange(self.n)]) for i in np.arange(self.dims)])
+    #     positions_ycopy = np.array([np.transpose(positions_xcopy[i, :, :]) for i in np.arange(self.dims)])
+    #     displacement_vector_matrix = positions_ycopy - positions_xcopy
+    #     too_high_indices = displacement_vector_matrix > self.boundary/2
+    #     too_low_indices = displacement_vector_matrix < -self.boundary/2
+    #     displacement_vector_matrix[too_high_indices] = displacement_vector_matrix[too_high_indices] - self.boundary
+    #     displacement_vector_matrix[too_low_indices] = displacement_vector_matrix[too_low_indices] + self.boundary
+    #     return displacement_vector_matrix
     
-    
+
     # NOTE : we should be able to remove this now
-    def get_kappa(self, mu_d, mu_a, loc_d, loc_a):
-        dist = np.zeros(3)
-        # convert distance to 3D
-        dist[0:np.size(loc_d)] = loc_a - loc_d
-        dist /= np.linalg.norm(dist)
-        mu_d_norm = mu_d/np.linalg.norm(mu_d)
-        mu_a_norm = mu_a/np.linalg.norm(mu_a)
-        return (np.dot(mu_d_norm, mu_a_norm) - 3 * np.dot(mu_d_norm, dist) * np.dot(mu_a_norm, dist))
+    # def get_kappa(self, mu_d, mu_a, loc_d, loc_a):
+    #     dist = np.zeros(3)
+    #     # convert distance to 3D
+    #     dist[0:np.size(loc_d)] = loc_a - loc_d
+    #     dist /= np.linalg.norm(dist)
+    #     mu_d_norm = mu_d/np.linalg.norm(mu_d)
+    #     mu_a_norm = mu_a/np.linalg.norm(mu_a)
+    #     return (np.dot(mu_d_norm, mu_a_norm) - 3 * np.dot(mu_d_norm, dist) * np.dot(mu_a_norm, dist))
     
 
     # NOTE : maybe rename this into setup_lattice because we do more than setting temperature
@@ -148,7 +148,7 @@ class KMCRunner():
         integrand = lambda freq : 1/np.pi * spectrum_func(freq)/np.power(freq, 2) * 1/np.tanh(self.beta * freq/2)
         self.kappa_polaron = np.exp(-integrate.quad(integrand, 0, freq_max)[0])
   
-
+    # NOTE : former get_disp_vector_matrix
     def _pairwise_displacements_exact(self, qd_pos, boundary):
         """
         Match get_disp_vector_matrix(): wrapped displacement for magnitude.
@@ -177,7 +177,7 @@ class KMCRunner():
 
 
 
-    def _build_J_dense(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+    def _build_J(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         """
         Vectorized but physics-identical to the original loops:
         J_ij = J_c * kappa_polaron * [ μ_i·μ_j - 3(μ_i·r̂_unwrapped)(μ_j·r̂_unwrapped) ] / (‖r_wrap‖^3),
@@ -229,13 +229,13 @@ class KMCRunner():
 
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling Hamiltonian
-        J = self._build_J_dense(
-                                qd_pos=self.qd_locations,
-                                qd_dip=self.qddipoles,
-                                J_c=self.J_c,
-                                kappa_polaron=self.kappa_polaron,
-                                boundary=(self.boundary if periodic else None)
-                                )
+        J = self._build_J(
+                        qd_pos=self.qd_locations,
+                        qd_dip=self.qddipoles,
+                        J_c=self.J_c,
+                        kappa_polaron=self.kappa_polaron,
+                        boundary=(self.boundary if periodic else None)
+                        )
         # (1.2) site nergies and total Hamiltonian
         self.hamil = np.diag(self.qdnrgs).astype(np.float64, copy=False)
         self.hamil += J
