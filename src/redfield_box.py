@@ -320,7 +320,6 @@ class NewRedfield(Unitary):
         if self.time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
         
-        print(self.ham.omega_diff.shape)
         print(np.array([self.ham.omega_diff[i, center_idx] for i in pol_idxs]))
         for k, lam in enumerate(lamdalist):
             print(f"[diag] lam={lam} ||bath[{lam}]||₂ = {np.linalg.norm(bath_integrals[k])}")
