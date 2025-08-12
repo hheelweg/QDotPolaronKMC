@@ -278,9 +278,9 @@ class Redfield(Unitary):
 
     def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global):
         """
-        Exact physics; faster implementation:
-        - No R3D/C3D tensors
-        - γ accumulation via a few matmuls + small reductions (O(n^2 * P))
+        Exact physics (identical to your R3D/C3D λ‑contraction), but faster:
+        - Avoids allocating (n,n,P) tensors
+        - Uses a few matmuls + exact triple-einsums for the pair terms
         """
         import time
         import numpy as np
@@ -291,21 +291,21 @@ class Redfield(Unitary):
         # --- local views (preserve order)
         pol_g  = np.asarray(pol_idxs_global,  dtype=np.intp)
         site_g = np.asarray(site_idxs_global, dtype=np.intp)
-        npols  = int(pol_g.size)
+        P      = int(pol_g.size)
         n      = int(site_g.size)
         if time_verbose:
-            print('npols, nsites', npols, n)
+            print('npols, nsites', P, n)
 
         # center local index
         where = np.nonzero(pol_g == int(center_global))[0]
         assert where.size == 1, "center_global is not (uniquely) inside pol_idxs_global"
         center_loc = int(where[0])
 
-        # --- Bath integrals by λ
+        # --- Bath integrals by λ (unchanged)
         t0 = time.time()
         lamvals = (-2.0, -1.0, 0.0, 1.0, 2.0)
         bath_map = {
-            lam: (np.zeros(npols, np.complex128) if lam == 0.0
+            lam: (np.zeros(P, np.complex128) if lam == 0.0
                 else self._corr_row(lam, center_global, pol_g))
             for lam in lamvals
         }
@@ -314,63 +314,60 @@ class Redfield(Unitary):
 
         # --- Pull submatrices/slices once
         t1 = time.time()
-        J = np.asarray(self.ham.J_dense[np.ix_(site_g, site_g)], dtype=np.float64, order='C')   # (n,n)
-        U = self.ham.Umat
+        J  = np.asarray(self.ham.J_dense[np.ix_(site_g, site_g)], dtype=np.float64, order='C')  # (n,n)
+        U  = self.ham.Umat
         m0 = int(center_global)
-        u0  = U[site_g, m0]                               # (n,)
-        Up  = U[np.ix_(site_g, pol_g)]                    # (n, P)
-        Upc = Up.conj()                                   # (n, P)
+        u0  = U[site_g, m0]                             # (n,)
+        Up  = U[np.ix_(site_g, pol_g)]                  # (n,P)
+        Upc = Up.conj()                                 # (n,P)
         if time_verbose:
             print('time(site→eig slices)', time.time() - t1, flush=True)
 
         # --- Precompute shared matmuls
         t2 = time.time()
-        Ju0  = J @ u0                   # (n,)
-        JUp  = J @ Up                   # (n, P)
-        JUpc = J @ Upc                  # (n, P)
-        # Row/col "sums" for R and C (from definitions; J is real)
-        # rowR[a,p] = conj(u0[a]) * (JUp)[a,p]
-        # colR[b,p] = conj(Ju0[b]) * Up[b,p]
-        # rowC[a,p] = Upc[a,p] * Ju0[a]
-        # colC[b,p] = u0[b] * (JUpc)[b,p]
-        rowR = (u0.conj()[:, None]) * JUp                # (n,P)
-        colR = (Ju0.conj()[:, None]) * Up                # (n,P)
-        rowC = Upc * Ju0[:, None]                        # (n,P)
-        colC = (u0[:, None]) * JUpc                      # (n,P)
+        Ju0  = J @ u0                    # (n,)
+        JUp  = J @ Up                    # (n,P)
+        JUpc = J @ Upc                   # (n,P)
 
-        # Basic T[mask] totals (diagR=diagC=0 because diag(J)=0)
-        sum_rowR = rowR.sum(axis=0)                      # (P,)
-        sum_rowC = rowC.sum(axis=0)                      # (P,)
-        T0  = sum_rowR * sum_rowC                        # ∅
-        Tac = (rowR * rowC).sum(axis=0)                  # ac
-        Tbd = (colR * colC).sum(axis=0)                  # bd
-        Tad = (rowR * colC).sum(axis=0)                  # ad
-        Tbc = (colR * rowC).sum(axis=0)                  # bc
+        # Row/col “sums” exactly matching sums over b/a of R and C
+        # R[a,b,p] = J[a,b] * conj(u0[a]) * Up[b,p]
+        # C[a,b,p] = J[a,b] * Upc[a,p]    * u0[b]
+        rowR = (u0.conj()[:, None]) * JUp               # (n,P) = sum_b R[a,b,p]
+        colR = (J @ u0.conj())[:, None] * Up            # (n,P) = sum_a R[a,b,p]
+        rowC = Upc * Ju0[:, None]                       # (n,P) = sum_b C[a,b,p]
+        colC = (u0[:, None]) * JUpc                     # (n,P) = sum_a C[a,b,p]
 
-        # Pair terms that depend on J^2
-        J2 = J * J                                       # (n,n), real
-        # ac & bd : sum_{a,b} J^2[a,b] * conj(u0[a]) * u0[b] * Up[b,p] * conj(Up[a,p])
-        # Compute as diag( (V @ J2) @ W^T ), where
-        #   W[p,i] = u0[i] * Up[i,p],   V[p,i] = conj(u0[i]) * conj(Up[i,p])
-        W = (u0[None, :] * Up.T)                         # (P,n)
-        V = (u0.conj()[None, :] * Upc.T)                 # (P,n)
-        Tpair = np.einsum('pi,pi->p', V @ J2, W)         # (P,)
+        # T[mask] base totals (diag terms exist but evaluate to 0 since diag(J)=0)
+        sum_rowR = rowR.sum(axis=0)                     # (P,)
+        sum_rowC = rowC.sum(axis=0)                     # (P,)
+        T0  = sum_rowR * sum_rowC                       # ∅
+        Tac = (rowR * rowC).sum(axis=0)                 # ac
+        Tbd = (colR * colC).sum(axis=0)                 # bd
+        Tad = (rowR * colC).sum(axis=0)                 # ad
+        Tbc = (colR * rowC).sum(axis=0)                 # bc
 
-        # ad & bc : sum_{a,b} J^2[a,b] * |u0[a]|^2 * |Up[b,p]|^2
-        t_b   = J2 @ (np.abs(u0)**2)                     # (n,)
-        Tcross = (np.abs(Up)**2).T @ t_b                 # (P,)
+        # Pair terms with exact triple-einsums (no approximations)
+        # ac & bd: sum_{a,b} J^2[a,b] * conj(u0[a]) * u0[b] * Up[b,p] * conj(Up[a,p])
+        J2 = J * J                                      # (n,n)
+        V  = u0.conj()[:, None] * Upc                   # (n,P)
+        W  = (u0[None, :] * Up.T)                       # (P,n)
+        Tpair  = np.einsum('ab,ap,pb->p', J2, V, W)     # (P,)
 
-        # Möbius aggregation (triples/quad vanish since diag terms were 0)
+        # ad & bc: sum_{a,b} J^2[a,b] * |u0[a]|^2 * |Up[b,p]|^2
+        Au0 = np.abs(u0)**2                              # (n,)
+        AUp = (np.abs(Up)**2)                            # (n,P)
+        Tcross = np.einsum('ab,a,bp->p', J2, Au0, AUp)   # (P,)
+
+        # Möbius aggregation (triples/quad terms are zero here; same result as full inversion)
         E_ac, E_bd, E_ad, E_bc = Tac, Tbd, Tad, Tbc
         E_acbd  = Tpair
         E_adbc  = Tcross
-        Hm2 = E_adbc                                    # score -2
-        Hm1 = E_ad + E_bc                               # score -1
+        Hm2 = E_adbc
+        Hm1 = E_ad + E_bc
+        H2  = E_acbd
+        H1  = E_ac + E_bd
         H0  = T0 - E_ac - E_bd - E_ad - E_bc - E_acbd - E_adbc
-        H1  = E_ac + E_bd                               # score +1
-        H2  = E_acbd                                    # score +2
 
-        # Combine with bath rows
         gamma_plus = (bath_map[-2.0] * Hm2
                     + bath_map[-1.0] * Hm1
                     + bath_map[ 0.0] * H0
@@ -387,7 +384,6 @@ class Redfield(Unitary):
         if time_verbose:
             print('time(total)', time.time() - t_all, flush=True)
 
-        # trace
         print('rates sum/shape', np.sum(rates), rates.shape)
         return rates, final_site_idxs, time.time() - t_all
 
