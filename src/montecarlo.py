@@ -55,6 +55,7 @@ class KMCRunner():
         if self.dims == 2:
             self.grid = self.qd_locations.reshape((self.sidelength, self.sidelength, self.dims))/self.qd_spacing
     
+    
     # HH : here is the definition of the box_radius based on the minimum of 
     # r_hop, r_ove rounded to the next higher integer (this is arbitary and
     # we might want to modify this moving forward)
