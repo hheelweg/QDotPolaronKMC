@@ -179,7 +179,7 @@ class KMCRunner():
                                            )
             
             # initialize QD lattice for KMC simulation (polaron-transformed Hamiltonian, Redfield intialization, etc.)
-            qd_lattice._setup(self.temp)
+            qd_lattice._setup(self.temp, self.spectrum)
 
             # loop over number of trajectories per realization
             for n in range(self.ntrajs):
