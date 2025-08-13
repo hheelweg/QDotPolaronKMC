@@ -167,7 +167,7 @@ class KMCRunner():
         for r in range(self.run.nrealizations):
 
             # build QD lattice realization
-            qd_lattice = self._build_grid_realization(rid=1)
+            qd_lattice = self._build_grid_realization(rid=r)
 
             # loop over number of trajectories per realization
             for n in range(self.run.ntrajs):
