@@ -39,7 +39,7 @@ class KMCRunner():
 
 
 
-    def make_kmatrix_box(self, qd_lattice, center_global):
+    def _make_kmatrix_box(self, qd_lattice, center_global):
 
         # (1) use the global indices of polaron and site inside box
         pol_box  = qd_lattice.pol_idxs_last
@@ -70,7 +70,7 @@ class KMCRunner():
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
-    def get_box(self, qd_lattice, center, periodic=True):
+    def _get_box(self, qd_lattice, center, periodic=True):
 
         # (1) box size (unchanged)
         qd_lattice.box_size = qd_lattice.box_length * qd_lattice.geom.qd_spacing
@@ -116,20 +116,20 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
-    def make_kmc_step(self, qd_lattice, polaron_start_site, rnd_generator = None):
+    def _make_kmc_step(self, qd_lattice, polaron_start_site, rnd_generator = None):
 
         # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
 
         # (1) build box (just indices + center_global)
-        self.get_box(qd_lattice, polaron_start_site)
+        self._get_box(qd_lattice, polaron_start_site)
 
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
-            rates, final_states, tot_time = self.make_kmatrix_box(qd_lattice, center_global)
+            rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
@@ -216,7 +216,7 @@ class KMCRunner():
                         start_pol = end_pol
                 
                     # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
-                    start_pol, end_pol, tot_time = self.make_kmc_step(qd_lattice, start_pol, rnd_generator = rng_traj)
+                    start_pol, end_pol, tot_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator = rng_traj)
                     self.simulated_time += tot_time
                     
                     # (3) update trajectory and compute squared displacements 
