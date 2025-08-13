@@ -172,10 +172,9 @@ class KMCRunner():
 
             # construct QD lattice
             qd_lattice = lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
-                                            self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
-                                            self.seed,
-                                            self.r_hop, self.r_ove,
-                                            self.temp, self.spectrum, self.J_c
+                                            self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder, self.J_c, 
+                                            self.seed, 
+                                            self.r_hop, self.r_ove
                                            )
             
             # initialize QD lattice for KMC simulation (polaron-transformed Hamiltonian, Redfield intialization, etc.)

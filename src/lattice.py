@@ -7,10 +7,9 @@ from . import utils, const, redfield_box, hamiltonian_box
 class QDLattice():
 
     def __init__(self, dims, sidelength, qd_spacing,
-                 nrg_center, inhomog_sd, dipolegen, relative_spatial_disorder,
+                 nrg_center, inhomog_sd, dipolegen, relative_spatial_disorder, J_c,
                  seed,
-                 r_hop, r_ove,
-                 temp, spectrum, J_c
+                 r_hop, r_ove
                  ):
 
         # geometric attributes
@@ -25,20 +24,17 @@ class QDLattice():
         self.nrg_center = nrg_center
         self.inhomog_sd = inhomog_sd
         self.relative_spatial_disorder = relative_spatial_disorder
+        self.J_c = J_c
         # parameters for randomness of Hamiltonian
         self.dipolegen = dipolegen
         self.seed = seed
 
-        # bath information
-        self.J_c = J_c
-        self.spectrum = spectrum
 
         # initialize the box dimensions we consider for the KMC simulation
         self._init_box_dims(r_hop, r_ove)
 
         # initialize lattice
         self._make_lattice()
-
 
         # new way of defining the grid
         # NOTE : do we need this?
@@ -244,6 +240,7 @@ class QDLattice():
 
 
     # NOTE : currently only implemented for cubic-exp spectral density
+    # have this feed in a general spectral density moving forward
     def get_kappa_polaron(self, spectrum = None, freq_max = 1):
         lamda = self.spectrum[1]
         omega_c = self.spectrum[2]
