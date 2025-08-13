@@ -309,6 +309,10 @@ class Redfield(Unitary):
         # (1.3) center_global idx 𝜈 (starting polaron)
         m0 = int(center_global)                     
 
+        # (1.4) obtain center_global index in pol_g (local index)
+        where = np.nonzero(pol_g == int(center_global))[0]
+        assert where.size == 1, "center_global is not (uniquely) inside pol_idxs_global"
+        center_loc = int(where[0])
 
         # NOTE : the follwing code is just for debugging and checking how many indices are in pol_g/site_g
         # the size of these arrays will obviously scale the computational costs
@@ -317,13 +321,7 @@ class Redfield(Unitary):
         if time_verbose:
             print('npols, nsites', npols, nsites)
 
-        # Map center_global -> local index
-        # NOTE : do we need this
-        where = np.nonzero(pol_g == int(center_global))[0]
-        assert where.size == 1, "center_global is not (uniquely) inside pol_idxs_global"
-        center_loc = int(where[0])
-
-        # (2) build bath integrals K_λ(ω) (vectorized, aligned to pol_g order)
+        # (2) build bath integrals K_λ(ω_{𝜈'𝜈}) (vectorized, aligned to pol_g order)
         #  we will combine them by λ ∈ {-2,-1,0,1,2}.
         t0 = time.time()
         lamvals = (-2.0, -1.0, 0.0, 1.0, 2.0)
@@ -352,30 +350,36 @@ class Redfield(Unitary):
         if time_verbose:
             print('time(site→eig rows/cols)', time.time() - t1, flush=True)
 
-        # computing 𝛾_+ 
+        # function for computing 𝛾_+(𝜈')
         def _build_gamma_plus(J, J2, Up, u0, bath_map):
             n, P = Up.shape
             Upc  = Up.conj()
 
-            # Shared matmuls (1 fewer than before)
+            # shared matmuls
             Ju0 = J @ u0            # (n,)
             JUp = J @ Up            # (n,P)
 
-            # Row/col sums
+            # row/col sums
             rowR = (u0.conj()[:, None]) * JUp          # (n,P)
             colR = (Ju0.conj()[:, None]) * Up          # (n,P)
             rowC = Upc * Ju0[:, None]                  # (n,P)
             colC = (u0[:, None]) * JUp.conj()          # (n,P)  # uses conj(JUp), avoids JUpc matmul
 
+            # this builds R_{ab,𝜈'} = J_{ab} conj(U_{a𝜈}) U_{b𝜈'}
+            # and C_{ab,𝜈'} = J_{ab} conj(U_{a𝜈'}) U_{b𝜈}
+
+            # compute the full unconstrained sum T0
             sum_rowR = rowR.sum(axis=0)                # (P,)
             sum_rowC = rowC.sum(axis=0)                # (P,)
             T0  = sum_rowR * sum_rowC
+            # sums with one equality enforced (i.e. Tac has a=c, etc.)
             Tac = (rowR * rowC).sum(axis=0)            # ac
             Tbd = (colR * colC).sum(axis=0)            # bd
             Tad = (rowR * colC).sum(axis=0)            # ad
             Tbc = (colR * rowC).sum(axis=0)            # bc
 
-            # Pair buckets via one matmul + a couple of elementwise ops
+            # build Tpair (a = c & b = d) and (a = d & c = b)
+            # pair buckets via one matmul + a couple of elementwise ops
             U0Up = u0[None, :] * Up.T                   # (P,n)   target vector batch (per p)
             Z    = (J2 @ U0Up.T)                        # (n,P)
             V    = u0.conj()[:, None] * Upc             # (n,P)
@@ -386,15 +390,20 @@ class Redfield(Unitary):
             t_b    = J2 @ Au0                           # (n,)
             Tcross = (AUp.T @ t_b)                      # (P,)  -> ad & bc
 
+            # renaming
             E_ac, E_bd, E_ad, E_bc = Tac, Tbd, Tad, Tbc
             E_acbd  = Tpair
             E_adbc  = Tcross
+            # compute terms H_λ(𝜈') that are contracted with each K_λ(ω_{𝜈'𝜈}), i.e.
+            # one term for each λ ∈ {-2,-1,0,1,2}
             H2   = E_acbd
             Hm2  = E_adbc
             H1   = E_ac + E_bd - 2.0 * E_acbd
             Hm1  = E_ad + E_bc - 2.0 * E_adbc
             H0   = T0 - (H2 + Hm2 + H1 + Hm1)
 
+            # compute 𝛾_+(𝜈') = ∑_λ K_λ(ω_{𝜈'𝜈})H_λ(𝜈') based on Eq. (14)
+            # with ∑ over λ. 
             return (bath_map[-2.0] * Hm2
                     + bath_map[-1.0] * Hm1
                     + bath_map[ 0.0] * H0
@@ -402,12 +411,14 @@ class Redfield(Unitary):
                     + bath_map[ 2.0] * H2)
 
         
+        # (4) build 𝛾_+(𝜈')
         t2 = time.time()
         gamma_plus = _build_gamma_plus(J, J2, Up, u0, bath_map)
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
-        # --- outgoing rates (remove center), scale by ħ; return GLOBAL final indices
+        # (5) compute only outgoing rates R_{𝜈𝜈'} = 2 Re𝛤_{𝜈'𝜈,𝜈𝜈'} = 2 Re 𝛾_+(𝜈') for (𝜈' = 𝜈)
+        # need to remove center_loc, scale by ħ; return global final polaron indices 
         red_R_tensor = 2.0 * np.real(gamma_plus)
         rates = np.delete(red_R_tensor, center_loc) / const.hbar
         final_site_idxs = np.delete(pol_g, center_loc).astype(int)
