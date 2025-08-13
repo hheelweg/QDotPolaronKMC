@@ -32,8 +32,6 @@ def main():
 
     # PTRE and KMC related parameters
     numtrials = 1                               # number of trials to average over (here: 1)
-    #method = 'first-order'                      # method for computing bath integrals 
-    method = 'exact'
     r_hop = 7                                   # hopping radius (see Kassal) (in units of lattice spacing)
     r_ove = 7                                   # overlap radius (see Kassal) (in units of lattice spacing)
     r_box = math.ceil(min(r_hop, r_ove))
@@ -46,7 +44,7 @@ def main():
     spacing = nc_edgelength + 2 * ligand_length
 
     # specify the bath
-    spectrum = [spec_density, reorg_nrg, w_c, method]
+    spectrum = [spec_density, reorg_nrg, w_c]
 
 
     # greate instance of MC class to run KMC simulation

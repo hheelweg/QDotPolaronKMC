@@ -154,7 +154,6 @@ class SpecDens:
 
     def __init__(self, spec_dens_list, max_energy_diff):
         sd_type = spec_dens_list[0]
-        self.bath_method = spec_dens_list[-1]
         self.max_energy_diff = max_energy_diff  # if you need it elsewhere
         beta = 1.0 / const.kT
 
@@ -166,16 +165,10 @@ class SpecDens:
             self.omega_inf = 40 * self.omega_c
 
         # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15) if using 'exact'
-        if self.bath_method == 'exact':
-            self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c, self.omega_inf, self.low_freq_cutoff)
-            self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
-            self.correlationFT = self._correlationFT_fft
+        self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c, self.omega_inf, self.low_freq_cutoff)
+        self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
+        self.correlationFT = self._correlationFT_fft
 
-        elif self.bath_method == 'first-order':
-            raise ValueError("Not implemented in this SpecDens class")
-
-        else:
-            raise SystemExit("Unknown bath_method")
 
     def cubic_exp(self, omega):
         w = abs(omega)
