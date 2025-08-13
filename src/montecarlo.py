@@ -116,7 +116,7 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
-    def make_kmc_step(self, qd_lattice, polaron_start_site, random_generator = None):
+    def make_kmc_step(self, qd_lattice, polaron_start_site, rnd_generator = None):
 
         # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
@@ -138,8 +138,11 @@ class KMCRunner():
         # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)
         S = cum_rates[-1]
-        u1 = np.random.uniform()
-        u2 = np.random.uniform()
+
+        # two random numbers for rejection-free KMC
+        u1 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
+        u2 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
+
         final_idx = int(np.searchsorted(cum_rates, u1 * S))
         self.time += -np.log(u2) / S
 
@@ -214,7 +217,7 @@ class KMCRunner():
                 
                     # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
                     #start_pol, end_pol, tot_time = self.make_kmc_step(start_pol)
-                    start_pol, end_pol, tot_time = self.make_kmc_step(qd_lattice, start_pol, random_generator = rng_traj)
+                    start_pol, end_pol, tot_time = self.make_kmc_step(qd_lattice, start_pol, rnd_generator = rng_traj)
                     self.simulated_time += tot_time
                     
                     # (3) update trajectory and compute squared displacements 
