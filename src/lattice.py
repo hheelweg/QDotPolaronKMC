@@ -181,7 +181,7 @@ class QDLattice():
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.J_c,
-                        kappa_polaron=self.kappa_polaron,
+                        kappa_polaron=kappa_polaron,
                         boundary=(self.boundary if periodic else None)
                         )
         # (1.2) site energies and total Hamiltonian
@@ -214,7 +214,7 @@ class QDLattice():
         # (5) set up Hamilonian instance, spectral density, etc. 
         self.full_ham = hamiltonian_box.Hamiltonian(
             self.eignrgs, self.eigstates,
-            spec_density=self.spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
+            spec_density=spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
             )
 
 
