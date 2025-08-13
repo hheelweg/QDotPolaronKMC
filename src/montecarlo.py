@@ -87,7 +87,7 @@ class KMCRunner():
     def get_box(self, qd_lattice, center, periodic=True):
 
         # (1) box size (unchanged)
-        qd_lattice.box_size = qd_lattice.box_length * qd_lattice.qd_spacing
+        qd_lattice.box_size = qd_lattice.geom.box_length * qd_lattice.geom.qd_spacing
 
         # (2) helpers (unchanged logic)
         # NOTE : put this somewhere as a helper function ?
@@ -114,8 +114,8 @@ class KMCRunner():
                 raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
 
         # (3) global index sets inside the axis-aligned periodic box
-        pol_idxs = find_indices_within_box(qd_lattice.polaron_locs, center, qd_lattice.lattice_dimension, qd_lattice.box_size, periodic)
-        site_idxs = find_indices_within_box(qd_lattice.qd_locations,  center, qd_lattice.lattice_dimension, qd_lattice.box_size, periodic)
+        pol_idxs = find_indices_within_box(qd_lattice.polaron_locs, center, qd_lattice.geom.lattice_dimension, qd_lattice.box_size, periodic)
+        site_idxs = find_indices_within_box(qd_lattice.qd_locations,  center, qd_lattice.geom.lattice_dimension, qd_lattice.box_size, periodic)
 
         # keep order, store contiguously
         qd_lattice.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
