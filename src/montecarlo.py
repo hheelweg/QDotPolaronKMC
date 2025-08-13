@@ -445,6 +445,14 @@ class KMCRunner():
             self.make_qd_array()
             self.set_temp(self.temp)
 
+            qd_inst = qd_lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
+                                            self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
+                                            self.seed,
+                                            self.r_hop, self.r_ove
+                                           )
+            print(type(qd_inst))
+
+
             # loop over 
             for n in range(self.ntrajs):
                     
