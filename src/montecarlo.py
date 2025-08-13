@@ -45,13 +45,13 @@ class KMCRunner():
         # print('box side length', self.box_length)
         
         # make QD lattice
-        self.make_qd_array()
+        #self.make_qd_array()
         # print('qd_spacing', self.qd_spacing)
 
         
         # get temperature and Hamiltonian
         self.temp = temp
-        self.set_temp(temp)
+        #self.set_temp(temp)
         
         # new way of defining the grid
         # NOTE : do we need this?
