@@ -35,7 +35,7 @@ def main():
     r_ove = 7                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
     ntrajs = 10                                 # number of trajectories to compute MSDs over
-    nrealizations = 3                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    nrealizations = 2                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
     t_final = 5                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
@@ -47,13 +47,13 @@ def main():
     spectrum = [spec_density, reorg_nrg, w_c]
 
 
-    # greate instance of MC class to run KMC simulation
+    # create instance of MC class to run KMC simulation
     print('parameter check:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
     kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
     
-    # perform a KMC simulation
+    # perform KMC simulation
     times, msds = kmc_setup.simulate_kmc(t_final)
 
     

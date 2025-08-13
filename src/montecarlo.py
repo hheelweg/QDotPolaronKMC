@@ -430,81 +430,83 @@ class KMCRunner():
     
     def simulate_kmc(self, t_final, qd_array_refresh = 100):
 
-        times_msds = np.linspace(0, t_final, int(t_final * 100))    # time ranges to use for computation of msds
-                                                                    # note: can adjust the coarseness of time grid (here: 1000)
-        msds = np.zeros(len(times_msds))                            # mean squared displacements
+        times_msds = np.linspace(0, t_final, int(t_final * 100))            # time ranges to use for computation of msds
+                                                                            # NOTE : can adjust the coarseness of time grid (here: 1000)
+        msds = np.zeros((self.nrealizations, len(times_msds)))              # mean squared displacements
 
         self.simulated_time = 0
         
-        for n in range(self.ntrajs):
-                
-            self.time = 0                                       # reset clock for each trajectory
-            self.step_counter = 0                               # keeping track of the # of KMC steps
-            self.trajectory_start = np.zeros(self.dims)         # initialize trajectory start point
-            self.trajectory_current = np.zeros(self.dims)       # initialize current trajectopry state
-            self.sds = np.zeros(len(times_msds))                # store sq displacements on times_msd time grid
-            
-            comp_time = time.time()
-            time_idx = 0
-            sq_displacement = 0
+        # loop over realization
+        for r in range(self.nrealizations):
 
-            # re-initialize Hamiltonian (i.e. different realizations of noise)
-            if n > 0 and n % qd_array_refresh == 0:
-               self.make_qd_array()
-               self.set_temp(self.temp)
-            
-            while self.time < t_final:
+            self.make_qd_array()
+            self.set_temp(self.temp)
 
-                # (1) determine what polaron site we are at currently
-                if self.step_counter == 0:
-                    # draw initial center of the box (here: 'uniform') in the exciton site basis
-                    # TODO : might want to add other initializations
-                    start_site = self.qd_locations[np.random.randint(0, self.n-1)]
-                    start_pol = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
-                    #self.times.append(self.time)
-                    self.new_diagonalization = True
-                else:
-                    # start_site is final_site from previous step
-                    start_pol = end_pol
+            # loop over 
+            for n in range(self.ntrajs):
+                    
+                self.time = 0                                       # reset clock for each trajectory
+                self.step_counter = 0                               # keeping track of the # of KMC steps
+                self.trajectory_start = np.zeros(self.dims)         # initialize trajectory start point
+                self.trajectory_current = np.zeros(self.dims)       # initialize current trajectopry state
+                self.sds = np.zeros(len(times_msds))                # store sq displacements on times_msd time grid
+                
+                comp_time = time.time()
+                time_idx = 0
+                sq_displacement = 0
+                
+                while self.time < t_final:
+
+                    # (1) determine what polaron site we are at currently
+                    if self.step_counter == 0:
+                        # draw initial center of the box (here: 'uniform') in the exciton site basis
+                        # TODO : might want to add other initializations
+                        start_site = self.qd_locations[np.random.randint(0, self.n-1)]
+                        start_pol = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
+                        #self.times.append(self.time)
+                        self.new_diagonalization = True
+                    else:
+                        # start_site is final_site from previous step
+                        start_pol = end_pol
+                
+                    # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
+                    start_pol, end_pol, tot_time = self.make_kmc_step(start_pol)
+                    self.simulated_time += tot_time
+                    
+                    # (3) update trajectory and compute squared displacements 
+                    if self.step_counter == 0:
+                        self.trajectory_start = start_pol
+                        self.trajectory_current = start_pol
+                    if self.time < t_final:
+                        # get current location in trajectory and compute squared displacement
+                        self.trajectory_current = self.trajectory_current + end_pol - start_pol
+                        sq_displacement = np.linalg.norm(self.trajectory_current-self.trajectory_start)**2 
+                    
+                        # add squared displacement at correct position in times_msd grid
+                        time_idx += np.searchsorted(times_msds[time_idx:], self.time)
+                        self.sds[time_idx:] = sq_displacement
+                    # if sq_displacement > 10000:
+                    #     print("uh oh {}".format(self.sds[-1]))
+                            
+                    # (4) find lattice site closest to end_pol position and only diagonalize again if start_site != final_site 
+                    end_site = self.qd_locations[self.get_closest_idx(end_pol, self.qd_locations)]
+                    self.new_diagonalization = not (start_pol == end_pol).all()
+                    
+                    self.step_counter += 1 # update step counter
+                    
+                # compute mean squared displacement as a running average instead of storing all displacement vectors
+                msds[r] = n/(n+1)*msds + 1/(n+1)*self.sds
+                
+                # return progress
+                # print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached! Computed in {} s". format(n+1, self.step_counter, self.sds[-1], time.time()-comp_time))
+                # if self.sds[-1] > 10000:
+                #    print("uh oh {}".format(self.sds[-1]))
             
-                # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
-                start_pol, end_pol, tot_time = self.make_kmc_step(start_pol)
-                self.simulated_time += tot_time
-                
-                # (3) update trajectory and compute squared displacements 
-                if self.step_counter == 0:
-                    self.trajectory_start = start_pol
-                    self.trajectory_current = start_pol
-                if self.time < t_final:
-                    # get current location in trajectory and compute squared displacement
-                    self.trajectory_current = self.trajectory_current + end_pol - start_pol
-                    sq_displacement = np.linalg.norm(self.trajectory_current-self.trajectory_start)**2 
-                
-                    # add squared displacement at correct position in times_msd grid
-                    time_idx += np.searchsorted(times_msds[time_idx:], self.time)
-                    self.sds[time_idx:] = sq_displacement
-                # if sq_displacement > 10000:
-                #     print("uh oh {}".format(self.sds[-1]))
-                        
-                # (4) find lattice site closest to end_pol position and only diagonalize again if start_site != final_site 
-                end_site = self.qd_locations[self.get_closest_idx(end_pol, self.qd_locations)]
-                self.new_diagonalization = not (start_pol == end_pol).all()
-                
-                self.step_counter += 1 # update step counter
-                
-            # compute mean squared displacement as a running average instead of storing all displacement vectors
-            msds = n/(n+1)*msds + 1/(n+1)*self.sds
-            
-            # return progress
-            # print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached! Computed in {} s". format(n+1, self.step_counter, self.sds[-1], time.time()-comp_time))
-            # if self.sds[-1] > 10000:
-            #    print("uh oh {}".format(self.sds[-1]))
-        
-        print('----------------------------------')
-        print('---- SIMULATED TIME SUMMARY -----')
-        print(f'total simulated time {self.simulated_time:.3f}')
-        print('----------------------------------')
-        return times_msds, msds
+            print('----------------------------------')
+            print('---- SIMULATED TIME SUMMARY -----')
+            print(f'total simulated time {self.simulated_time:.3f}')
+            print('----------------------------------')
+        return times_msds, msds[0]
 
     
     
