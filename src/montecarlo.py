@@ -495,7 +495,7 @@ class KMCRunner():
                     self.step_counter += 1 # update step counter
                     
                 # compute mean squared displacement as a running average instead of storing all displacement vectors
-                msds[r] = n/(n+1)*msds + 1/(n+1)*self.sds
+                msds[r] = n/(n+1)*msds[r] + 1/(n+1)*self.sds
                 
                 # return progress
                 # print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached! Computed in {} s". format(n+1, self.step_counter, self.sds[-1], time.time()-comp_time))
