@@ -166,12 +166,12 @@ class KMCRunner():
         start_pol = qd_lattice.polaron_locs[center_global]
 
         # (2) compute (or reuse) rates
-        if self.stored_npolarons_box[center_global] == 0:
+        if qd_lattice.stored_npolarons_box[center_global] == 0:
             rates, final_states, tot_time = self.make_kmatrix_boxLATT(qd_lattice, center_global)
         else:
             tot_time = 0.0
-            final_states = self.stored_polaron_sites[center_global]  # global indices
-            rates        = self.stored_rate_vectors[center_global]
+            final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
+            rates        = qd_lattice.stored_rate_vectors[center_global]
 
         # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)
