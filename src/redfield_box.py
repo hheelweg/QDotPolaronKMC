@@ -41,9 +41,9 @@ class Redfield(Unitary):
         # avoid recomputing J2 = J * J
         self._J2_cache = {}  # key: tuple(site_g) -> J2 ndarray
 
-        # cache pruned A-maps
-        self._A_lambda_cache = {}          # { nsites : {lam: CSR} }
-        self._A_lambda_pruned = {}         # { (nsites, mask_sig) : {lam: CSR_pruned} }
+        # # cache pruned A-maps
+        # self._A_lambda_cache = {}          # { nsites : {lam: CSR} }
+        # self._A_lambda_pruned = {}         # { (nsites, mask_sig) : {lam: CSR_pruned} }
 
     # Bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
@@ -65,21 +65,21 @@ class Redfield(Unitary):
         # assemble in pol_g order
         return np.array([row_cache[int(i)] for i in pol_g], dtype=np.complex128)
 
-    # pruned A-maps
-    def _get_pruned_A_map(self, nsites, A_map, ab_keep):
-        key = (nsites, ab_keep.tobytes())  # mask signature
-        P = self._A_lambda_pruned.get(key)
-        if P is not None:
-            return P
-        # build and store once
-        P = {}
-        for lam, A in A_map.items():
-            if A is None:
-                P[lam] = None
-            else:
-                P[lam] = A[ab_keep][:, ab_keep]
-        self._A_lambda_pruned[key] = P
-        return P
+    # # pruned A-maps
+    # def _get_pruned_A_map(self, nsites, A_map, ab_keep):
+    #     key = (nsites, ab_keep.tobytes())  # mask signature
+    #     P = self._A_lambda_pruned.get(key)
+    #     if P is not None:
+    #         return P
+    #     # build and store once
+    #     P = {}
+    #     for lam, A in A_map.items():
+    #         if A is None:
+    #             P[lam] = None
+    #         else:
+    #             P[lam] = A[ab_keep][:, ab_keep]
+    #     self._A_lambda_pruned[key] = P
+    #     return P
     
 
     def _get_J2_cached(self, J, site_g):
