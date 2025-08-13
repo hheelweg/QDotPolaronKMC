@@ -23,6 +23,9 @@ class KMCRunner():
         self.lattice_dimension = np.array([sidelength] * dims) * self.qd_spacing            # dimensions of lattice
         # print('lattice dim', self.lattice_dimension)
 
+        self.r_hop = r_hop
+        self.r_ove = r_ove
+
         # energetic attributes
         self.nrg_center = nrg_center
         self.inhomog_sd = inhomog_sd
@@ -41,19 +44,9 @@ class KMCRunner():
         self.nrealizations = nrealizations
 
         # get box information based on r_hop and r_ove (in units of the lattice spacing)
-        self.make_box_dimensions(r_hop, r_ove)
+        #self.make_box_dimensions(r_hop, r_ove)
         # print('box side length', self.box_length)
         
-        # make QD lattice
-        #self.make_qd_array()
-        # print('qd_spacing', self.qd_spacing)
-
-        
-        # get temperature and Hamiltonian
-        self.temp = temp
-        #self.set_temp(temp)
-    
-    
 
     # HH : here is the definition of the box_radius based on the minimum of 
     # r_hop, r_ove rounded to the next higher integer (this is arbitary and
@@ -201,7 +194,7 @@ class KMCRunner():
             qd_lattice = lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
                                             self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
                                             self.seed,
-                                            self.r_hop/self.qd_spacing, self.r_ove/self.qd_spacing,
+                                            self.r_hop, self.r_ove,
                                             self.temp, self.spectrum, self.J_c
                                            )
             
