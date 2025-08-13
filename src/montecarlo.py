@@ -122,7 +122,7 @@ class KMCRunner():
         qd_lattice.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
 
         # (4) define the GLOBAL center index once
-        qd_lattice.center_global = int(self.get_closest_idx(center, qd_lattice.polaron_locs))
+        qd_lattice.center_global = int(self.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
 
         # (5) optional: local position of the center inside the box (rarely needed now)
         where = np.nonzero(qd_lattice.pol_idxs_last == qd_lattice.center_global)[0]
@@ -216,7 +216,7 @@ class KMCRunner():
                         # draw initial center of the box (here: 'uniform') in the exciton site basis
                         # TODO : might want to add other initializations
                         start_site = qd_lattice.qd_locations[np.random.randint(0, self.geom.n_sites-1)]
-                        start_pol = qd_lattice.polaron_locs[self.get_closest_idx(start_site, qd_lattice.polaron_locs)]
+                        start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
 
                     else:
                         # start_site is final_site from previous step
@@ -254,7 +254,7 @@ class KMCRunner():
     
     
     # (08/09/2025) more efficient version
-    def get_closest_idx(self, pos, array):
+    def get_closest_idx(self, qd_lattice, pos, array):
         """
         Find the index in `array` closest to `pos` under periodic boundary conditions.
         """
@@ -262,7 +262,7 @@ class KMCRunner():
         delta = array - pos  # shape (N, dims)
 
         # Apply periodic boundary condition (minimum image convention)
-        delta -= np.round(delta / self.boundary) * self.boundary
+        delta -= np.round(delta / qd_lattice.geom.boundary) * qd_lattice.geom.boundary
 
         # Compute squared distances
         dists_squared = np.sum(delta**2, axis=1)
