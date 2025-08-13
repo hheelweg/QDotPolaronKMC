@@ -432,7 +432,7 @@ class KMCRunner():
 
         times_msds = np.linspace(0, t_final, int(t_final * 100))            # time ranges to use for computation of msds
                                                                             # NOTE : can adjust the coarseness of time grid (here: 1000)
-        msds = np.zeros((self.nrealizations, len(times_msds)))              # mean squared displacements
+        msds = np.zeros((self.nrealizations, len(times_msds)))              # initialize MSD output
 
         self.simulated_time = 0
         
@@ -464,7 +464,6 @@ class KMCRunner():
                         start_site = self.qd_locations[np.random.randint(0, self.n-1)]
                         start_pol = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
                         #self.times.append(self.time)
-                        self.new_diagonalization = True
                     else:
                         # start_site is final_site from previous step
                         start_pol = end_pol
@@ -485,22 +484,11 @@ class KMCRunner():
                         # add squared displacement at correct position in times_msd grid
                         time_idx += np.searchsorted(times_msds[time_idx:], self.time)
                         self.sds[time_idx:] = sq_displacement
-                    # if sq_displacement > 10000:
-                    #     print("uh oh {}".format(self.sds[-1]))
-                            
-                    # (4) find lattice site closest to end_pol position and only diagonalize again if start_site != final_site 
-                    end_site = self.qd_locations[self.get_closest_idx(end_pol, self.qd_locations)]
-                    self.new_diagonalization = not (start_pol == end_pol).all()
                     
                     self.step_counter += 1 # update step counter
                     
                 # compute mean squared displacement as a running average instead of storing all displacement vectors
                 msds[r] = n/(n+1)*msds[r] + 1/(n+1)*self.sds
-                
-                # return progress
-                # print("{} KMC trajectories evolved, with {} KMC steps and an sds of {} before t_final is reached! Computed in {} s". format(n+1, self.step_counter, self.sds[-1], time.time()-comp_time))
-                # if self.sds[-1] > 10000:
-                #    print("uh oh {}".format(self.sds[-1]))
             
             print('----------------------------------')
             print('---- SIMULATED TIME SUMMARY -----')
