@@ -179,18 +179,24 @@ class KMCRunner():
             # build QD lattice realization
             qd_lattice = self._build_grid_realization(rid=r)
 
+            # get trajectory seed sequence
+            traj_ss = self._spawn_trajectory_seedseq(rid=r)
+
             # loop over number of trajectories per realization
-            for n in range(self.run.ntrajs):
+            for t in range(self.run.ntrajs):
                     
-                self.time = 0                                       # reset clock for each trajectory
-                self.step_counter = 0                               # keeping track of the # of KMC steps
-                self.trajectory_start = np.zeros(self.geom.dims)         # initialize trajectory start point
-                self.trajectory_current = np.zeros(self.geom.dims)       # initialize current trajectopry state
-                self.sds = np.zeros(len(times_msds))                # store sq displacements on times_msd time grid
+                self.time = 0                                           # reset clock for each trajectory
+                self.step_counter = 0                                   # keeping track of the # of KMC steps
+                self.trajectory_start = np.zeros(self.geom.dims)        # initialize trajectory start point
+                self.trajectory_current = np.zeros(self.geom.dims)      # initialize current trajectopry state
+                self.sds = np.zeros_like(times_msds)                    # store sq displacements on times_msd time grid
                 
                 comp_time = time.time()
                 time_idx = 0
                 sq_displacement = 0
+
+                # random generator for t-th trajectory
+                rng_traj = default_rng(traj_ss[t])
                 
                 while self.time < t_final:
 
@@ -226,7 +232,7 @@ class KMCRunner():
                     self.step_counter += 1 # update step counter
                     
                 # compute mean squared displacement as a running average instead of storing all displacement vectors
-                msds[r] = n/(n+1)*msds[r] + 1/(n+1)*self.sds
+                msds[t] = t/(t+1)*msds[t] + 1/(t+1)*self.sds
             
             print('----------------------------------')
             print('---- SIMULATED TIME SUMMARY -----')
