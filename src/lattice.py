@@ -14,7 +14,7 @@ class QDLattice():
         self.dis = dis
         self.bath = bath                                        # NOTE : do we want to load bath information here?
 
-        # set seed
+        # set seed for 
         self.seed_realization = int(seed_realization)
         self.rng = np.random.default_rng(self.seed_realization)
 

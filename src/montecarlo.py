@@ -16,7 +16,7 @@ class KMCRunner():
         self.bath = bath
         self.run = run
 
-        # root seed sequence for realizations
+        # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
     
     # make join time-grid
@@ -26,10 +26,17 @@ class KMCRunner():
         time_grid = np.linspace(0.0, self.run.t_final, npts)
         return time_grid
     
-    # per-realization seed
-    def _spawn_realization_seed(self, rid: int):
+    # per-realization seed for each (per-QDLattice)
+    def _spawn_realization_seed(self, rid : int):
+        # spawn exactly nrealizations once; pick the rid-th child
         ss_real = self._ss_root.spawn(self.run.nrealizations)[rid]
         return int(ss_real.generate_state(1, dtype=np.uint64)[0])
+    
+    # child SeedSequences for all trajectories of a given realization (QDLattice)
+    def _spawn_trajectory_seedseq(self, rid : int):
+        ss_real = SeedSequence(self._realization_seed(rid))
+        return ss_real.spawn(self.run.ntrajs)
+
 
 
     def make_kmatrix_box(self, qd_lattice, center_global):
@@ -150,8 +157,8 @@ class KMCRunner():
         
         # initialize instance of QDLattice class
         # NOTE : change to rnd_seed = self.dis.seed_base for default seed
-        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=self.dis.seed_base)
-        #qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=rnd_seed)
+        #qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=self.dis.seed_base)
+        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=rnd_seed)
 
         # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
         # NOTE : we currenly feed the bath information here as well
