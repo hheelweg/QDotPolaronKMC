@@ -367,6 +367,34 @@ class KMCRunner():
         end_pol = self.polaron_locs[self.final_states[self.j]]
 
         return start_pol, end_pol, tot_time
+    
+    def make_kmc_stepLATT(self, polaron_start_site):
+
+        # (1) build box (just indices + center_global)
+        self.get_box(polaron_start_site)
+
+        center_global = self.center_global
+        start_pol = self.polaron_locs[center_global]
+
+        # (2) compute (or reuse) rates
+        if self.stored_npolarons_box[center_global] == 0:
+            tot_time = self.make_kmatrix_box(center_global)
+        else:
+            tot_time = 0.0
+            self.final_states = self.stored_polaron_sites[center_global]  # global indices
+            self.rates        = self.stored_rate_vectors[center_global]
+
+        # (3) rejection-free KMC step
+        cum_rates = np.cumsum(self.rates)
+        S = cum_rates[-1]
+        u = np.random.uniform()
+        self.j = int(np.searchsorted(cum_rates, u * S))
+        self.time += -np.log(np.random.uniform()) / S
+
+        # (4) final polaron coordinate in GLOBAL frame
+        end_pol = self.polaron_locs[self.final_states[self.j]]
+
+        return start_pol, end_pol, tot_time
 
     
     
@@ -445,13 +473,13 @@ class KMCRunner():
             self.make_qd_array()
             self.set_temp(self.temp)
 
-            qd_inst = qd_lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
+            lattice = qd_lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
                                             self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
                                             self.seed,
                                             self.r_hop/self.qd_spacing, self.r_ove/self.qd_spacing,
                                             self.temp, self.spectrum, self.J_c
                                            )
-            print(type(qd_inst))
+            print(type(lattice))
 
 
             # loop over 
@@ -473,15 +501,20 @@ class KMCRunner():
                     if self.step_counter == 0:
                         # draw initial center of the box (here: 'uniform') in the exciton site basis
                         # TODO : might want to add other initializations
-                        start_site = self.qd_locations[np.random.randint(0, self.n-1)]
-                        start_pol = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
-                        #self.times.append(self.time)
+
+                        # start_site = self.qd_locations[np.random.randint(0, self.n-1)]
+                        # start_pol = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
+
+                        start_site = lattice.qd_locations[np.random.randint(0, self.n-1)]
+                        start_pol = lattice.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
+
                     else:
                         # start_site is final_site from previous step
                         start_pol = end_pol
                 
                     # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
                     start_pol, end_pol, tot_time = self.make_kmc_step(start_pol)
+                    #start_pol, end_pol, tot_time = self.make_kmc_stepLATT(start_pol)
                     self.simulated_time += tot_time
                     
                     # (3) update trajectory and compute squared displacements 
