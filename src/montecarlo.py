@@ -44,28 +44,8 @@ class KMCRunner():
         self.ntrajs = ntrajs 
         self.nrealizations = nrealizations
 
-        # get box information based on r_hop and r_ove (in units of the lattice spacing)
-        #self.make_box_dimensions(r_hop, r_ove)
-        # print('box side length', self.box_length)
         
 
-    # HH : here is the definition of the box_radius based on the minimum of 
-    # r_hop, r_ove rounded to the next higher integer (this is arbitary and
-    # we might want to modify this moving forward)
-    def make_box_dimensions(self, r_hop, r_ove):
-        # convert to actual units
-        self.r_hop = r_hop * self.qd_spacing
-        self.r_ove = r_ove * self.qd_spacing
-        # box radius and dimensions:
-        self.box_radius = math.ceil(min(r_hop, r_ove))
-        # self.box_radius = r_box
-        self.box_length = 2 * self.box_radius + 1
-        # raise wanring if lattice dimensions are exceeded
-        if self.box_length > self.sidelength:
-            raise Warning('the lattice dimensions are exceeded! \
-                          Please choose r_hop and r_ove accordingly!')
-
-        
 
     def make_kmatrix_box(self, qd_lattice, center_global):
 
