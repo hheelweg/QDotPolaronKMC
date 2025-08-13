@@ -31,11 +31,12 @@ def main():
     spec_density = 'cubic-exp'                  # bath spectral density
 
     # PTRE and KMC related parameters
-    numtrials = 1                               # number of trials to average over (here: 1)
     r_hop = 7                                   # hopping radius (see Kassal) (in units of lattice spacing)
     r_ove = 7                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
     ntrajs = 10                                 # number of trajectories to compute MSDs over
+    nrealizations = 3                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+
     t_final = 5                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
 
@@ -48,12 +49,12 @@ def main():
 
     # greate instance of MC class to run KMC simulation
     print('parameter check:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
-                                J_c, spectrum, temp, ntrajs, r_hop, r_ove)
+                                J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
     kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
-                                J_c, spectrum, temp, ntrajs, r_hop, r_ove)
+                                J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
     
     # perform a KMC simulation
-    times, msds = kmc_setup.NEW_simulate_kmc(t_final)
+    times, msds = kmc_setup.simulate_kmc(t_final)
 
     
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds, times, ndim)

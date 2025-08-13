@@ -12,16 +12,20 @@ import math
 class KMCRunner():
     
     def __init__(self, dims, sidelength, qd_spacing, nrg_center, inhomog_sd, dipolegen, seed, relative_spatial_disorder, \
-                 J_c, spectrum, temp, ntrajs, r_hop, r_ove):
+                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove):
         
+        # geometric attributes
         self.dims = dims
         self.sidelength = sidelength
         self.n = sidelength ** dims
         self.qd_spacing = qd_spacing
         self.boundary = sidelength * qd_spacing
+        self.lattice_dimension = np.array([sidelength] * dims) * self.qd_spacing            # dimensions of lattice
+        # print('lattice dim', self.lattice_dimension)
+
+        # energetic attributes
         self.nrg_center = nrg_center
         self.inhomog_sd = inhomog_sd
-        
         # parameters for randomness of Hamiltonian
         self.dipolegen = dipolegen
         self.seed = seed
@@ -31,8 +35,9 @@ class KMCRunner():
         self.J_c = J_c
         self.spectrum = spectrum
         
-        # number of trajectories
+        # number of trajectories per realization
         self.ntrajs = ntrajs 
+        self.nrealizations = nrealizations
 
         # get box information based on r_hop and r_ove (in units of the lattice spacing)
         self.make_box_dimensions(r_hop, r_ove)
@@ -42,15 +47,13 @@ class KMCRunner():
         self.make_qd_array()
         # print('qd_spacing', self.qd_spacing)
 
-        # dimensions of the lattice
-        self.lattice_dimension = np.array([sidelength] * dims) * self.qd_spacing
-        # print('lattice dim', self.lattice_dimension)
         
         # get temperature and Hamiltonian
         self.temp = temp
         self.set_temp(temp)
         
         # new way of defining the grid
+        # NOTE : do we need this?
         if self.dims == 1:
             self.grid = self.qd_locations.reshape((self.sidelength, self.dims))/self.qd_spacing
         if self.dims == 2:
@@ -425,7 +428,7 @@ class KMCRunner():
 
     
     
-    def NEW_simulate_kmc(self, t_final, qd_array_refresh = 100):
+    def simulate_kmc(self, t_final, qd_array_refresh = 100):
 
         times_msds = np.linspace(0, t_final, int(t_final * 100))    # time ranges to use for computation of msds
                                                                     # note: can adjust the coarseness of time grid (here: 1000)
