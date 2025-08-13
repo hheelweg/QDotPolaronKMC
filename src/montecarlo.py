@@ -12,7 +12,7 @@ import math
 class KMCRunner():
     
     def __init__(self, dims, sidelength, qd_spacing, nrg_center, inhomog_sd, dipolegen, seed, relative_spatial_disorder, \
-                 J_c, spectrum, temp, ntrajs, r_hop, r_ove, r_box):
+                 J_c, spectrum, temp, ntrajs, r_hop, r_ove):
         
         self.dims = dims
         self.sidelength = sidelength
@@ -35,7 +35,7 @@ class KMCRunner():
         self.ntrajs = ntrajs 
 
         # get box information based on r_hop and r_ove (in units of the lattice spacing)
-        self.make_box_dimensions(r_hop, r_ove, r_box)
+        self.make_box_dimensions(r_hop, r_ove)
         # print('box side length', self.box_length)
         
         # make QD lattice
@@ -60,7 +60,7 @@ class KMCRunner():
     # HH : here is the definition of the box_radius based on the minimum of 
     # r_hop, r_ove rounded to the next higher integer (this is arbitary and
     # we might want to modify this moving forward)
-    def make_box_dimensions(self, r_hop, r_ove, r_box = 3):
+    def make_box_dimensions(self, r_hop, r_ove):
         # convert to actual units
         self.r_hop = r_hop * self.qd_spacing
         self.r_ove = r_ove * self.qd_spacing
@@ -446,15 +446,11 @@ class KMCRunner():
             sq_displacement = 0
 
             # re-initialize Hamiltonian (i.e. different realizations of noise)
-            # NOTE (08/11/2025): do we need this?
             if n > 0 and n % qd_array_refresh == 0:
                self.make_qd_array()
                self.set_temp(self.temp)
             
             while self.time < t_final:
-
-                # print(f'---------------TRAJ {n}----------------', flush = True)
-                # print(f'time step: {self.step_counter}', flush = True)
 
                 # (1) determine what polaron site we are at currently
                 if self.step_counter == 0:
