@@ -8,37 +8,6 @@ import time
 
 class KMCRunner():
     
-    # def __init__(self, dims, N, qd_spacing, nrg_center, inhomog_sd, dipolegen, seed, relative_spatial_disorder, \
-    #              J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove):
-        
-    #     # geometric attributes
-    #     self.dims = dims
-    #     self.N = N
-    #     self.qd_spacing = qd_spacing
-    #     self.r_hop = r_hop
-    #     self.r_ove = r_ove
-
-    #     self.n_sites = N ** dims
-    #     self.boundary = N * qd_spacing
-    #     self.lattice_dimension = np.array([N] * dims) * self.qd_spacing            # dimensions of lattice
-
-        
-    #     # energetic attributes
-    #     self.nrg_center = nrg_center
-    #     self.inhomog_sd = inhomog_sd
-    #     self.relative_spatial_disorder = relative_spatial_disorder
-    #     self.J_c = J_c
-    #     # parameters for randomness of Hamiltonian
-    #     self.dipolegen = dipolegen
-    #     self.seed_base = seed
-        
-    #     # bath parameters
-    #     self.spectrum = spectrum
-    #     self.temp = temp
-        
-    #     # number of trajectories per realization
-    #     self.ntrajs = ntrajs 
-    #     self.nrealizations = nrealizations
     
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath : BathConfig, run : RunConfig):
 
@@ -68,12 +37,12 @@ class KMCRunner():
                     grid_dims=qd_lattice.geom.lattice_dimension
                     )
 
-        # 2) compute rates on those exact indices (no re-derivation)
+        # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
             pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
         )
 
-        # 3) cache by global center index
+        # (3) cache by global center index
         overall_idx_start = center_global
         qd_lattice.stored_npolarons_box[overall_idx_start] = len(pol_g)
         qd_lattice.stored_polaron_sites[overall_idx_start] = np.copy(final_states)   # global indices
@@ -163,11 +132,12 @@ class KMCRunner():
 
         return start_pol, end_pol, tot_time
     
+
+    # build lattice realization
     def _build_realization(self, rid : int):
         
         qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=self.dis.seed_base)
         qd._setup(self.bath.temp, self.bath.spectrum)
-
         return qd
 
     
@@ -176,25 +146,15 @@ class KMCRunner():
 
         times_msds = np.linspace(0, t_final, int(t_final * 100))            # time ranges to use for computation of msds
                                                                             # NOTE : can adjust the coarseness of time grid (here: 1000)
-        msds = np.zeros((self.run.nrealizations, len(times_msds)))              # initialize MSD output
+        msds = np.zeros((self.run.nrealizations, len(times_msds)))           # initialize MSD output
 
         self.simulated_time = 0
         
         # loop over realization
         for r in range(self.run.nrealizations):
 
-            # # construct QD lattice
-            # qd_lattice = lattice.QDLattice( self.dims, self.N, self.qd_spacing,
-            #                                 self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder, self.J_c, 
-            #                                 self.seed_base, 
-            #                                 self.r_hop, self.r_ove
-            #                                )
-            
-            # # initialize QD lattice for KMC simulation (polaron-transformed Hamiltonian, Redfield intialization, etc.)
-            # qd_lattice._setup(self.bath.temp, self.bath.spectrum)
-            
+            # build QD lattice realization
             qd_lattice = self._build_realization(rid=1)
-
 
             # loop over number of trajectories per realization
             for n in range(self.run.ntrajs):

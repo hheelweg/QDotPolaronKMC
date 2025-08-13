@@ -7,47 +7,12 @@ from .config import GeometryConfig, DisorderConfig, BathConfig
 # class to set up QD Lattice 
 class QDLattice():
 
-    # def __init__(self, dims, N, qd_spacing,
-    #              nrg_center, inhomog_sd, dipolegen, relative_spatial_disorder, J_c,
-    #              seed,
-    #              r_hop, r_ove
-    #              ):
-
-    #     # geometric attributes
-    #     self.dims = dims
-    #     self.N = N
-    #     self.n_sites = N ** dims
-    #     self.qd_spacing = qd_spacing
-    #     self.boundary = N * qd_spacing
-    #     self.lattice_dimension = np.array([N] * dims) * self.qd_spacing            # dimensions of lattice
-
-    #     # energetic attributes
-    #     self.nrg_center = nrg_center
-    #     self.inhomog_sd = inhomog_sd
-    #     self.relative_spatial_disorder = relative_spatial_disorder
-    #     self.J_c = J_c
-    #     # parameters for randomness of Hamiltonian
-    #     self.dipolegen = dipolegen
-    #     self.seed_base = seed
-
-    #     # initialize the box dimensions we consider for the KMC simulation
-    #     self._init_box_dims(r_hop, r_ove)
-
-    #     # initialize lattice
-    #     self._make_lattice()
-
-    #     # new way of defining the grid
-    #     # NOTE : do we need this?
-    #     if self.dims == 1:
-    #         self.grid = self.qd_locations.reshape((self.N, self.dims))/self.qd_spacing
-    #     if self.dims == 2:
-    #         self.grid = self.qd_locations.reshape((self.N, self.N, self.dims))/self.qd_spacing
     
-
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath : BathConfig, seed_realization : int):
 
         self.geom = geom
         self.dis = dis
+        self.bath = bath                                        # NOTE : do we want to load bath information here?
         self.seed_realization = int(seed_realization)
 
         # initialize the box dimensions we consider for the KMC simulation
@@ -55,6 +20,13 @@ class QDLattice():
 
         # initialize lattice
         self._make_lattice()
+
+        # # new way of defining the grid
+        # # NOTE : do we need this?
+        # if self.dims == 1:
+        #     self.grid = self.qd_locations.reshape((self.N, self.dims))/self.qd_spacing
+        # if self.dims == 2:
+        #     self.grid = self.qd_locations.reshape((self.N, self.N, self.dims))/self.qd_spacing
 
 
     # NOTE: old make_qd_array method (unchanged)

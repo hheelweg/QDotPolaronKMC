@@ -57,9 +57,6 @@ def main():
     bath = BathConfig(temp = temp, spectrum = spectrum)
     run  = RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=100)
 
-
-    # kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
-    #                             J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
     
     kmc_setup = mc.KMCRunner(geom, dis, bath, run)
     
