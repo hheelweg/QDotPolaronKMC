@@ -165,7 +165,7 @@ class KMCRunner():
     
     def _build_realization(self, rid : int):
         
-        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath)
+        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=self.dis.seed_base)
         qd._setup(self.bath.temp, self.bath.spectrum)
 
         return qd
