@@ -121,7 +121,7 @@ class HamiltonianSystem():
 #                 _ = self.get_sysbath_eig(a, b)
 
 # this seems to be a working thing now
-class Hamiltonian(HamiltonianSystem):
+class Hamiltonian():
 
     def __init__(self, evals, eigstates, spec_density, kT, J_dense=None):
 
@@ -140,17 +140,6 @@ class Hamiltonian(HamiltonianSystem):
         self.nsite = int(np.size(evals))
         self.evals, self.Umat = evals, eigstates
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
-
-    # # site->eig and eig->site if you still need them elsewhere
-    # # NOTE : do we still need this?
-    # def site2eig(self, rho):
-    #     def _f(rho2): return utils.matrix_dot(self.Umat.conj().T, rho2, self.Umat)
-    #     return utils.transform_rho(_f, rho)
-    
-    # # NOTE : do we still need this?
-    # def eig2site(self, rho):
-    #     def _f(rho2): return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
-    #     return utils.transform_rho(_f, rho)
 
 
 class _PhiTransformer:
