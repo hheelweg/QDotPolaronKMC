@@ -8,16 +8,16 @@ import time
 
 class KMCRunner():
     
-    def __init__(self, dims, sidelength, qd_spacing, nrg_center, inhomog_sd, dipolegen, seed, relative_spatial_disorder, \
+    def __init__(self, dims, N, qd_spacing, nrg_center, inhomog_sd, dipolegen, seed, relative_spatial_disorder, \
                  J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove):
         
         # geometric attributes
         self.dims = dims
-        self.sidelength = sidelength
-        self.n_sites = sidelength ** dims
+        self.N = N
+        self.n_sites = N ** dims
         self.qd_spacing = qd_spacing
-        self.boundary = sidelength * qd_spacing
-        self.lattice_dimension = np.array([sidelength] * dims) * self.qd_spacing            # dimensions of lattice
+        self.boundary = N * qd_spacing
+        self.lattice_dimension = np.array([N] * dims) * self.qd_spacing            # dimensions of lattice
 
         self.r_hop = r_hop
         self.r_ove = r_ove
@@ -176,7 +176,7 @@ class KMCRunner():
         for r in range(self.nrealizations):
 
             # construct QD lattice
-            qd_lattice = lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
+            qd_lattice = lattice.QDLattice( self.dims, self.N, self.qd_spacing,
                                             self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder, self.J_c, 
                                             self.seed, 
                                             self.r_hop, self.r_ove
