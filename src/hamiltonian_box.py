@@ -141,16 +141,16 @@ class Hamiltonian(HamiltonianSystem):
         self.evals, self.Umat = evals, eigstates
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
 
-    # site->eig and eig->site if you still need them elsewhere
-    # NOTE : do we still need this?
-    def site2eig(self, rho):
-        def _f(rho2): return utils.matrix_dot(self.Umat.conj().T, rho2, self.Umat)
-        return utils.transform_rho(_f, rho)
+    # # site->eig and eig->site if you still need them elsewhere
+    # # NOTE : do we still need this?
+    # def site2eig(self, rho):
+    #     def _f(rho2): return utils.matrix_dot(self.Umat.conj().T, rho2, self.Umat)
+    #     return utils.transform_rho(_f, rho)
     
-    # NOTE : do we still need this?
-    def eig2site(self, rho):
-        def _f(rho2): return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
-        return utils.transform_rho(_f, rho)
+    # # NOTE : do we still need this?
+    # def eig2site(self, rho):
+    #     def _f(rho2): return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
+    #     return utils.transform_rho(_f, rho)
 
 
 class _PhiTransformer:

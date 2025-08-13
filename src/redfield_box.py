@@ -3,7 +3,6 @@ import numpy as np
 from . import const
 from . import utils
 import time
-from numba import njit
 from scipy import sparse
 
 class Unitary(object):
