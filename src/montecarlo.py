@@ -52,13 +52,7 @@ class KMCRunner():
         # get temperature and Hamiltonian
         self.temp = temp
         #self.set_temp(temp)
-        
-        # new way of defining the grid
-        # NOTE : do we need this?
-        if self.dims == 1:
-            self.grid = self.qd_locations.reshape((self.sidelength, self.dims))/self.qd_spacing
-        if self.dims == 2:
-            self.grid = self.qd_locations.reshape((self.sidelength, self.sidelength, self.dims))/self.qd_spacing
+    
     
 
     # HH : here is the definition of the box_radius based on the minimum of 

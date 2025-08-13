@@ -42,6 +42,13 @@ class QDLattice():
         # setup polaron-transformed Hamiltonian and Redfield class instance
         self._setup(temp)
 
+        # new way of defining the grid
+        # NOTE : do we need this?
+        if self.dims == 1:
+            self.grid = self.qd_locations.reshape((self.sidelength, self.dims))/self.qd_spacing
+        if self.dims == 2:
+            self.grid = self.qd_locations.reshape((self.sidelength, self.sidelength, self.dims))/self.qd_spacing
+
 
     # NOTE: old make_qd_array method (unchanged)
     def _make_lattice(self):    
