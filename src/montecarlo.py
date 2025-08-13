@@ -18,6 +18,7 @@ class KMCRunner():
         self.qd_spacing = qd_spacing
         self.boundary = N * qd_spacing
         self.lattice_dimension = np.array([N] * dims) * self.qd_spacing            # dimensions of lattice
+        print('lattice dimension', self.lattice_dimension)
 
         self.r_hop = r_hop
         self.r_ove = r_ove
