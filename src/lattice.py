@@ -13,7 +13,10 @@ class QDLattice():
         self.geom = geom
         self.dis = dis
         self.bath = bath                                        # NOTE : do we want to load bath information here?
+
+        # set seed
         self.seed_realization = int(seed_realization)
+        self.rng = np.random.default_rng(self.seed_realization)
 
         # initialize the box dimensions we consider for the KMC simulation
         self._init_box_dims(self.geom.r_hop, self.geom.r_ove)
@@ -34,14 +37,14 @@ class QDLattice():
         # set locations for each QD
         self.qd_locations = np.zeros((self.geom.n_sites, self.geom.dims))
         # if seed = None, then we draw a new random configuration every single time we call this method
-        np.random.seed(self.dis.seed_base)
+        #np.random.seed(self.dis.seed_base)
         for i in np.arange(self.geom.n_sites):
             if self.geom.dims == 2:
                 self.qd_locations[i, :] = (i%self.geom.N * self.geom.qd_spacing, np.floor(i/self.geom.N) * self.geom.qd_spacing) \
-                    + np.random.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder, [1, self.geom.dims])
+                    + self.rng.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder, [1, self.geom.dims])
             elif self.geom.dims == 1:
                 self.qd_locations[i, :] = (i%self.geom.N * self.geom.qd_spacing) \
-                    + np.random.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder, [1, self.geom.dims])
+                    + self.rng.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder, [1, self.geom.dims])
             elif self.geom.dims == 3:
                 raise NotImplementedError("3 dimensions currently not implemented!")
             
@@ -49,11 +52,11 @@ class QDLattice():
         self.qd_locations[self.qd_locations > self.geom.N * self.geom.qd_spacing] = \
             self.qd_locations[self.qd_locations > self.geom.N * self.geom.qd_spacing] - self.geom.N * self.geom.qd_spacing
         # set nrgs for each QD
-        self.qdnrgs = np.random.normal(self.dis.nrg_center, self.dis.inhomog_sd, self.geom.n_sites)
+        self.qdnrgs = self.rng.normal(self.dis.nrg_center, self.dis.inhomog_sd, self.geom.n_sites)
         
         # set dipole moment orientation for each QD
         if self.dis.dipolegen == 'random':
-            self.qddipoles = np.random.normal(0, 1, [self.geom.n_sites, 3])
+            self.qddipoles = self.rng.normal(0, 1, [self.geom.n_sites, 3])
             self.qddipoles = self.qddipoles/np.array([[i] for i in np.linalg.norm(self.qddipoles, axis = 1)])
         elif self.dis.dipolegen == 'alignZ':
             self.qddipoles = np.zeros([self.geom.n_sites, 3])
@@ -62,8 +65,8 @@ class QDLattice():
             raise Exception("Invalid dipole generation type") 
         
         self.stored_npolarons_box = np.zeros(self.geom.n_sites)
-        self.stored_polaron_sites = [np.array([]) for i in np.arange(self.geom.n_sites)]
-        self.stored_rate_vectors = [np.array([]) for i in np.arange(self.geom.n_sites)]
+        self.stored_polaron_sites = [np.array([]) for _ in np.arange(self.geom.n_sites)]
+        self.stored_rate_vectors = [np.array([]) for _ in np.arange(self.geom.n_sites)]
     
 
     # NOTE : this uses box_radius = min(r_hop, r_ove) rounded to the next higher integer
