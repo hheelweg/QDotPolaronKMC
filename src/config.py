@@ -5,7 +5,7 @@ from typing import Any
 @dataclass(frozen=True)
 class GeometryConfig:
     dims : int
-    sidelength : int
+    N : int
     qd_spacing: float
     r_hop: float
     r_ove: float

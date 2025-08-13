@@ -49,6 +49,15 @@ def main():
     # create instance of MC class to run KMC simulation
     print('parameter check:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
+    
+    # define dataclasses
+    geom = GeometryConfig(dims = ndim, N = N, qd_spacing = spacing, r_hop = r_hop, r_ove = r_ove)
+    dis  = DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
+                          dipolegen=dipolegen, J_c = J_c, seed_base = seed)
+    bath = BathConfig(temp = temp, spectrum = spectrum)
+    run  = RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=100)
+
+
     kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
     

@@ -14,7 +14,7 @@ class KMCRunner():
         # geometric attributes
         self.dims = dims
         self.sidelength = sidelength
-        self.n = sidelength ** dims
+        self.n_sites = sidelength ** dims
         self.qd_spacing = qd_spacing
         self.boundary = sidelength * qd_spacing
         self.lattice_dimension = np.array([sidelength] * dims) * self.qd_spacing            # dimensions of lattice
@@ -38,8 +38,18 @@ class KMCRunner():
         # number of trajectories per realization
         self.ntrajs = ntrajs 
         self.nrealizations = nrealizations
+    
+    # def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath : BathConfig, run : RunConfig):
 
-        
+    #     # load inputs
+    #     self.geom = geom
+    #     self.dis = dis
+    #     self.bath = bath
+    #     self.run = run
+
+    #     # root seed sequence for realizations
+    #     self._ss_root = SeedSequence(self.dis.seed_base)
+
 
     def make_kmatrix_box(self, qd_lattice, center_global):
 
@@ -194,7 +204,7 @@ class KMCRunner():
                     if self.step_counter == 0:
                         # draw initial center of the box (here: 'uniform') in the exciton site basis
                         # TODO : might want to add other initializations
-                        start_site = qd_lattice.qd_locations[np.random.randint(0, self.n-1)]
+                        start_site = qd_lattice.qd_locations[np.random.randint(0, self.n_sites-1)]
                         start_pol = qd_lattice.polaron_locs[self.get_closest_idx(start_site, qd_lattice.polaron_locs)]
 
                     else:
