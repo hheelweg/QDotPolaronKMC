@@ -3,7 +3,7 @@ from scipy import integrate
 from scipy.linalg import eigh
 from . import const
 from . import utils
-from . import hamiltonian_box, redfield_box
+from . import hamiltonian_box, redfield_box, qd_lattice
 import time
 import math
 
@@ -109,7 +109,6 @@ class KMCRunner():
         self.stored_npolarons_box = np.zeros(self.n)
         self.stored_polaron_sites = [np.array([]) for i in np.arange(self.n)]
         self.stored_rate_vectors = [np.array([]) for i in np.arange(self.n)]
-        return
     
 
     
