@@ -98,9 +98,9 @@ class KMCRunner():
 
         # 3) cache by global center index
         overall_idx_start = center_global
-        self.stored_npolarons_box[overall_idx_start] = len(pol_g)
-        self.stored_polaron_sites[overall_idx_start] = np.copy(final_states)   # global indices
-        self.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
+        qd_lattice.stored_npolarons_box[overall_idx_start] = len(pol_g)
+        qd_lattice.stored_polaron_sites[overall_idx_start] = np.copy(final_states)   # global indices
+        qd_lattice.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
 
         return rates, final_states, tot_time
 
