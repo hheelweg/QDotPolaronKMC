@@ -1,9 +1,9 @@
 import numpy as np
 from scipy import integrate
 from scipy.linalg import eigh
-from . import const
+from . import const, lattice
 from . import utils
-from . import hamiltonian_box, redfield_box, qd_lattice
+from . import hamiltonian_box, redfield_box
 import time
 import math
 
@@ -368,7 +368,7 @@ class KMCRunner():
 
         return start_pol, end_pol, tot_time
     
-    def make_kmc_stepLATT(self, polaron_start_site):
+    def make_kmc_stepLATT(self, QD_lattice, polaron_start_site):
 
         # (1) build box (just indices + center_global)
         self.get_box(polaron_start_site)
@@ -473,13 +473,13 @@ class KMCRunner():
             self.make_qd_array()
             self.set_temp(self.temp)
 
-            lattice = qd_lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
+            qd_lattice = qd_lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
                                             self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
                                             self.seed,
                                             self.r_hop/self.qd_spacing, self.r_ove/self.qd_spacing,
                                             self.temp, self.spectrum, self.J_c
                                            )
-            print(type(lattice))
+            print(type(qd_lattice))
 
 
             # loop over 
