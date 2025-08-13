@@ -11,7 +11,6 @@ class KMCRunner():
     
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath : BathConfig, run : RunConfig):
 
-        # load inputs
         self.geom = geom
         self.dis = dis
         self.bath = bath
@@ -19,6 +18,13 @@ class KMCRunner():
 
         # root seed sequence for realizations
         self._ss_root = SeedSequence(self.dis.seed_base)
+    
+    # make join time-grid for 
+    def _make_time_grid(self):
+        npts = int(self.run.t_final * self.run.time_grid_density)
+        npts = max(npts, 2)     # ensure at least 2 points
+        time_grid = np.linspace(0.0, self.run.t_final, npts)
+        return time_grid
 
 
     def make_kmatrix_box(self, qd_lattice, center_global):
@@ -49,7 +55,6 @@ class KMCRunner():
         qd_lattice.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
 
         return rates, final_states, tot_time
-
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
@@ -99,8 +104,6 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
-
-    
     def make_kmc_step(self, qd_lattice, polaron_start_site):
 
         # (0) check whether we have a valid instance of QDLattice class
@@ -133,28 +136,32 @@ class KMCRunner():
         return start_pol, end_pol, tot_time
     
 
-    # build lattice realization
-    def _build_realization(self, rid : int):
+    # build realization of QD lattice
+    def _build_grid_realization(self, rid : int):
         
+        # initialize instance of QDLattice class
         qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=self.dis.seed_base)
-        qd._setup(self.bath.temp, self.bath.spectrum)
-        return qd
 
+        # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
+        # NOTE : we currenly feed the bath information here as well
+        qd._setup(self.bath.temp, self.bath.spectrum)
+
+        return qd
     
+    
+
     
     def simulate_kmc(self, t_final):
 
-        times_msds = np.linspace(0, t_final, int(t_final * 100))            # time ranges to use for computation of msds
-                                                                            # NOTE : can adjust the coarseness of time grid (here: 1000)
-        msds = np.zeros((self.run.nrealizations, len(times_msds)))           # initialize MSD output
-
+        times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
+        msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
         self.simulated_time = 0
         
         # loop over realization
         for r in range(self.run.nrealizations):
 
             # build QD lattice realization
-            qd_lattice = self._build_realization(rid=1)
+            qd_lattice = self._build_grid_realization(rid=1)
 
             # loop over number of trajectories per realization
             for n in range(self.run.ntrajs):

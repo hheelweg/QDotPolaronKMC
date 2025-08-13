@@ -211,7 +211,7 @@ class QDLattice():
             time_verbose=True
         )
 
-    
+    # this calls _setu_hamil and _setup_redfield
     def _setup(self, temp, spectrum):
 
         # set temperature
