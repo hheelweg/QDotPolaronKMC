@@ -13,15 +13,15 @@ class GeometryConfig:
 
     @property
     def n_sites(self) -> int:
-        return self.sidelength ** self.dims
+        return self.N ** self.dims
 
     @property
     def boundary(self) -> float:
-        return self.sidelength * self.qd_spacing
+        return self.N * self.qd_spacing
 
     @property
     def lattice_dimension(self) -> np.ndarray:
-        return np.array([self.sidelength] * self.dims, dtype=float) * self.qd_spacing
+        return np.array([self.N] * self.dims, dtype=float) * self.qd_spacing
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,7 @@ class BathConfig:
 
 @dataclass(frozen=True)
 class RunConfig:
-    
+
     ntrajs: int
     nrealizations: int
     t_final: float
