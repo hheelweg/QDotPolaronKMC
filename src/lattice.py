@@ -2,7 +2,7 @@ import numpy as np
 import math
 from scipy import integrate
 from . import utils, const, redfield_box, hamiltonian_box
-from config import GeometryConfig, DisorderConfig, BathConfig
+from .config import GeometryConfig, DisorderConfig, BathConfig
 
 # class to set up QD Lattice 
 class QDLattice():
