@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
 from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
-import math
-import time
+from src.config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 import os
 # track performance bottlenecks
 from pyinstrument import Profiler
