@@ -45,7 +45,8 @@ class Redfield(Unitary):
         self._A_lambda_cache = {}          # { nsites : {lam: CSR} }
         self._A_lambda_pruned = {}         # { (nsites, mask_sig) : {lam: CSR_pruned} }
 
-    # bath correlation function
+    # Bath half-Fourier Transforms
+    # K_λ(ω) in Eq. (15)
     def _corr_row(self, lam, center_global, pol_g):
         key = (float(lam), float(self.kappa), int(center_global))
         row_cache = self._corr_cache.get(key)
@@ -300,21 +301,30 @@ class Redfield(Unitary):
         t_all = time.time()
         time_verbose = getattr(self, "time_verbose", False)
 
-        # --- local views (preserve order)
+        # (1) select the active subset in box
+        # (1.1) candidate polaron desitination indices 𝜈' ∈ pol_g (including 𝜈)
         pol_g  = np.asarray(pol_idxs_global,  dtype=np.intp)
+        # (1.2) site indices m,n,m',n' ∈ site_g for overlap 
         site_g = np.asarray(site_idxs_global, dtype=np.intp)
+        # (1.3) center_global idx 𝜈 (starting polaron)
+        m0 = int(center_global)                     
+
+
+        # NOTE : the follwing code is just for debugging and checking how many indices are in pol_g/site_g
+        # the size of these arrays will obviously scale the computational costs
         npols  = int(pol_g.size)
         nsites = int(site_g.size)
         if time_verbose:
             print('npols, nsites', npols, nsites)
 
         # Map center_global -> local index
+        # NOTE : do we need this
         where = np.nonzero(pol_g == int(center_global))[0]
         assert where.size == 1, "center_global is not (uniquely) inside pol_idxs_global"
         center_loc = int(where[0])
 
-        # --- Bath integrals (vectorized, aligned to pol_g order)
-        #     We will combine them by λ ∈ {-2,-1,0,1,2} after the closed-form contraction.
+        # (2) build bath integrals K_λ(ω) (vectorized, aligned to pol_g order)
+        #  we will combine them by λ ∈ {-2,-1,0,1,2}.
         t0 = time.time()
         lamvals = (-2.0, -1.0, 0.0, 1.0, 2.0)
         bath_map = {
@@ -325,23 +335,25 @@ class Redfield(Unitary):
         if time_verbose:
             print('time(bath integrals)', time.time() - t0, flush=True)
 
-        # --- Build gamma_plus
+        # --- Build gamma_plus ------------
         t1 = time.time()
 
-        # system-bath operator J_dense
-        J = np.asarray(self.ham.J_dense[np.ix_(site_g, site_g)], dtype=np.float64, order='C')  # (n,n)
-        J2 = self._get_J2_cached(J, site_g)
-        U = self.ham.Umat
-        m0 = int(center_global)
-        u0 = U[site_g, m0]                          # (n,)
-        Up = U[np.ix_(site_g, pol_g)]               # (n,P)
+        # (3) build the system-bath pieces 
+        # J coupling Hamiltonian on subset with indices site_g 
+        J = np.asarray(
+                        self.ham.J_dense[np.ix_(site_g, site_g)], dtype=np.float64, order='C'
+                        )      
+        J2 = self._get_J2_cached(J, site_g)         # J * J caching for memory efficieny 
+        U = self.ham.Umat                           # unitary transformation for site/polaron mapping
+
+        u0 = U[site_g, m0]                          #  overlap (a | 𝜈) for 𝜈
+        Up = U[np.ix_(site_g, pol_g)]               #  overlap (a | 𝜈') for all 𝜈' ∈ pol_g
 
         if time_verbose:
             print('time(site→eig rows/cols)', time.time() - t1, flush=True)
 
-
-
-        def _gamma_closed_form_fast(J, J2, Up, u0, bath_map):
+        # computing 𝛾_+ 
+        def _build_gamma_plus(J, J2, Up, u0, bath_map):
             n, P = Up.shape
             Upc  = Up.conj()
 
@@ -391,7 +403,7 @@ class Redfield(Unitary):
 
         
         t2 = time.time()
-        gamma_plus = _gamma_closed_form_fast(J, J2, Up, u0, bath_map)
+        gamma_plus = _build_gamma_plus(J, J2, Up, u0, bath_map)
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
