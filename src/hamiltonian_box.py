@@ -135,7 +135,6 @@ class Hamiltonian(HamiltonianSystem):
         self.init_system(self.evals, self.Umat)
         self.J_dense = np.asarray(J_dense, dtype=np.float64, order='C')
 
-        #self._eig_op_cache = {}
 
     def init_system(self, evals, eigstates):
         self.nsite = int(np.size(evals))
@@ -143,10 +142,12 @@ class Hamiltonian(HamiltonianSystem):
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
 
     # site->eig and eig->site if you still need them elsewhere
+    # NOTE : do we still need this?
     def site2eig(self, rho):
         def _f(rho2): return utils.matrix_dot(self.Umat.conj().T, rho2, self.Umat)
         return utils.transform_rho(_f, rho)
-
+    
+    # NOTE : do we still need this?
     def eig2site(self, rho):
         def _f(rho2): return utils.matrix_dot(self.Umat, rho2, self.Umat.conj().T)
         return utils.transform_rho(_f, rho)

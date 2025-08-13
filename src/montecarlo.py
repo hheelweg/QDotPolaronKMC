@@ -220,7 +220,6 @@ class KMCRunner():
         self.hamil = np.diag(self.qdnrgs).astype(np.float64, copy=False)
         self.hamil += J
 
-        print('hamil shape', self.hamil.shape)
 
         # (2) keep original diagonalization routine
         # NOTE : can we improve this function somehow? 
