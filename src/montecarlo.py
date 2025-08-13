@@ -38,6 +38,7 @@ class KMCRunner():
         # bath parameters
         self.J_c = J_c
         self.spectrum = spectrum
+        self.temp = temp
         
         # number of trajectories per realization
         self.ntrajs = ntrajs 
