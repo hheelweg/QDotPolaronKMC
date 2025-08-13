@@ -19,12 +19,17 @@ class KMCRunner():
         # root seed sequence for realizations
         self._ss_root = SeedSequence(self.dis.seed_base)
     
-    # make join time-grid for 
+    # make join time-grid
     def _make_time_grid(self):
         npts = int(self.run.t_final * self.run.time_grid_density)
         npts = max(npts, 2)     # ensure at least 2 points
         time_grid = np.linspace(0.0, self.run.t_final, npts)
         return time_grid
+    
+    # per-realization seed
+    def _spawn_realization_seed(self, rid: int):
+        ss_real = self._ss_root.spawn(self.run.nrealizations)[rid]
+        return int(ss_real.generate_state(1, dtype=np.uint64)[0])
 
 
     def make_kmatrix_box(self, qd_lattice, center_global):
@@ -138,6 +143,9 @@ class KMCRunner():
 
     # build realization of QD lattice
     def _build_grid_realization(self, rid : int):
+
+        seed_realization = self._spawn_realization_seed(rid)
+        print('seed realization', seed_realization)
         
         # initialize instance of QDLattice class
         qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=self.dis.seed_base)
@@ -148,8 +156,6 @@ class KMCRunner():
 
         return qd
     
-    
-
     
     def simulate_kmc(self, t_final):
 
