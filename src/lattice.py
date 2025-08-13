@@ -104,7 +104,7 @@ class QDLattice():
         # self.box_radius = r_box
         self.box_length = 2 * self.box_radius + 1
         # raise wanring if lattice dimensions are exceeded
-        if self.box_length > self.N:
+        if self.box_length > self.geom.N:
             raise Warning('the lattice dimensions are exceeded! \
                           Please choose r_hop and r_ove accordingly!')
     
