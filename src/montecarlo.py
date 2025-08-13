@@ -1,12 +1,9 @@
 import numpy as np
-from scipy import integrate
 from scipy.linalg import eigh
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
-from . import const, lattice
-from . import utils
-from . import hamiltonian_box, redfield_box
+from numpy.random import SeedSequence, default_rng
+from . import lattice
 import time
-import math
 
 
 class KMCRunner():
@@ -251,6 +248,9 @@ class KMCRunner():
 
         return np.argmin(dists_squared)
     
+
+
+
     def get_diffusivity_hh(self, msds, times, dims):
         # note : I here assume that the whole time arrange is approx. linear (might break down)
         fit_params, cov = np.polyfit(times, msds, 1, cov=True)
@@ -259,6 +259,10 @@ class KMCRunner():
         diff_err = np.sqrt(np.diag(cov))[0]/(2*dims)
         return diff, diff_err
     
+
+
+
+    # ---------------------------------------------------------------------------------------------------------
     # HH : for some arrays of r_hop and r_ove, comopute the rates and check
     # for convergence (you are more than invited to play around with this!)
     def get_rate_convergence(self, r_hops, r_oves):
