@@ -199,7 +199,7 @@ class KMCRunner():
                 time_idx = 0
                 sq_displacement = 0
 
-                # random generator for t-th trajectory
+                # random generator for trajectory
                 rng_traj = default_rng(traj_ss[t])
                 
                 while self.time < t_final:
@@ -217,7 +217,7 @@ class KMCRunner():
                 
                     # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
                     #start_pol, end_pol, tot_time = self.make_kmc_step(start_pol)
-                    start_pol, end_pol, tot_time = self.make_kmc_step(qd_lattice, start_pol, rnd_generator = rng_traj)
+                    start_pol, end_pol, tot_time = self.make_kmc_step(qd_lattice, start_pol, rnd_generator = None)
                     self.simulated_time += tot_time
                     
                     # (3) update trajectory and compute squared displacements 
