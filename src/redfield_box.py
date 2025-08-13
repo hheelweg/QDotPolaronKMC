@@ -38,14 +38,11 @@ class Redfield(Unitary):
         # bath-correlation cache
         self._corr_cache = {}  # key: (lam, self.kappa, center_global) -> dict[int -> complex]
 
-        # avoid recomputing J2 = J * J
+        # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}  # key: tuple(site_g) -> J2 ndarray
 
-        # # cache pruned A-maps
-        # self._A_lambda_cache = {}          # { nsites : {lam: CSR} }
-        # self._A_lambda_pruned = {}         # { (nsites, mask_sig) : {lam: CSR_pruned} }
 
-    # Bath half-Fourier Transforms
+    # bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
     def _corr_row(self, lam, center_global, pol_g):
         key = (float(lam), float(self.kappa), int(center_global))
@@ -65,23 +62,7 @@ class Redfield(Unitary):
         # assemble in pol_g order
         return np.array([row_cache[int(i)] for i in pol_g], dtype=np.complex128)
 
-    # # pruned A-maps
-    # def _get_pruned_A_map(self, nsites, A_map, ab_keep):
-    #     key = (nsites, ab_keep.tobytes())  # mask signature
-    #     P = self._A_lambda_pruned.get(key)
-    #     if P is not None:
-    #         return P
-    #     # build and store once
-    #     P = {}
-    #     for lam, A in A_map.items():
-    #         if A is None:
-    #             P[lam] = None
-    #         else:
-    #             P[lam] = A[ab_keep][:, ab_keep]
-    #     self._A_lambda_pruned[key] = P
-    #     return P
-    
-
+    # compute J2 := J * J
     def _get_J2_cached(self, J, site_g):
         key = tuple(map(int, site_g))
         J2 = self._J2_cache.get(key)
@@ -360,158 +341,9 @@ class Redfield(Unitary):
     
 
 
-    # (08/12/2025) working code
-    # NOTE : keep this as legacy code somewhere
-    # def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global):
-    #     """
-    #     Exact-physics clone (global indexing), optimized:
-    #     - reuses cached eigen-basis operators per (a,b)
-    #     - builds R/C directly (no 4D Gs allocation)
-    #     - bath integrals vectorized
-    #     """
-    #     t_all = time.time()
-    #     time_verbose = getattr(self, "time_verbose", False)
-
-    #     # --- local views of the provided global sets (preserve order)
-    #     pol_g  = np.asarray(pol_idxs_global,  dtype=np.intp)
-    #     site_g = np.asarray(site_idxs_global, dtype=np.intp)
-    #     npols  = int(pol_g.size)
-    #     nsites = int(site_g.size)
-    #     if time_verbose:
-    #         print('npols, nsites', npols, nsites)
-
-    #     # Map center_global -> local index (center_loc)
-    #     where = np.nonzero(pol_g == int(center_global))[0]
-    #     assert where.size == 1, "center_global is not (uniquely) inside pol_idxs_global"
-    #     center_loc = int(where[0])
-
-    #     # --- λ index cache (by nsites), identical to your baseline
-    #     if not hasattr(self, "_lam_idx_cache"):
-    #         self._lam_idx_cache = {}
-    #     lamdalist = (-2.0, -1.0, 0.0, 1.0, 2.0)
-    #     if nsites not in self._lam_idx_cache:
-    #         ident = np.identity(nsites)
-    #         ones  = np.ones((nsites, nsites, nsites, nsites))
-    #         lamdas = ( np.einsum('ac, abcd->abcd', ident, ones)
-    #                 + np.einsum('bd, abcd->abcd', ident, ones)
-    #                 - np.einsum('ad, abcd->abcd', ident, ones)
-    #                 - np.einsum('bc, abcd->abcd', ident, ones) )
-    #         idx_dict = {}
-    #         for lam in lamdalist:
-    #             idxs = np.argwhere(lamdas == lam)
-    #             if idxs.size == 0:
-    #                 idx_dict[lam] = (np.array([], dtype=int),
-    #                                 np.array([], dtype=int),
-    #                                 np.array([], dtype=int),
-    #                                 np.array([], dtype=int))
-    #             else:
-    #                 a_idx, b_idx, c_idx, d_idx = idxs.T
-    #                 idx_dict[lam] = (a_idx, b_idx, c_idx, d_idx)
-    #         del lamdas
-    #         self._lam_idx_cache[nsites] = idx_dict
-    #     idx_dict = self._lam_idx_cache[nsites]
-
-    #     # --- optional CSR map cache (by nsites),
-    #     if not hasattr(self, "_A_lambda_cache"):
-    #         self._A_lambda_cache = {}
-    #     if nsites not in self._A_lambda_cache:
-    #         AB = nsites * nsites
-    #         A_map = {}
-    #         for lam in lamdalist:
-    #             a_idx, b_idx, c_idx, d_idx = idx_dict[lam]
-    #             if a_idx.size == 0:
-    #                 A_map[lam] = None
-    #             else:
-    #                 ab_flat = (a_idx * nsites + b_idx).astype(np.intp)
-    #                 cd_flat = (c_idx * nsites + d_idx).astype(np.intp)
-    #                 data = np.ones_like(ab_flat, dtype=np.float64)
-    #                 A_map[lam] = sparse.csr_matrix((data, (ab_flat, cd_flat)), shape=(AB, AB))
-    #         self._A_lambda_cache[nsites] = A_map
-    #     A_map = self._A_lambda_cache[nsites]
-
-    #     # --- Bath integrals (vectorized, global ω-row aligned to pol_g order)
-    #     t0 = time.time()
-    #     # cached way of computing bath correletion FT
-    #     bath_integrals = [
-    #                         np.zeros(npols, np.complex128) if lam == 0.0 else self._corr_row(lam, center_global, pol_g)
-    #                         for lam in lamdalist
-    #                      ]
-        
-    #     if time_verbose:
-    #         print('time(bath integrals)', time.time() - t0, flush=True)
-
-    #     # --- (BIG WIN) Build R and C directly from cached full eigen-operators
-    #     t1 = time.time()
-
-
-    #     J_mat = self.ham.J_dense[np.ix_(site_g, site_g)]  # (nsites, nsites)
-    #     U = self.ham.Umat
-    #     m0 = int(center_global)
-
-    #     U_site_center = U[site_g, m0]                 # (nsites,)
-    #     U_site_pol    = U[np.ix_(site_g, pol_g)]      # (nsites, npols)
-    #     U_site_pol_c  = np.conj(U_site_pol)           # (nsites, npols)
-
-    #     # Broadcast to 3D: (nsites, nsites, npols)
-    #     # R3D[a,b,:] = J[a,b] * conj(U[a,m0]) * U[b,:]
-    #     R3D = (J_mat[:, :, None]
-    #         * np.conj(U_site_center)[:, None, None]
-    #         * U_site_pol[None, :, :])
-
-    #     # C3D[a,b,:] = J[a,b] * conj(U[a,:]) * U[b,m0]
-    #     C3D = (J_mat[:, :, None]
-    #         * U_site_pol_c[:, None, :]
-    #         * U_site_center[None, :, None])
-
-    #     # Flatten (a,b) -> ab, Fortran order helps CSR @ dense that comes next
-    #     AB = nsites * nsites
-    #     R = np.asfortranarray(R3D.reshape(AB, npols), dtype=np.complex128)
-    #     C = np.asfortranarray(C3D.reshape(AB, npols), dtype=np.complex128)
-
-    #     # no transpose needed anymore
-    #     if time_verbose:
-    #         print('time(site→eig rows/cols)', time.time() - t1, flush=True)
-
-    #     # --- prune exactly-zero rows/cols 
-    #     ab_keep = np.any(R != 0, axis=1) | np.any(C != 0, axis=1)
-    #     if ab_keep.sum() < AB:
-    #         R = R[ab_keep, :]
-    #         C = C[ab_keep, :]
-    #         A_map = self._get_pruned_A_map(nsites, A_map, ab_keep)
-    #         AB = ab_keep.sum()
-
-    #     # --- gamma accumulation via CSR×dense and einsum (identical algebra/order)
-    #     t2 = time.time()
-    #     Y = np.empty_like(R, order='F')
-    #     tmp = np.empty_like(R, order='F')
-
-    #     gamma_plus = np.zeros(npols, dtype=np.complex128)
-    #     for k, lam in enumerate(lamdalist):
-    #         A = A_map[lam]
-    #         if A is None:
-    #             continue
-    #         Y[:] = A.dot(C)                # or A.dot(C, out=Y) on newer SciPy
-    #         np.multiply(R, Y, out=tmp)
-    #         contrib = tmp.sum(axis=0)
-    #         gamma_plus += bath_integrals[k] * contrib
-
-    #     if time_verbose:
-    #         print('time(gamma accumulation)', time.time() - t2, flush=True)
-
-    #     # --- outgoing rates (remove center), scale by ħ; return GLOBAL final indices
-    #     red_R_tensor = 2.0 * np.real(gamma_plus)
-    #     rates = np.delete(red_R_tensor, center_loc) / const.hbar
-    #     final_site_idxs = np.delete(pol_g, center_loc).astype(int)
-
-    #     if time_verbose:
-    #         print('time(total)', time.time() - t_all, flush=True)
-
-    #     print('rates sum/shape', np.sum(rates), rates.shape)
-    #     return rates, final_site_idxs, time.time() - t_all
-
-
     
-        # legcy code, should be removed eventually. 
+    
+    # legcy code, should be removed eventually. 
     def get_idxsNEW(self, center_idx):
         """
         Return:
