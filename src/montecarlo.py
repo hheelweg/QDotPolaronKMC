@@ -232,7 +232,7 @@ class KMCRunner():
                     self.step_counter += 1 # update step counter
                     
                 # compute mean squared displacement as a running average instead of storing all displacement vectors
-                msds[t] = t/(t+1)*msds[t] + 1/(t+1)*self.sds
+                msds[r] = t/(t+1)*msds[r] + 1/(t+1)*self.sds
             
             print('----------------------------------')
             print('---- SIMULATED TIME SUMMARY -----')
