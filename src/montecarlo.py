@@ -26,10 +26,11 @@ class KMCRunner():
         # energetic attributes
         self.nrg_center = nrg_center
         self.inhomog_sd = inhomog_sd
+        self.relative_spatial_disorder = relative_spatial_disorder
         # parameters for randomness of Hamiltonian
         self.dipolegen = dipolegen
         self.seed = seed
-        self.relative_spatial_disorder = relative_spatial_disorder
+        
         
         # bath parameters
         self.J_c = J_c
@@ -117,7 +118,9 @@ class KMCRunner():
         self.temp = temp
         self.beta = 1/(const.kB * self.temp) # 1/eV
         self.get_kappa_polaron()
-        self.get_hamil()
+        #self.get_hamil()
+        self._setup_hamil()
+        self._setup_redfield()
 
 
     # NOTE : currently only implemented for cubic-exp spectral density
@@ -130,6 +133,7 @@ class KMCRunner():
         integrand = lambda freq : 1/np.pi * spectrum_func(freq)/np.power(freq, 2) * 1/np.tanh(self.beta * freq/2)
         self.kappa_polaron = np.exp(-integrate.quad(integrand, 0, freq_max)[0])
   
+
     # NOTE : former get_disp_vector_matrix
     def _pairwise_displacements(self, qd_pos, boundary):
         """
@@ -206,6 +210,57 @@ class KMCRunner():
         np.fill_diagonal(J, 0.0)
         return J
     
+
+
+    def _setup_hamil(self, periodic = True):
+        # (1) set up polaron-transformed Hamiltonian 
+        # (1.1) coupling terms in Hamiltonian
+        J = self._build_J(
+                        qd_pos=self.qd_locations,
+                        qd_dip=self.qddipoles,
+                        J_c=self.J_c,
+                        kappa_polaron=self.kappa_polaron,
+                        boundary=(self.boundary if periodic else None)
+                        )
+        # (1.2) site energies and total Hamiltonian
+        self.hamil = np.diag(self.qdnrgs).astype(np.float64, copy=False)
+        self.hamil += J
+
+
+        # (2) keep original diagonalization routine
+        # NOTE : can we improve this function somehow? 
+        self.eignrgs, self.eigstates = utils.diagonalize(self.hamil)
+
+        # (3) polaron positions 
+        if periodic:
+            locations_unit_circle = (self.qd_locations / self.boundary) * (2*np.pi)  # (n,d)
+            unit_circle_ycoords = np.sin(locations_unit_circle)
+            unit_circle_xcoords = np.cos(locations_unit_circle)
+            psi2 = self.eigstates**2                                                 # (n,n)
+            unit_circle_eig_xcoords = (unit_circle_xcoords.T @ psi2).T               # == your transpose/matmul pattern
+            unit_circle_eig_ycoords = (unit_circle_ycoords.T @ psi2).T
+            eigstate_positions = np.arctan2(unit_circle_eig_ycoords, unit_circle_eig_xcoords) * (self.boundary / (2*np.pi))
+            eigstate_positions[eigstate_positions < 0] += self.boundary
+            self.polaron_locs = eigstate_positions
+        else:
+            self.polaron_locs = (self.qd_locations.T @ (self.eigstates**2)).T
+
+        # (4) off-diagonal J for Redfield (system-bath)
+        J_off = self.hamil - np.diag(np.diag(self.hamil))
+        self.J_dense = J_off.copy()
+
+        # (5) set up Hamilonian instance, spectral density, etc. 
+        self.full_ham = hamiltonian_box.Hamiltonian(
+            self.eignrgs, self.eigstates,
+            spec_density=self.spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
+            )
+    
+
+    def _setup_redfield(self):
+        self.redfield = redfield_box.Redfield(
+            self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron, self.r_hop, self.r_ove,
+            time_verbose=True
+        )
 
     def get_hamil(self, periodic=True):
 
