@@ -240,10 +240,11 @@ class QDLattice():
 
 
     # NOTE : currently only implemented for cubic-exp spectral density
-    # have this feed in a general spectral density moving forward
+    # have this feed in a general spectral density type moving forward
     def get_kappa_polaron(self, spectrum = None, freq_max = 1):
-        lamda = self.spectrum[1]
-        omega_c = self.spectrum[2]
+
+        lamda = spectrum[1]
+        omega_c = spectrum[2]
         
         # TODO: update this to account for different spectrum funcs
         spectrum_func = lambda w: (np.pi*lamda/(2*omega_c**3))*w**3*np.exp(-w/omega_c)
