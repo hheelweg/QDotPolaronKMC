@@ -448,7 +448,7 @@ class KMCRunner():
             qd_inst = qd_lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
                                             self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
                                             self.seed,
-                                            self.r_hop, self.r_ove
+                                            self.r_hop/self.qd_spacing, self.r_ove/self.qd_spacing
                                            )
             print(type(qd_inst))
 
