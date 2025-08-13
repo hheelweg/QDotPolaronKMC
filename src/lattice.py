@@ -195,7 +195,7 @@ class QDLattice():
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
                         kappa_polaron=kappa_polaron,
-                        boundary=(self.boundary if periodic else None)
+                        boundary=(self.geom.boundary if periodic else None)
                         )
         # (1.2) site energies and total Hamiltonian
         self.hamil = np.diag(self.qdnrgs).astype(np.float64, copy=False)
