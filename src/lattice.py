@@ -40,7 +40,7 @@ class QDLattice():
         self._make_lattice()
 
         # setup polaron-transformed Hamiltonian and Redfield class instance
-        self._setup(temp)
+        #self._setup(temp)
 
         # new way of defining the grid
         # NOTE : do we need this?
@@ -82,7 +82,6 @@ class QDLattice():
         self.stored_polaron_sites = [np.array([]) for i in np.arange(self.n)]
         self.stored_rate_vectors = [np.array([]) for i in np.arange(self.n)]
     
-
 
     # NOTE : this uses box_radius = min(r_hop, r_ove) rounded to the next higher integer
     def _init_box_dims(self, r_hop, r_ove):

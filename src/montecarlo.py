@@ -73,9 +73,7 @@ class KMCRunner():
 
         
 
-
-
-    def make_kmatrix_boxLATT(self, qd_lattice, center_global):
+    def make_kmatrix_box(self, qd_lattice, center_global):
 
         # (1) use the global indices of polaron and site inside box
         pol_box  = qd_lattice.pol_idxs_last
@@ -107,7 +105,7 @@ class KMCRunner():
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
-    def get_boxLATT(self, qd_lattice, center, periodic=True):
+    def get_box(self, qd_lattice, center, periodic=True):
 
         # (1) box size (unchanged)
         qd_lattice.box_size = qd_lattice.box_length * qd_lattice.qd_spacing
@@ -155,8 +153,9 @@ class KMCRunner():
 
 
     
-    def make_kmc_stepLATT(self, qd_lattice, polaron_start_site):
+    def make_kmc_step(self, qd_lattice, polaron_start_site):
 
+        # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
 
         # (1) build box (just indices + center_global)
@@ -186,6 +185,109 @@ class KMCRunner():
         return start_pol, end_pol, tot_time
 
     
+    
+    def simulate_kmc(self, t_final):
+
+        times_msds = np.linspace(0, t_final, int(t_final * 100))            # time ranges to use for computation of msds
+                                                                            # NOTE : can adjust the coarseness of time grid (here: 1000)
+        msds = np.zeros((self.nrealizations, len(times_msds)))              # initialize MSD output
+
+        self.simulated_time = 0
+        
+        # loop over realization
+        for r in range(self.nrealizations):
+
+            # construct QD lattice
+            qd_lattice = lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
+                                            self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
+                                            self.seed,
+                                            self.r_hop/self.qd_spacing, self.r_ove/self.qd_spacing,
+                                            self.temp, self.spectrum, self.J_c
+                                           )
+            
+            # initialize QD lattice for KMC simulation (polaron-transformed Hamiltonian, Redfield intialization, etc.)
+            qd_lattice._setup(self.temp)
+
+            # loop over number of trajectories per realization
+            for n in range(self.ntrajs):
+                    
+                self.time = 0                                       # reset clock for each trajectory
+                self.step_counter = 0                               # keeping track of the # of KMC steps
+                self.trajectory_start = np.zeros(self.dims)         # initialize trajectory start point
+                self.trajectory_current = np.zeros(self.dims)       # initialize current trajectopry state
+                self.sds = np.zeros(len(times_msds))                # store sq displacements on times_msd time grid
+                
+                comp_time = time.time()
+                time_idx = 0
+                sq_displacement = 0
+                
+                while self.time < t_final:
+
+                    # (1) determine what polaron site we are at currently
+                    if self.step_counter == 0:
+                        # draw initial center of the box (here: 'uniform') in the exciton site basis
+                        # TODO : might want to add other initializations
+                        start_site = qd_lattice.qd_locations[np.random.randint(0, self.n-1)]
+                        start_pol = qd_lattice.polaron_locs[self.get_closest_idx(start_site, qd_lattice.polaron_locs)]
+
+                    else:
+                        # start_site is final_site from previous step
+                        start_pol = end_pol
+                
+                    # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
+                    #start_pol, end_pol, tot_time = self.make_kmc_step(start_pol)
+                    start_pol, end_pol, tot_time = self.make_kmc_step(qd_lattice, start_pol)
+                    self.simulated_time += tot_time
+                    
+                    # (3) update trajectory and compute squared displacements 
+                    if self.step_counter == 0:
+                        self.trajectory_start = start_pol
+                        self.trajectory_current = start_pol
+                    if self.time < t_final:
+                        # get current location in trajectory and compute squared displacement
+                        self.trajectory_current = self.trajectory_current + end_pol - start_pol
+                        sq_displacement = np.linalg.norm(self.trajectory_current-self.trajectory_start)**2 
+                    
+                        # add squared displacement at correct position in times_msd grid
+                        time_idx += np.searchsorted(times_msds[time_idx:], self.time)
+                        self.sds[time_idx:] = sq_displacement
+                    
+                    self.step_counter += 1 # update step counter
+                    
+                # compute mean squared displacement as a running average instead of storing all displacement vectors
+                msds[r] = n/(n+1)*msds[r] + 1/(n+1)*self.sds
+            
+            print('----------------------------------')
+            print('---- SIMULATED TIME SUMMARY -----')
+            print(f'total simulated time {self.simulated_time:.3f}')
+            print('----------------------------------')
+        return times_msds, msds[0]
+
+    
+    
+    # (08/09/2025) more efficient version
+    def get_closest_idx(self, pos, array):
+        """
+        Find the index in `array` closest to `pos` under periodic boundary conditions.
+        """
+        # Vectorized periodic displacement
+        delta = array - pos  # shape (N, dims)
+
+        # Apply periodic boundary condition (minimum image convention)
+        delta -= np.round(delta / self.boundary) * self.boundary
+
+        # Compute squared distances
+        dists_squared = np.sum(delta**2, axis=1)
+
+        return np.argmin(dists_squared)
+    
+    def get_diffusivity_hh(self, msds, times, dims):
+        # note : I here assume that the whole time arrange is approx. linear (might break down)
+        fit_params, cov = np.polyfit(times, msds, 1, cov=True)
+        diff = fit_params[0]/(2*dims)
+        # obtain error on diffusvity as from error on slope parameter 
+        diff_err = np.sqrt(np.diag(cov))[0]/(2*dims)
+        return diff, diff_err
     
     # HH : for some arrays of r_hop and r_ove, comopute the rates and check
     # for convergence (you are more than invited to play around with this!)
@@ -245,118 +347,8 @@ class KMCRunner():
         three_biggest = rates_norm[-3:][::-1]
         cum_three_biggest_norm = np.sum(three_biggest)
         return mean_final, three_biggest, cum_three_biggest_norm   
-
     
-    
-    def simulate_kmc(self, t_final, qd_array_refresh = 100):
-
-        times_msds = np.linspace(0, t_final, int(t_final * 100))            # time ranges to use for computation of msds
-                                                                            # NOTE : can adjust the coarseness of time grid (here: 1000)
-        msds = np.zeros((self.nrealizations, len(times_msds)))              # initialize MSD output
-
-        self.simulated_time = 0
-        
-        # loop over realization
-        for r in range(self.nrealizations):
-
-            #self.make_qd_array()
-            #self.set_temp(self.temp)
-
-            qd_lattice = lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
-                                            self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
-                                            self.seed,
-                                            self.r_hop/self.qd_spacing, self.r_ove/self.qd_spacing,
-                                            self.temp, self.spectrum, self.J_c
-                                           )
-            print(type(qd_lattice))
-
-
-            # loop over 
-            for n in range(self.ntrajs):
-                    
-                self.time = 0                                       # reset clock for each trajectory
-                self.step_counter = 0                               # keeping track of the # of KMC steps
-                self.trajectory_start = np.zeros(self.dims)         # initialize trajectory start point
-                self.trajectory_current = np.zeros(self.dims)       # initialize current trajectopry state
-                self.sds = np.zeros(len(times_msds))                # store sq displacements on times_msd time grid
-                
-                comp_time = time.time()
-                time_idx = 0
-                sq_displacement = 0
-                
-                while self.time < t_final:
-
-                    # (1) determine what polaron site we are at currently
-                    if self.step_counter == 0:
-                        # draw initial center of the box (here: 'uniform') in the exciton site basis
-                        # TODO : might want to add other initializations
-
-                        # start_site = self.qd_locations[np.random.randint(0, self.n-1)]
-                        # start_pol = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
-
-                        start_site = qd_lattice.qd_locations[np.random.randint(0, self.n-1)]
-                        start_pol = qd_lattice.polaron_locs[self.get_closest_idx(start_site, qd_lattice.polaron_locs)]
-
-                    else:
-                        # start_site is final_site from previous step
-                        start_pol = end_pol
-                
-                    # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
-                    #start_pol, end_pol, tot_time = self.make_kmc_step(start_pol)
-                    start_pol, end_pol, tot_time = self.make_kmc_stepLATT(qd_lattice, start_pol)
-                    self.simulated_time += tot_time
-                    
-                    # (3) update trajectory and compute squared displacements 
-                    if self.step_counter == 0:
-                        self.trajectory_start = start_pol
-                        self.trajectory_current = start_pol
-                    if self.time < t_final:
-                        # get current location in trajectory and compute squared displacement
-                        self.trajectory_current = self.trajectory_current + end_pol - start_pol
-                        sq_displacement = np.linalg.norm(self.trajectory_current-self.trajectory_start)**2 
-                    
-                        # add squared displacement at correct position in times_msd grid
-                        time_idx += np.searchsorted(times_msds[time_idx:], self.time)
-                        self.sds[time_idx:] = sq_displacement
-                    
-                    self.step_counter += 1 # update step counter
-                    
-                # compute mean squared displacement as a running average instead of storing all displacement vectors
-                msds[r] = n/(n+1)*msds[r] + 1/(n+1)*self.sds
-            
-            print('----------------------------------')
-            print('---- SIMULATED TIME SUMMARY -----')
-            print(f'total simulated time {self.simulated_time:.3f}')
-            print('----------------------------------')
-        return times_msds, msds[0]
-
-    
-    
-    # (08/09/2025) more efficient version
-    def get_closest_idx(self, pos, array):
-        """
-        Find the index in `array` closest to `pos` under periodic boundary conditions.
-        """
-        # Vectorized periodic displacement
-        delta = array - pos  # shape (N, dims)
-
-        # Apply periodic boundary condition (minimum image convention)
-        delta -= np.round(delta / self.boundary) * self.boundary
-
-        # Compute squared distances
-        dists_squared = np.sum(delta**2, axis=1)
-
-        return np.argmin(dists_squared)
-    
-
-    def get_diffusivity_hh(self, msds, times, dims):
-        # note : I here assume that the whole time arrange is approx. linear (might break down)
-        fit_params, cov = np.polyfit(times, msds, 1, cov=True)
-        diff = fit_params[0]/(2*dims)
-        # obtain error on diffusvity as from error on slope parameter 
-        diff_err = np.sqrt(np.diag(cov))[0]/(2*dims)
-        return diff, diff_err
-    
+    # NOTE : move to utils.py ?
     def get_ipr(self):
         # returns ipr of one column vector, or mean ipr of multiple column vectors
         return np.mean(1/np.sum(self.eigstates ** 4, axis = 0))
