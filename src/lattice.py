@@ -39,8 +39,6 @@ class QDLattice():
         # initialize lattice
         self._make_lattice()
 
-        # setup polaron-transformed Hamiltonian and Redfield class instance
-        #self._setup(temp)
 
         # new way of defining the grid
         # NOTE : do we need this?
@@ -176,7 +174,7 @@ class QDLattice():
 
 
     # setup polaron-transformed Hamiltonian
-    def _setup_hamil(self, periodic = True):
+    def _setup_hamil(self, temp, spectrum, kappa_polaron, periodic = True):
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         J = self._build_J(
@@ -222,22 +220,31 @@ class QDLattice():
 
     # setup instance of Redfield class
     def _setup_redfield(self):
+
         self.redfield = redfield_box.Redfield(
             self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron, self.r_hop, self.r_ove,
             time_verbose=True
         )
 
     
-    def _setup(self, temp):
+    def _setup(self, temp, spectrum):
+
+        # set temperature
         self.temp = temp
-        self.beta = 1/(const.kB * self.temp)            # 1/eV
-        self.get_kappa_polaron()
-        self._setup_hamil()
+        self.beta = 1/(const.kB * self.temp)
+
+        # compute 𝜅 for polaron transformation          
+        kappa_polaron = self.get_kappa_polaron(spectrum)
+
+        # polaron-tranformed Hamiltonian
+        self._setup_hamil(self.temp, spectrum, kappa_polaron)
+
+        # initialize instance of Redfield class
         self._setup_redfield()
 
 
     # NOTE : currently only implemented for cubic-exp spectral density
-    def get_kappa_polaron(self, freq_max = 1):
+    def get_kappa_polaron(self, spectrum = None, freq_max = 1):
         lamda = self.spectrum[1]
         omega_c = self.spectrum[2]
         
@@ -245,5 +252,6 @@ class QDLattice():
         spectrum_func = lambda w: (np.pi*lamda/(2*omega_c**3))*w**3*np.exp(-w/omega_c)
         integrand = lambda freq : 1/np.pi * spectrum_func(freq)/np.power(freq, 2) * 1/np.tanh(self.beta * freq/2)
         self.kappa_polaron = np.exp(-integrate.quad(integrand, 0, freq_max)[0])
+        return self.kappa_polaron
 
 

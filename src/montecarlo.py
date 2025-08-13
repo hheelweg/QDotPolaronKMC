@@ -46,7 +46,6 @@ class KMCRunner():
 
         
 
-
     def make_kmatrix_box(self, qd_lattice, center_global):
 
         # (1) use the global indices of polaron and site inside box
