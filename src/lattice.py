@@ -29,7 +29,6 @@ class QDLattice():
         self.dipolegen = dipolegen
         self.seed = seed
 
-
         # initialize the box dimensions we consider for the KMC simulation
         self._init_box_dims(r_hop, r_ove)
 

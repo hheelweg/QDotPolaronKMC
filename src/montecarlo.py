@@ -1,12 +1,12 @@
 import numpy as np
 from scipy import integrate
 from scipy.linalg import eigh
+from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from . import const, lattice
 from . import utils
 from . import hamiltonian_box, redfield_box
 import time
 import math
-
 
 
 class KMCRunner():
@@ -21,7 +21,6 @@ class KMCRunner():
         self.qd_spacing = qd_spacing
         self.boundary = sidelength * qd_spacing
         self.lattice_dimension = np.array([sidelength] * dims) * self.qd_spacing            # dimensions of lattice
-        # print('lattice dim', self.lattice_dimension)
 
         self.r_hop = r_hop
         self.r_ove = r_ove
@@ -30,13 +29,12 @@ class KMCRunner():
         self.nrg_center = nrg_center
         self.inhomog_sd = inhomog_sd
         self.relative_spatial_disorder = relative_spatial_disorder
+        self.J_c = J_c
         # parameters for randomness of Hamiltonian
         self.dipolegen = dipolegen
         self.seed = seed
         
-        
         # bath parameters
-        self.J_c = J_c
         self.spectrum = spectrum
         self.temp = temp
         
