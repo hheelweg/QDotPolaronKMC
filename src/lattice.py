@@ -62,14 +62,14 @@ class QDLattice():
         # set locations for each QD
         self.qd_locations = np.zeros((self.geom.n_sites, self.geom.dims))
         # if seed = None, then we draw a new random configuration every single time we call this method
-        np.random.seed(self.geom.seed_base)
+        np.random.seed(self.dis.seed_base)
         for i in np.arange(self.geom.n_sites):
             if self.geom.dims == 2:
                 self.qd_locations[i, :] = (i%self.geom.N * self.geom.qd_spacing, np.floor(i/self.geom.N) * self.geom.qd_spacing) \
                     + np.random.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder, [1, self.geom.dims])
             elif self.geom.dims == 1:
-                self.qd_locations[i, :] = (i%self.N * self.qd_spacing) \
-                    + np.random.normal(0, self.qd_spacing * self.dis.relative_spatial_disorder, [1, self.geom.dims])
+                self.qd_locations[i, :] = (i%self.geom.N * self.geom.qd_spacing) \
+                    + np.random.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder, [1, self.geom.dims])
             elif self.geom.dims == 3:
                 raise NotImplementedError("3 dimensions currently not implemented!")
             
