@@ -4,6 +4,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class GeometryConfig:
+
     dims : int
     N : int
     qd_spacing: float
@@ -25,6 +26,7 @@ class GeometryConfig:
 
 @dataclass(frozen=True)
 class DisorderConfig:
+
     nrg_center: float
     inhomog_sd: float
     relative_spatial_disorder: float
@@ -35,12 +37,14 @@ class DisorderConfig:
 
 @dataclass(frozen=True)
 class BathConfig:
+
     temp: float
     spectrum: Any     # your existing spectrum information object/callable
 
 
 @dataclass(frozen=True)
 class RunConfig:
+    
     ntrajs: int
     nrealizations: int
     t_final: float

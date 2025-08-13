@@ -8,48 +8,48 @@ import time
 
 class KMCRunner():
     
-    def __init__(self, dims, N, qd_spacing, nrg_center, inhomog_sd, dipolegen, seed, relative_spatial_disorder, \
-                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove):
+    # def __init__(self, dims, N, qd_spacing, nrg_center, inhomog_sd, dipolegen, seed, relative_spatial_disorder, \
+    #              J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove):
         
-        # geometric attributes
-        self.dims = dims
-        self.N = N
-        self.n_sites = N ** dims
-        self.qd_spacing = qd_spacing
-        self.boundary = N * qd_spacing
-        self.lattice_dimension = np.array([N] * dims) * self.qd_spacing            # dimensions of lattice
-        print('lattice dimension', self.lattice_dimension)
+    #     # geometric attributes
+    #     self.dims = dims
+    #     self.N = N
+    #     self.qd_spacing = qd_spacing
+    #     self.r_hop = r_hop
+    #     self.r_ove = r_ove
 
-        self.r_hop = r_hop
-        self.r_ove = r_ove
+    #     self.n_sites = N ** dims
+    #     self.boundary = N * qd_spacing
+    #     self.lattice_dimension = np.array([N] * dims) * self.qd_spacing            # dimensions of lattice
 
-        # energetic attributes
-        self.nrg_center = nrg_center
-        self.inhomog_sd = inhomog_sd
-        self.relative_spatial_disorder = relative_spatial_disorder
-        self.J_c = J_c
-        # parameters for randomness of Hamiltonian
-        self.dipolegen = dipolegen
-        self.seed = seed
         
-        # bath parameters
-        self.spectrum = spectrum
-        self.temp = temp
+    #     # energetic attributes
+    #     self.nrg_center = nrg_center
+    #     self.inhomog_sd = inhomog_sd
+    #     self.relative_spatial_disorder = relative_spatial_disorder
+    #     self.J_c = J_c
+    #     # parameters for randomness of Hamiltonian
+    #     self.dipolegen = dipolegen
+    #     self.seed_base = seed
         
-        # number of trajectories per realization
-        self.ntrajs = ntrajs 
-        self.nrealizations = nrealizations
+    #     # bath parameters
+    #     self.spectrum = spectrum
+    #     self.temp = temp
+        
+    #     # number of trajectories per realization
+    #     self.ntrajs = ntrajs 
+    #     self.nrealizations = nrealizations
     
-    # def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath : BathConfig, run : RunConfig):
+    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath : BathConfig, run : RunConfig):
 
-    #     # load inputs
-    #     self.geom = geom
-    #     self.dis = dis
-    #     self.bath = bath
-    #     self.run = run
+        # load inputs
+        self.geom = geom
+        self.dis = dis
+        self.bath = bath
+        self.run = run
 
-    #     # root seed sequence for realizations
-    #     self._ss_root = SeedSequence(self.dis.seed_base)
+        # root seed sequence for realizations
+        self._ss_root = SeedSequence(self.dis.seed_base)
 
 
     def make_kmatrix_box(self, qd_lattice, center_global):
@@ -162,6 +162,13 @@ class KMCRunner():
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
         return start_pol, end_pol, tot_time
+    
+    def _build_realization(self, rid : int):
+        
+        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath)
+        qd._setup(self.bath.temp, self.bath.spectrum)
+
+        return qd
 
     
     
@@ -169,30 +176,33 @@ class KMCRunner():
 
         times_msds = np.linspace(0, t_final, int(t_final * 100))            # time ranges to use for computation of msds
                                                                             # NOTE : can adjust the coarseness of time grid (here: 1000)
-        msds = np.zeros((self.nrealizations, len(times_msds)))              # initialize MSD output
+        msds = np.zeros((self.run.nrealizations, len(times_msds)))              # initialize MSD output
 
         self.simulated_time = 0
         
         # loop over realization
-        for r in range(self.nrealizations):
+        for r in range(self.run.nrealizations):
 
-            # construct QD lattice
-            qd_lattice = lattice.QDLattice( self.dims, self.N, self.qd_spacing,
-                                            self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder, self.J_c, 
-                                            self.seed, 
-                                            self.r_hop, self.r_ove
-                                           )
+            # # construct QD lattice
+            # qd_lattice = lattice.QDLattice( self.dims, self.N, self.qd_spacing,
+            #                                 self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder, self.J_c, 
+            #                                 self.seed_base, 
+            #                                 self.r_hop, self.r_ove
+            #                                )
             
-            # initialize QD lattice for KMC simulation (polaron-transformed Hamiltonian, Redfield intialization, etc.)
-            qd_lattice._setup(self.temp, self.spectrum)
+            # # initialize QD lattice for KMC simulation (polaron-transformed Hamiltonian, Redfield intialization, etc.)
+            # qd_lattice._setup(self.bath.temp, self.bath.spectrum)
+            
+            qd_lattice = self._build_realization()
+            
 
             # loop over number of trajectories per realization
-            for n in range(self.ntrajs):
+            for n in range(self.run.ntrajs):
                     
                 self.time = 0                                       # reset clock for each trajectory
                 self.step_counter = 0                               # keeping track of the # of KMC steps
-                self.trajectory_start = np.zeros(self.dims)         # initialize trajectory start point
-                self.trajectory_current = np.zeros(self.dims)       # initialize current trajectopry state
+                self.trajectory_start = np.zeros(self.geom.dims)         # initialize trajectory start point
+                self.trajectory_current = np.zeros(self.geom.dims)       # initialize current trajectopry state
                 self.sds = np.zeros(len(times_msds))                # store sq displacements on times_msd time grid
                 
                 comp_time = time.time()
@@ -205,7 +215,7 @@ class KMCRunner():
                     if self.step_counter == 0:
                         # draw initial center of the box (here: 'uniform') in the exciton site basis
                         # TODO : might want to add other initializations
-                        start_site = qd_lattice.qd_locations[np.random.randint(0, self.n_sites-1)]
+                        start_site = qd_lattice.qd_locations[np.random.randint(0, self.geom.n_sites-1)]
                         start_pol = qd_lattice.polaron_locs[self.get_closest_idx(start_site, qd_lattice.polaron_locs)]
 
                     else:
