@@ -10,7 +10,7 @@ class QDLattice():
                  nrg_center, inhomog_sd, dipolegen, relative_spatial_disorder,
                  seed,
                  r_hop, r_ove,
-                 temp
+                 temp, spectrum, J_c
                  ):
 
         # geometric attributes
@@ -28,6 +28,10 @@ class QDLattice():
         # parameters for randomness of Hamiltonian
         self.dipolegen = dipolegen
         self.seed = seed
+
+        # bath information
+        self.J_c = J_c
+        self.spectrum = spectrum
 
         # initialize the box dimensions we consider for the KMC simulation
         self._init_box_dims(r_hop, r_ove)

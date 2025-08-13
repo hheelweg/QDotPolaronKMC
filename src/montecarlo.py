@@ -449,7 +449,7 @@ class KMCRunner():
                                             self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
                                             self.seed,
                                             self.r_hop/self.qd_spacing, self.r_ove/self.qd_spacing,
-                                            self.temp
+                                            self.temp, self.spectrum, self.J_c
                                            )
             print(type(qd_inst))
 
