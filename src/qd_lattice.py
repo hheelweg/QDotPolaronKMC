@@ -36,6 +36,9 @@ class QDLattice():
         # initialize the box dimensions we consider for the KMC simulation
         self._init_box_dims(r_hop, r_ove)
 
+        # initialize lattice
+        self._make_lattice()
+
         # setup polaron-transformed Hamiltonian and Redfield class instance
         self._setup(temp)
 
