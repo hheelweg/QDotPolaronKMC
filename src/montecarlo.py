@@ -150,7 +150,8 @@ class KMCRunner():
         
         # initialize instance of QDLattice class
         # NOTE : change to rnd_seed = self.dis.seed_base for default seed
-        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=rnd_seed)
+        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=self.dis.seed_base)
+        #qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=rnd_seed)
 
         # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
         # NOTE : we currenly feed the bath information here as well
