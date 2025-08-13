@@ -34,7 +34,7 @@ class KMCRunner():
     
     # child SeedSequences for all trajectories of a given realization (QDLattice)
     def _spawn_trajectory_seedseq(self, rid : int):
-        ss_real = SeedSequence(self._realization_seed(rid))
+        ss_real = SeedSequence(self._spawn_realization_seed(rid))
         return ss_real.spawn(self.run.ntrajs)
 
 
@@ -204,7 +204,7 @@ class KMCRunner():
                     if self.step_counter == 0:
                         # draw initial center of the box (here: 'uniform') in the exciton site basis
                         # TODO : might want to add other initializations
-                        start_site = qd_lattice.qd_locations[np.random.randint(0, self.geom.n_sites-1)]
+                        start_site = qd_lattice.qd_locations[rng_traj.integers(low=0, high=self.geom.n_sites-1)]
                         start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
 
                     else:
