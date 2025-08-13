@@ -159,14 +159,14 @@ class KMCRunner():
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
 
         # (1) build box (just indices + center_global)
-        self.get_boxLATT(qd_lattice, polaron_start_site)
+        self.get_box(qd_lattice, polaron_start_site)
 
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
-            rates, final_states, tot_time = self.make_kmatrix_boxLATT(qd_lattice, center_global)
+            rates, final_states, tot_time = self.make_kmatrix_box(qd_lattice, center_global)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
