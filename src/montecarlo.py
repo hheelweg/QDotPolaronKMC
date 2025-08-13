@@ -596,7 +596,7 @@ class KMCRunner():
                 
                     # (2) perform KMC step and obtain coordinates of polaron at beginning (start_pol) and end (end_pol) of the step
                     #start_pol, end_pol, tot_time = self.make_kmc_step(start_pol)
-                    start_pol, end_pol, tot_time = self.make_kmc_stepLATT(start_pol)
+                    start_pol, end_pol, tot_time = self.make_kmc_stepLATT(qd_lattice, start_pol)
                     self.simulated_time += tot_time
                     
                     # (3) update trajectory and compute squared displacements 
