@@ -9,7 +9,8 @@ class QDLattice():
     def __init__(self, dims, sidelength, qd_spacing,
                  nrg_center, inhomog_sd, dipolegen, relative_spatial_disorder,
                  seed,
-                 r_hop, r_ove
+                 r_hop, r_ove,
+                 temp
                  ):
 
         # geometric attributes
@@ -32,7 +33,7 @@ class QDLattice():
         self._init_box_dims(r_hop, r_ove)
 
         # setup polaron-transformed Hamiltonian and Redfield class instance
-        self._setup()
+        self._setup(temp)
 
 
     # NOTE: old make_qd_array method (unchanged)
