@@ -87,7 +87,7 @@ class KMCRunner():
     def get_box(self, qd_lattice, center, periodic=True):
 
         # (1) box size (unchanged)
-        qd_lattice.box_size = qd_lattice.geom.box_length * qd_lattice.geom.qd_spacing
+        qd_lattice.box_size = qd_lattice.box_length * qd_lattice.geom.qd_spacing
 
         # (2) helpers (unchanged logic)
         # NOTE : put this somewhere as a helper function ?
