@@ -290,6 +290,36 @@ class KMCRunner():
         self.stored_rate_vectors[overall_idx_start]  = np.copy(self.rates)
 
         return tot_time
+    
+
+    def make_kmatrix_boxLATT(self, qd_lattice, center_global):
+
+        # (1) use the global indices of polaron and site inside box
+        pol_box  = qd_lattice.pol_idxs_last
+        site_box = qd_lattice.site_idxs_last
+
+        # (2) refine the polaron and site indices by additional constraints on r_hop and r_ove
+        # NOTE : refine_by_radius function can maybe be moved into this module ? 
+        pol_g, site_g = qd_lattice.redfield.refine_by_radius(
+                    pol_idxs_global = pol_box,
+                    site_idxs_global = site_box,
+                    center_global = center_global,                      # global index of the center polaron
+                    periodic=True,                                      # or False to match array setup
+                    grid_dims=qd_lattice.lattice_dimension
+                    )
+
+        # 2) compute rates on those exact indices (no re-derivation)
+        rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
+            pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
+        )
+
+        # 3) cache by global center index
+        overall_idx_start = center_global
+        self.stored_npolarons_box[overall_idx_start] = len(pol_g)
+        self.stored_polaron_sites[overall_idx_start] = np.copy(final_states)   # global indices
+        self.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
+
+        return rates, final_states, tot_time
 
 
     # make box around center position where we are currently at
@@ -339,6 +369,52 @@ class KMCRunner():
         self.center_local = int(where[0]) if where.size == 1 else None
 
 
+    def get_boxLATT(self, qd_lattice, center, periodic=True):
+
+        # (1) box size (unchanged)
+        qd_lattice.box_size = qd_lattice.box_length * qd_lattice.qd_spacing
+
+        # (2) helpers (unchanged logic)
+        # NOTE : put this somewhere as a helper function ?
+        def find_indices_within_box(points, center, grid_dims, box_size, periodic=True):
+            half_box = box_size / 2
+            dim = len(center)
+            assert len(points[0]) == len(center) == len(grid_dims)
+
+            if dim == 1:
+                dx = np.abs(points - center[0])
+                if periodic:
+                    dx = np.minimum(dx, grid_dims[0] - dx)
+                return np.where(dx <= half_box)[0]
+
+            elif dim == 2:
+                dx = np.abs(points[:, 0] - center[0])
+                dy = np.abs(points[:, 1] - center[1])
+                if periodic:
+                    dx = np.minimum(dx, grid_dims[0] - dx)
+                    dy = np.minimum(dy, grid_dims[1] - dy)
+                return np.where((dx <= half_box) & (dy <= half_box))[0]
+
+            else:
+                raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
+
+        # (3) global index sets inside the axis-aligned periodic box
+        pol_idxs = find_indices_within_box(qd_lattice.polaron_locs, center, qd_lattice.lattice_dimension, qd_lattice.box_size, periodic)
+        site_idxs = find_indices_within_box(qd_lattice.qd_locations,  center, qd_lattice.lattice_dimension, qd_lattice.box_size, periodic)
+
+        # keep order, store contiguously
+        qd_lattice.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
+        qd_lattice.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
+
+        # (4) define the GLOBAL center index once
+        qd_lattice.center_global = int(self.get_closest_idx(center, qd_lattice.polaron_locs))
+
+        # (5) optional: local position of the center inside the box (rarely needed now)
+        where = np.nonzero(qd_lattice.pol_idxs_last == qd_lattice.center_global)[0]
+        # If the box is tight or discrete, it should be present; if not, refine_by_radius will handle it.
+        qd_lattice.center_local = int(where[0]) if where.size == 1 else None
+
+
 
     def make_kmc_step(self, polaron_start_site):
 
@@ -368,31 +444,37 @@ class KMCRunner():
 
         return start_pol, end_pol, tot_time
     
-    def make_kmc_stepLATT(self, QD_lattice, polaron_start_site):
+
+
+
+    
+    def make_kmc_stepLATT(self, qd_lattice, polaron_start_site):
+
+        assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
 
         # (1) build box (just indices + center_global)
-        self.get_box(polaron_start_site)
+        self.get_boxLATT(qd_lattice, polaron_start_site)
 
-        center_global = self.center_global
-        start_pol = self.polaron_locs[center_global]
+        center_global = qd_lattice.center_global
+        start_pol = qd_lattice.polaron_locs[center_global]
 
         # (2) compute (or reuse) rates
         if self.stored_npolarons_box[center_global] == 0:
-            tot_time = self.make_kmatrix_box(center_global)
+            rates, final_states, tot_time = self.make_kmatrix_boxLATT(qd_lattice, center_global)
         else:
             tot_time = 0.0
-            self.final_states = self.stored_polaron_sites[center_global]  # global indices
-            self.rates        = self.stored_rate_vectors[center_global]
+            final_states = self.stored_polaron_sites[center_global]  # global indices
+            rates        = self.stored_rate_vectors[center_global]
 
         # (3) rejection-free KMC step
-        cum_rates = np.cumsum(self.rates)
+        cum_rates = np.cumsum(rates)
         S = cum_rates[-1]
         u = np.random.uniform()
-        self.j = int(np.searchsorted(cum_rates, u * S))
+        final_idx = int(np.searchsorted(cum_rates, u * S))
         self.time += -np.log(np.random.uniform()) / S
 
         # (4) final polaron coordinate in GLOBAL frame
-        end_pol = self.polaron_locs[self.final_states[self.j]]
+        end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
         return start_pol, end_pol, tot_time
 
