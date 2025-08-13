@@ -473,7 +473,7 @@ class KMCRunner():
             self.make_qd_array()
             self.set_temp(self.temp)
 
-            qd_lattice = qd_lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
+            qd_lattice = lattice.QDLattice( self.dims, self.sidelength, self.qd_spacing,
                                             self.nrg_center, self.inhomog_sd, self.dipolegen, self.relative_spatial_disorder,
                                             self.seed,
                                             self.r_hop/self.qd_spacing, self.r_ove/self.qd_spacing,
@@ -505,8 +505,8 @@ class KMCRunner():
                         # start_site = self.qd_locations[np.random.randint(0, self.n-1)]
                         # start_pol = self.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
 
-                        start_site = lattice.qd_locations[np.random.randint(0, self.n-1)]
-                        start_pol = lattice.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
+                        start_site = qd_lattice.qd_locations[np.random.randint(0, self.n-1)]
+                        start_pol = qd_lattice.polaron_locs[self.get_closest_idx(start_site, self.polaron_locs)]
 
                     else:
                         # start_site is final_site from previous step
