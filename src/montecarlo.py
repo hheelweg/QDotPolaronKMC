@@ -65,7 +65,7 @@ class KMCRunner():
                     site_idxs_global = site_box,
                     center_global = center_global,                      # global index of the center polaron
                     periodic=True,                                      # or False to match array setup
-                    grid_dims=qd_lattice.lattice_dimension
+                    grid_dims=qd_lattice.geom.lattice_dimension
                     )
 
         # 2) compute rates on those exact indices (no re-derivation)
