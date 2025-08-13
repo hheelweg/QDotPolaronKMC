@@ -144,11 +144,11 @@ class KMCRunner():
     # build realization of QD lattice
     def _build_grid_realization(self, rid : int):
 
-        seed_realization = self._spawn_realization_seed(rid)
-        print('seed realization', seed_realization)
+        rnd_seed = self._spawn_realization_seed(rid)
+        print('seed realization', rnd_seed)
         
         # initialize instance of QDLattice class
-        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=self.dis.seed_base)
+        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, bath=self.bath, seed_realization=rnd_seed)
 
         # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
         # NOTE : we currenly feed the bath information here as well
