@@ -66,14 +66,15 @@ def main():
     
     # perform KMC simulation
     times, msds = kmc_setup.simulate_kmc(t_final)
+
     msds_mean = np.mean(msds, axis = 0)
-    print('msds_mean shape', msds_mean.shape)
+
 
     file_name = 'msds.csv'
 
     # create df and save it
-    data = np.column_stack([times, msds.T])
-    columns = ["time"] + [f"lattice_{i}" for i in range(msds.shape[0])]
+    data = np.column_stack([times, msds_mean.T, msds.T])
+    columns = ["time"] + ["ave. msd"] + [f"msd lattice_{i}" for i in range(msds.shape[0])]
 
     df = pd.DataFrame(data, columns=columns)
     df.to_csv("msds.csv", index=False)
