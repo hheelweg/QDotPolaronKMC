@@ -260,7 +260,7 @@ class KMCRunner():
 
                 # accumulate current position by raw difference
                 trajectory_curr, last_r2 = self._update_displacement_minimage(
-                trajectory_curr, trajectory_prev, start_pol, end_pol, box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
+                trajectory_curr, trajectory_prev, start_pol, end_pol, box_lengths=qd_lattice.geom.lattice_dimension, periodic=False
                 )
 
                 # add squared displacement at correct position in the times_msds grid
