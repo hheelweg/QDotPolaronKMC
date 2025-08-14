@@ -265,6 +265,7 @@ class KMCRunner():
             traj_ss = self._spawn_trajectory_seedseq(rid=r)
 
             # loop over number of trajectories per realization
+            msd_mean = np.zeros_like(times_msds)
             for t in range(self.run.ntrajs):
                 
                 # OLD
@@ -286,7 +287,7 @@ class KMCRunner():
                 self.simulated_time += comp
                 # streaming mean over trajectories (same as before)
                 w = 1.0 / (t + 1)
-                msds[r] = t/(t+1) * msds[r] + 1/(t+1) * sds
+                msd_mean = (1.0 - w) * msds[r] + w * sds
                 
                 # while self.time < t_final:
 
@@ -323,6 +324,7 @@ class KMCRunner():
                 # # compute mean squared displacement as a running average instead of storing all displacement vectors
                 # msds[r] = t/(t+1)*msds[r] + 1/(t+1)*self.sds
             
+            msds[r] = msd_mean
             print('----------------------------------')
             print('---- SIMULATED TIME SUMMARY -----')
             print(f'total simulated time {self.simulated_time:.3f}')
