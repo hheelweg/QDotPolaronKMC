@@ -213,7 +213,7 @@ class KMCRunner():
         while self.time < t_final:
             # (2) perform a KMC step; advances self.time internally
             #     returns (start_pol, end_pol) coordinates and a compute-time contribution
-            _sp, end_pol, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
+            _, end_pol, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
             tot_comp_time += step_comp_time
 
             # (3) update trajectory & MSD (naive, no PBC min-image)
@@ -224,8 +224,6 @@ class KMCRunner():
             if self.time < t_final:
 
                 # accumulate current position by raw difference
-                # self.trajectory_current = self.trajectory_current + (np.asarray(end_pol) - np.asarray(start_pol))
-                # sq_displacement = float(np.linalg.norm(self.trajectory_current - self.trajectory_start) ** 2)
                 self.trajectory_current, last_r2 = self._update_displacement_naive(
                 self.trajectory_current, self.trajectory_start, start_pol, end_pol
                 )
@@ -234,7 +232,7 @@ class KMCRunner():
                 inc = np.searchsorted(times_msds[time_idx:], self.time)
                 time_idx += inc
                 if time_idx < times_msds.size:
-                    sds[time_idx:] = sq_displacement
+                    sds[time_idx:] = last_r2#sq_displacement
 
             # prepare next step
             start_pol = end_pol
