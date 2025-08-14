@@ -71,7 +71,11 @@ def main():
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)
 
-    diff, diff_err = kmc_setup.get_diffusivity_hh(msds[0], times, ndim)
+    # get noise-averaged MSDS
+    msds_mean = np.mean(msds, axis = 0)
+
+
+    diff, diff_err = kmc_setup.get_diffusivity_hh(msds_mean, times, ndim)
     
     # -------------------------------------------------------------------------
     # without taking into account units:
