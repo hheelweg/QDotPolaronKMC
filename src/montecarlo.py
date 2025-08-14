@@ -238,13 +238,11 @@ class KMCRunner():
             start_pol = end_pol
             self.step_counter += 1
 
-            # optional early exit if we've filled the grid
-            if time_idx >= times_msds.size:
-                break
 
-        # # ensure tail is filled if loop ended before the last grid point
-        # if time_idx < times_msds.size:
-        #     sds[time_idx:] = sq_displacement
+
+        # ensure tail is filled if loop ended before the last grid point
+        if time_idx < times_msds.size:
+            sds[time_idx:] = sq_displacement
 
         return sds, tot_comp_time
 
