@@ -172,7 +172,7 @@ class KMCRunner():
         return qd
     
 
-
+    # OLD displacements
     def _update_displacement_naive(self, trajectory_current, trajectory_start, start_pol, end_pol):
         """
         add explanation
@@ -184,6 +184,15 @@ class KMCRunner():
         # get square displacement
         sq_displacement = float(np.dot(diff, diff))
         return new_current, sq_displacement
+    
+    # NEW displacements
+    def _update_displacement_minimage(trajectory_current, trajectory_start, start_pol, end_pol, box_lengths):
+        delta = np.asarray(end_pol) - np.asarray(start_pol)
+        L = np.asarray(box_lengths, dtype=float)
+        delta = delta - L * np.round(delta / L)  # minimum-image
+        new_current = np.asarray(trajectory_current) + delta
+        diff = new_current - np.asarray(trajectory_start)
+        return new_current, float(np.dot(diff, diff))
 
 
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
@@ -214,7 +223,7 @@ class KMCRunner():
         while clock < t_final:
             # (2) perform a KMC step; advances self.time internally
             #     returns (start_pol, end_pol) coordinates and a compute-time contribution
-            _, end_pol, clock, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
+            start_pol, end_pol, clock, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
             tot_comp_time += step_comp_time
 
             # (3) update trajectory & MSD (naive, no PBC min-image)
@@ -238,7 +247,6 @@ class KMCRunner():
             # prepare next step
             start_pol = end_pol
             step_counter += 1
-
 
             # OPTIONAL : avoid doing extra KMC steps when you’ve already filled all requested MSD time points.
             if time_idx >= times_msds.size:
