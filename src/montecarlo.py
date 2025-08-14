@@ -170,7 +170,21 @@ class KMCRunner():
 
         return qd
     
-    # TODO : fill in function that runs a single rejection-free KMC trajectory
+
+
+    def _update_displacement_naive(trajectory_current, trajectory_start, start_pol, end_pol):
+        """
+        add explanation
+        """
+        start_pol = np.asarray(start_pol, dtype=float)
+        end_pol   = np.asarray(end_pol,   dtype=float)
+        new_current = np.asarray(trajectory_current, dtype=float) + (end_pol - start_pol)
+        diff = new_current - np.asarray(trajectory_start, dtype=float)
+        # get square displacement
+        sq_displacement = float(np.dot(diff, diff))
+        return new_current, sq_displacement
+
+
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
 
         # --- time grid & per-trajectory buffers ---
@@ -209,9 +223,10 @@ class KMCRunner():
 
             if self.time < t_final:
                 # accumulate current position by raw difference
-                self.trajectory_current = self.trajectory_current + (np.asarray(end_pol) - np.asarray(start_pol))
-                sq_displacement = float(
-                    np.linalg.norm(self.trajectory_current - self.trajectory_start) ** 2
+                # self.trajectory_current = self.trajectory_current + (np.asarray(end_pol) - np.asarray(start_pol))
+                # sq_displacement = float(np.linalg.norm(self.trajectory_current - self.trajectory_start) ** 2)
+                self.trajectory_current, last_r2 = self._update_displacement_naive(
+                self.trajectory_current, self.trajectory_start, start_pol, end_pol
                 )
 
                 # add squared displacement at correct position in the times_msds grid
