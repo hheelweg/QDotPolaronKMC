@@ -5,9 +5,8 @@ import os
 # track performance bottlenecks
 from pyinstrument import Profiler
 
-import qdotkmc
 from qdotkmc import montecarlo as mc
-from qdotkmc import GeometryConfig, DisorderConfig, BathConfig, RunConfig
+from qdotkmc.config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 
 
 def main():
