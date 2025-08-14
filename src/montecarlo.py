@@ -287,7 +287,8 @@ class KMCRunner():
                 self.simulated_time += comp
                 # streaming mean over trajectories (same as before)
                 w = 1.0 / (t + 1)
-                msd_mean = (1.0 - w) * msds[r] + w * sds
+                #msd_mean = (1.0 - w) * msds[r] + w * sds
+                msds[r] = (1.0 - w) * msds[r] + w * sds
                 
                 # while self.time < t_final:
 
@@ -324,7 +325,7 @@ class KMCRunner():
                 # # compute mean squared displacement as a running average instead of storing all displacement vectors
                 # msds[r] = t/(t+1)*msds[r] + 1/(t+1)*self.sds
             
-            msds[r] = msd_mean
+            #msds[r] = msd_mean
             print('----------------------------------')
             print('---- SIMULATED TIME SUMMARY -----')
             print(f'total simulated time {self.simulated_time:.3f}')
