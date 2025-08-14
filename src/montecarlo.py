@@ -186,12 +186,37 @@ class KMCRunner():
         return new_current, sq_displacement
     
     # NEW displacements
-    def _update_displacement_minimage(trajectory_current, trajectory_start, start_pol, end_pol, box_lengths):
-        delta = np.asarray(end_pol) - np.asarray(start_pol)
-        L = np.asarray(box_lengths, dtype=float)
-        delta = delta - L * np.round(delta / L)  # minimum-image
-        new_current = np.asarray(trajectory_current) + delta
-        diff = new_current - np.asarray(trajectory_start)
+    def _update_displacement_minimage(self, trajectory_current,
+                                     trajectory_start,
+                                     start_pol,
+                                     end_pol,
+                                     box_lengths,
+                                     periodic=None):
+        """
+        add explanation.
+        """
+        # ensure 1D vectors
+        start_pol = np.atleast_1d(np.asarray(start_pol, dtype=float))
+        end_pol   = np.atleast_1d(np.asarray(end_pol,   dtype=float))
+        curr      = np.atleast_1d(np.asarray(trajectory_current, dtype=float))
+        start0    = np.atleast_1d(np.asarray(trajectory_start,   dtype=float))
+
+        delta = end_pol - start_pol
+
+        L = np.atleast_1d(np.asarray(box_lengths, dtype=float))
+        if periodic is None:
+            periodic = np.ones(L.shape, dtype=bool)
+        else:
+            periodic = np.asarray(periodic, dtype=bool)
+
+        # apply minimum-image only where periodic=True
+        if np.any(periodic):
+            delta_p = delta[periodic]
+            L_p = L[periodic]
+            delta[periodic] = delta_p - L_p * np.round(delta_p / L_p)
+
+        new_current = curr + delta
+        diff = new_current - start0
         return new_current, float(np.dot(diff, diff))
 
 
@@ -235,7 +260,7 @@ class KMCRunner():
 
                 # accumulate current position by raw difference
                 trajectory_curr, last_r2 = self._update_displacement_minimage(
-                trajectory_curr, trajectory_prev, start_pol, end_pol
+                trajectory_curr, trajectory_prev, start_pol, end_pol, box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
                 )
 
                 # add squared displacement at correct position in the times_msds grid
