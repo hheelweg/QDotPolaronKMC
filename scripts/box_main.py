@@ -66,7 +66,7 @@ def main():
     print('msds shape', msds.shape)
 
     
-    diff, diff_err = kmc_setup.get_diffusivity_hh(msds, times, ndim)
+    diff, diff_err = kmc_setup.get_diffusivity_hh(msds[0], times, ndim)
     
     # -------------------------------------------------------------------------
     # without taking into account units:

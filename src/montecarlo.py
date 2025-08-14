@@ -342,7 +342,7 @@ class KMCRunner():
             print('---- SIMULATED TIME SUMMARY -----')
             print(f'total simulated time {self.simulated_time:.3f}')
             print('----------------------------------')
-        return times_msds, msds[0]
+        return times_msds, msds
 
     
     
