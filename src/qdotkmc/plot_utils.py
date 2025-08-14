@@ -7,7 +7,7 @@ def plot_msds(filename_csv):
 
     assert filename_csv.lower().endswith(".csv"), "Expected a .csv file"
     
-    df = pd.read_csv("msds.csv")
+    df = pd.read_csv(filename_csv)
 
     times = df["time"].values
 

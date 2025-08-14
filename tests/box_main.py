@@ -8,8 +8,8 @@ from pyinstrument import Profiler
 
 
 import qdotkmc
-from qdotkmc import montecarlo as mc
-from qdotkmc.config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
+#from qdotkmc import montecarlo as mc
+#from qdotkmc.config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 
 
 def main():
@@ -38,8 +38,8 @@ def main():
     r_hop = 7                                   # hopping radius (see Kassal) (in units of lattice spacing)
     r_ove = 7                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
-    ntrajs = 50                                 # number of trajectories to compute MSDs over
-    nrealizations = 10                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    ntrajs = 10                                 # number of trajectories to compute MSDs over
+    nrealizations = 2                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
     t_final = 5                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
@@ -56,18 +56,19 @@ def main():
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
     
     # define dataclasses
-    geom = GeometryConfig(dims = ndim, N = N, qd_spacing = spacing, r_hop = r_hop, r_ove = r_ove)
-    dis  = DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
+    geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N, qd_spacing = spacing, r_hop = r_hop, r_ove = r_ove)
+    dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
                           dipolegen=dipolegen, J_c = J_c, seed_base = seed)
-    bath = BathConfig(temp = temp, spectrum = spectrum)
-    run  = RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=100)
+    bath = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
+    run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=100)
 
     
-    kmc_setup = mc.KMCRunner(geom, dis, bath, run)
+    kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath, run)
     
     # perform KMC simulation
     times, msds = kmc_setup.simulate_kmc(t_final)
 
+    # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)
 
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds[0], times, ndim)
