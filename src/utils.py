@@ -29,3 +29,6 @@ def diagonalize(H, S=None):
 
 
 
+def get_diffusivity(msds, times):
+    pass
+

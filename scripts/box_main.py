@@ -64,6 +64,7 @@ def main():
     times, msds = kmc_setup.simulate_kmc(t_final)
 
     print('msds shape', msds.shape)
+    print('times shape', times.shape)
 
     
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds[0], times, ndim)
