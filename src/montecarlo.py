@@ -223,7 +223,7 @@ class KMCRunner():
         while clock < t_final:
             # (2) perform a KMC step; advances self.time internally
             #     returns (start_pol, end_pol) coordinates and a compute-time contribution
-            start_pol, end_pol, clock, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
+            _, end_pol, clock, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
             tot_comp_time += step_comp_time
 
             # (3) update trajectory & MSD (naive, no PBC min-image)
@@ -234,7 +234,7 @@ class KMCRunner():
             if clock < t_final:
 
                 # accumulate current position by raw difference
-                trajectory_curr, last_r2 = self._update_displacement_naive(
+                trajectory_curr, last_r2 = self._update_displacement_minimage(
                 trajectory_curr, trajectory_prev, start_pol, end_pol
                 )
 
