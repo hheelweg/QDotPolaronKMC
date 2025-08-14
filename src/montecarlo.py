@@ -209,7 +209,7 @@ class KMCRunner():
         # ensure 1D vectors
         start_pol = np.atleast_1d(np.asarray(start_pol, dtype=float))
         end_pol   = np.atleast_1d(np.asarray(end_pol, dtype=float))
-        curr      = np.atleast_1d(np.asarray(trajectory_curr, dtype=float))
+        trajectory_curr      = np.atleast_1d(np.asarray(trajectory_curr, dtype=float))
         start0    = np.atleast_1d(np.asarray(trajectory_start, dtype=float))
 
         delta = end_pol - start_pol
@@ -226,9 +226,9 @@ class KMCRunner():
             L_p = L[periodic]
             delta[periodic] = delta_p - L_p * np.round(delta_p / L_p)
 
-        new_curr = curr + delta
-        diff = new_curr - start0
-        return new_curr, float(np.dot(diff, diff))
+        trajectory_curr += delta
+        diff = trajectory_curr - start0
+        return trajectory_curr, float(np.dot(diff, diff))
 
 
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
