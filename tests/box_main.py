@@ -77,12 +77,12 @@ def main():
 
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds_mean, times, ndim)
 
-    diff1, b, a, b_stderr, r2, info = qdotkmc.utils.get_diffusivity(msds_mean, times, ndim)
+    diff1, b, a, b_stderr, r2, sigma_D = qdotkmc.utils.get_diffusivity(msds_mean, times, ndim)
     
     # -------------------------------------------------------------------------
     # without taking into account units:
     print('diffusivity ', diff, diff1)
-    print('diffusivity error', diff_err)
+    print('diffusivity error', diff_err, sigma_D)
     
 
 if __name__ == '__main__':

@@ -142,9 +142,8 @@ def get_diffusivity(msd, times, dim, *,
         tmin, tmax = float(T[0]), float(T[-1])
         npts = int(T.size)
 
-    info = dict(used_fallback=used_fallback,
-                tmin=tmin, tmax=tmax, npts=npts,
-                slope_mean=slope_mean)
+    # get standard error
+    sigma_D = b_stderr / (2.0 * dim)
 
-    return D, b, a, b_stderr, r2, info
+    return D, b, a, b_stderr, r2, sigma_D
 
