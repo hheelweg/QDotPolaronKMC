@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
 from src.config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
+import pandas as pd
 import os
 # track performance bottlenecks
 from pyinstrument import Profiler
@@ -63,10 +64,11 @@ def main():
     # perform KMC simulation
     times, msds = kmc_setup.simulate_kmc(t_final)
 
-    print('msds shape', msds.shape)
-    print('times shape', times.shape)
+    # create df and save it
+    df = pd.DataFrame(msds, columns=times)
+    df.to_csv("msds.csv", index = False)
 
-    
+
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds[0], times, ndim)
     
     # -------------------------------------------------------------------------
