@@ -172,7 +172,7 @@ class KMCRunner():
     
 
 
-    def _update_displacement_naive(trajectory_current, trajectory_start, start_pol, end_pol):
+    def _update_displacement_naive(self, trajectory_current, trajectory_start, start_pol, end_pol):
         """
         add explanation
         """
@@ -222,6 +222,7 @@ class KMCRunner():
                 self.trajectory_current = np.asarray(start_pol, dtype=float)
 
             if self.time < t_final:
+
                 # accumulate current position by raw difference
                 # self.trajectory_current = self.trajectory_current + (np.asarray(end_pol) - np.asarray(start_pol))
                 # sq_displacement = float(np.linalg.norm(self.trajectory_current - self.trajectory_start) ** 2)
