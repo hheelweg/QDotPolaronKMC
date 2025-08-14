@@ -190,7 +190,7 @@ class KMCRunner():
         tot_comp_time = 0.0
 
         # --- draw initial center uniformly in site basis, then map to nearest polaron ---
-        idx0 = np.random.randint(0, self.geom.n_sites) if rng is None else rng.integers(0, self.geom.n_sites)
+        idx0 = np.random.randint(0, self.geom.n_sites-1) if rng is None else rng.integers(0, self.geom.n_sites-1)
         # NOTE: Generator.integers is exclusive on 'high', so use high = n_sites to include last index.
         start_site = qd_lattice.qd_locations[idx0]
         start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
