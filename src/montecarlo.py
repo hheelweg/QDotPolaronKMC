@@ -116,7 +116,7 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
-    def _make_kmc_step(self, qd_lattice, time, polaron_start_site, rnd_generator = None):
+    def _make_kmc_step(self, qd_lattice, clock, polaron_start_site, rnd_generator = None):
 
         # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
@@ -144,7 +144,8 @@ class KMCRunner():
         u2 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
 
         final_idx = int(np.searchsorted(cum_rates, u1 * S))
-        time += -np.log(u2) / S
+        # update clock
+        clock += -np.log(u2) / S
 
         # (4) final polaron coordinate in GLOBAL frame
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
@@ -192,7 +193,7 @@ class KMCRunner():
         sds = np.zeros_like(times_msds, dtype=float)
 
         # --- reset per-trajectory state (as in your code) ---
-        time = 0.0
+        clock = 0.0
         step_counter = 0
 
         # running positions (start/current) in polaron coordinate space
@@ -210,10 +211,10 @@ class KMCRunner():
         start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
 
         # --- main KMC loop (mirrors your current logic) ---
-        while time < t_final:
+        while clock < t_final:
             # (2) perform a KMC step; advances self.time internally
             #     returns (start_pol, end_pol) coordinates and a compute-time contribution
-            _, end_pol, time, step_comp_time = self._make_kmc_step(qd_lattice, time, start_pol, rnd_generator=rng)
+            _, end_pol, clock, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
             tot_comp_time += step_comp_time
 
             # (3) update trajectory & MSD (naive, no PBC min-image)
@@ -221,7 +222,7 @@ class KMCRunner():
                 trajectory_start   = np.asarray(start_pol, dtype=float)
                 trajectory_current = np.asarray(start_pol, dtype=float)
 
-            if time < t_final:
+            if clock < t_final:
 
                 # accumulate current position by raw difference
                 trajectory_current, last_r2 = self._update_displacement_naive(
@@ -229,7 +230,7 @@ class KMCRunner():
                 )
 
                 # add squared displacement at correct position in the times_msds grid
-                inc = np.searchsorted(times_msds[time_idx:], time)
+                inc = np.searchsorted(times_msds[time_idx:], clock)
                 time_idx += inc
                 if time_idx < times_msds.size:
                     sds[time_idx:] = last_r2#sq_displacement
