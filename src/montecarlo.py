@@ -149,7 +149,7 @@ class KMCRunner():
         # (4) final polaron coordinate in GLOBAL frame
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
-        return start_pol, end_pol, tot_time
+        return start_pol, end_pol, time, tot_time
     
 
     # build realization of QD lattice
@@ -213,7 +213,7 @@ class KMCRunner():
         while time < t_final:
             # (2) perform a KMC step; advances self.time internally
             #     returns (start_pol, end_pol) coordinates and a compute-time contribution
-            _, end_pol, step_comp_time = self._make_kmc_step(qd_lattice, time, start_pol, rnd_generator=rng)
+            _, end_pol, time, step_comp_time = self._make_kmc_step(qd_lattice, time, start_pol, rnd_generator=rng)
             tot_comp_time += step_comp_time
 
             # (3) update trajectory & MSD (naive, no PBC min-image)
