@@ -172,7 +172,6 @@ class KMCRunner():
         return qd
     
     
-    # NEW displacements
     # NOTE : if periodic = True, this incorporates periodic boundary conditions
     def _update_displacement_minimage(self, trajectory_curr, trajectory_start,
                                       start_pol, end_pol,
@@ -262,7 +261,6 @@ class KMCRunner():
         trajectory_start = np.asarray(start_pol, dtype=float)           # stores R(0)
         trajectory_curr  = trajectory_start.copy()                      # stores R(t)
         
-
         # (4) main KMC loop
         while clock < t_final:
             # (4.1) perform a KMC step from start_pol to end_pol
@@ -320,23 +318,26 @@ class KMCRunner():
             # get trajectory seed sequence
             traj_ss = self._spawn_trajectory_seedseq(rid=r)
 
+            # compute mean squared displacement
+            msd = np.zeros_like(times_msds)
+
             # loop over number of trajectories per realization
             for t in range(self.run.ntrajs):
                 
                 # random generator for trajectory
                 rng_traj = default_rng(traj_ss[t])
 
-                # run trajectory
+                # run trajectory and resturn squared displacement in unwrapped coordinates
                 sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
                 self.simulated_time += comp
 
                 # streaming mean over trajectories (same as before)
                 w = 1.0 / (t + 1)
-                #msd_mean = (1.0 - w) * msds[r] + w * sds
-                msds[r] = (1.0 - w) * msds[r] + w * sds
+                msd = (1.0 - w) * msd + w * sds
                 
-            
-            #msds[r] = msd_mean
+            # store mean squared displacement for QDLattice realization r
+            msds[r] = msd
+
             print('----------------------------------')
             print('---- SIMULATED TIME SUMMARY -----')
             print(f'total simulated time {self.simulated_time:.3f}')
