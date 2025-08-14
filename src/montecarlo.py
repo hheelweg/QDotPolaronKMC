@@ -192,19 +192,19 @@ class KMCRunner():
         sds = np.zeros_like(times_msds, dtype=float)
 
         # --- reset per-trajectory state (as in your code) ---
-        self.time = 0.0
-        self.step_counter = 0
+        time = 0.0
+        step_counter = 0
 
         # running positions (start/current) in polaron coordinate space
-        self.trajectory_start   = np.zeros(self.geom.dims, dtype=float)
-        self.trajectory_current = np.zeros(self.geom.dims, dtype=float)
+        trajectory_start   = np.zeros(qd_lattice.geom.dims, dtype=float)
+        trajectory_current = np.zeros(qd_lattice.geom.dims, dtype=float)
 
         time_idx = 0
         sq_displacement = 0.0
         tot_comp_time = 0.0
 
         # --- draw initial center uniformly in site basis, then map to nearest polaron ---
-        idx0 = np.random.randint(0, self.geom.n_sites) if rng is None else rng.integers(0, self.geom.n_sites)
+        idx0 = np.random.randint(0, qd_lattice.geom.n_sites) if rng is None else rng.integers(0, qd_lattice.geom.n_sites)
         # NOTE: Generator.integers is exclusive on 'high', so use high = n_sites to include last index.
         start_site = qd_lattice.qd_locations[idx0]
         start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
@@ -217,33 +217,36 @@ class KMCRunner():
             tot_comp_time += step_comp_time
 
             # (3) update trajectory & MSD (naive, no PBC min-image)
-            if self.step_counter == 0:
-                self.trajectory_start   = np.asarray(start_pol, dtype=float)
-                self.trajectory_current = np.asarray(start_pol, dtype=float)
+            if step_counter == 0:
+                trajectory_start   = np.asarray(start_pol, dtype=float)
+                trajectory_current = np.asarray(start_pol, dtype=float)
 
             if self.time < t_final:
 
                 # accumulate current position by raw difference
-                self.trajectory_current, last_r2 = self._update_displacement_naive(
-                self.trajectory_current, self.trajectory_start, start_pol, end_pol
+                trajectory_current, last_r2 = self._update_displacement_naive(
+                trajectory_current, trajectory_start, start_pol, end_pol
                 )
 
                 # add squared displacement at correct position in the times_msds grid
-                inc = np.searchsorted(times_msds[time_idx:], self.time)
+                inc = np.searchsorted(times_msds[time_idx:], time)
                 time_idx += inc
                 if time_idx < times_msds.size:
                     sds[time_idx:] = last_r2#sq_displacement
 
             # prepare next step
             start_pol = end_pol
-            self.step_counter += 1
+            step_counter += 1
 
 
+            # OPTIONAL : avoid doing extra KMC steps when you’ve already filled all requested MSD time points.
             if time_idx >= times_msds.size:
                 break
 
-
-        # ensure tail is filled if loop ended before the last grid point
+        # NOTE : this was missing before
+        # this ensurs tail is filled if loop ended before the last grid point
+        # this is needed if the trajectory ended before all time grid points were reached (e.g., t_final was reached mid-interval)
+        # without this, the later entries in sds would stay at zero, which would artificially drop the average MSD in those bins
         if time_idx < times_msds.size:
             sds[time_idx:] = sq_displacement
 
