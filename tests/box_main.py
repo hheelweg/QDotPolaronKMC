@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from multiprocessing import Pool, cpu_count
 import pandas as pd
 import os
+import numpy as np
 # track performance bottlenecks
 from pyinstrument import Profiler
 
@@ -70,8 +71,11 @@ def main():
     file_name = 'msds.csv'
 
     # create df and save it
-    df = pd.DataFrame(msds.T, index=times)
-    df.to_csv(file_name, index = False)
+    data = np.column_stack([times, msds.T])
+    columns = ["time"] + [f"lattice_{i}" for i in range(msds.shape[0])]
+
+    df = pd.DataFrame(data, columns=columns)
+    df.to_csv("msds.csv", index=False)
 
 
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds[0], times, ndim)
