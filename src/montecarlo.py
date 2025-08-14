@@ -116,7 +116,7 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
-    def _make_kmc_step(self, qd_lattice, polaron_start_site, rnd_generator = None):
+    def _make_kmc_step(self, qd_lattice, time, polaron_start_site, rnd_generator = None):
 
         # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
@@ -144,7 +144,7 @@ class KMCRunner():
         u2 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
 
         final_idx = int(np.searchsorted(cum_rates, u1 * S))
-        self.time += -np.log(u2) / S
+        time += -np.log(u2) / S
 
         # (4) final polaron coordinate in GLOBAL frame
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
@@ -213,7 +213,7 @@ class KMCRunner():
         while time < t_final:
             # (2) perform a KMC step; advances self.time internally
             #     returns (start_pol, end_pol) coordinates and a compute-time contribution
-            _, end_pol, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
+            _, end_pol, step_comp_time = self._make_kmc_step(qd_lattice, time, start_pol, rnd_generator=rng)
             tot_comp_time += step_comp_time
 
             # (3) update trajectory & MSD (naive, no PBC min-image)
