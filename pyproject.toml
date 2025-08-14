@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qdotkmc"
+version = "0.1.0"
+description = "Quantum-dot polaron KMC / Redfield box utilities"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Henrik Heelweg" }]
+dependencies = [
+  "numpy",
+  "pandas",
+  # add others you truly need at runtime, e.g. "scipy", "numba"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
