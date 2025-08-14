@@ -249,6 +249,7 @@ class KMCRunner():
         step_counter = 0                        # counter of KMC steps
         time_idx = 0
         last_r2 = 0.0
+        sq_displacement = 0.0
         tot_comp_time = 0.0                     # NOTE : this is only for debugging and tracking computational time
 
 
@@ -300,7 +301,7 @@ class KMCRunner():
         # this is needed if the trajectory ended before all time grid points were reached (e.g., t_final was reached mid-interval)
         # without this, the later entries in sds would stay at zero, which would artificially drop the average MSD in those bins
         if time_idx < times_msds.size:
-            sds[time_idx:] = last_r2
+            sds[time_idx:] = sq_displacement
 
         return sds, tot_comp_time
 
