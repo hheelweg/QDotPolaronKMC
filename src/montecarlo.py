@@ -240,27 +240,37 @@ class KMCRunner():
 
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
 
-        # --- time grid & per-trajectory buffers ---
+        # (0) time grid and per-trajectory buffers for squared displacements
         times_msds = self._make_time_grid()
         sds = np.zeros_like(times_msds, dtype=float)
 
-        # --- reset per-trajectory state (as in your code) ---
-        clock = 0.0
-        step_counter = 0
-
-        # running positions (start/current) in polaron coordinate space
-        trajectory_start = np.zeros(qd_lattice.geom.dims, dtype=float)
-        trajectory_curr = np.zeros(qd_lattice.geom.dims, dtype=float)
-
+        # (1) local per-trajectory state
+        clock = 0.0                             # set clock to 0
+        step_counter = 0                        # counter of KMC steps
         time_idx = 0
         sq_displacement = 0.0
-        tot_comp_time = 0.0
+        tot_comp_time = 0.0                     # NOTE : this is only for debugging and tracking computational time
 
-        # --- draw initial center uniformly in site basis, then map to nearest polaron ---
-        idx0 = np.random.randint(0, qd_lattice.geom.n_sites) if rng is None else rng.integers(0, qd_lattice.geom.n_sites)
-        # NOTE: Generator.integers is exclusive on 'high', so use high = n_sites to include last index.
+        # # running positions (start/current) in polaron coordinate space
+        # trajectory_start = np.zeros(qd_lattice.geom.dims, dtype=float)
+        # trajectory_curr = np.zeros(qd_lattice.geom.dims, dtype=float)
+
+        # (2) draw initial center uniformly in site basis and map to nearest polaron
+        idx0 = (np.random.randint(0, qd_lattice.geom.n_sites) if rng is None
+                else rng.integers(0, qd_lattice.geom.n_sites))
         start_site = qd_lattice.qd_locations[idx0]
-        start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
+        start_pol  = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
+
+        # (3) running positions (unwrapped accumulator + reference)
+        trajectory_start = np.asarray(start_pol, dtype=float)           # stores R(0)
+        trajectory_curr  = trajectory_start.copy()                      # stores R(t)
+        
+
+        # # --- draw initial center uniformly in site basis, then map to nearest polaron ---
+        # idx0 = np.random.randint(0, qd_lattice.geom.n_sites) if rng is None else rng.integers(0, qd_lattice.geom.n_sites)
+        # # NOTE: Generator.integers is exclusive on 'high', so use high = n_sites to include last index.
+        # start_site = qd_lattice.qd_locations[idx0]
+        # start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
 
         # --- main KMC loop (mirrors your current logic) ---
         while clock < t_final:
@@ -269,10 +279,10 @@ class KMCRunner():
             _, end_pol, clock, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
             tot_comp_time += step_comp_time
 
-            # (3) update trajectory & MSD (naive, no PBC min-image)
-            if step_counter == 0:
-                trajectory_start = np.asarray(start_pol, dtype=float)
-                trajectory_curr = np.asarray(start_pol, dtype=float)
+            # # (3) update trajectory & MSD (naive, no PBC min-image)
+            # if step_counter == 0:
+            #     trajectory_start = np.asarray(start_pol, dtype=float)
+            #     trajectory_curr = np.asarray(start_pol, dtype=float)
 
             if clock < t_final:
 
