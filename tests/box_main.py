@@ -66,14 +66,11 @@ def main():
     # perform KMC simulation
     times, msds = kmc_setup.simulate_kmc(t_final)
 
-    
-    # directory you submitted the job from
-    #submit_dir = os.environ.get("SLURM_SUBMIT_DIR", os.getcwd())
-    #file_name = os.path.join(submit_dir, "msds.csv")
+
     file_name = 'msds.csv'
 
     # create df and save it
-    df = pd.DataFrame(msds, columns=times)
+    df = pd.DataFrame(msds.T, rows=times)
     df.to_csv(file_name, index = False)
 
 
