@@ -1,5 +1,26 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+
+# labelling needs to match export_msds
+def plot_msds(filename_csv):
+
+    assert filename_csv.lower().endswith(".csv"), "Expected a .csv file"
+    
+    df = pd.read_csv("msds.csv")
+
+    times = df["time"].values
+
+    # plot infividual msds
+    for col in df.columns:
+        if col not in ("time", "ave. msd"):
+            plt.plot(df["time"], df[col], color = 'C00', alpha = 0.2)
+
+    # plot mean MSD
+    plt.plot(times, df[ "ave. msd"], label = 'MSD (mean)', color = 'C00')
+    plt.xlabel("time")
+    plt.ylabel("MSD")
+    plt.show()
 
 
 def draw_circle(center, radius):
