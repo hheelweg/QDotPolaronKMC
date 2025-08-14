@@ -37,8 +37,8 @@ def main():
     r_hop = 7                                   # hopping radius (see Kassal) (in units of lattice spacing)
     r_ove = 7                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
-    ntrajs = 10                                 # number of trajectories to compute MSDs over
-    nrealizations = 2                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    ntrajs = 20                                 # number of trajectories to compute MSDs over
+    nrealizations = 5                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
     t_final = 5                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
@@ -66,7 +66,8 @@ def main():
     
     # perform KMC simulation
     times, msds = kmc_setup.simulate_kmc(t_final)
-
+    msds_mean = np.mean(msds, axis = 0)
+    print('msds_mean shape', msds_mean.shape)
 
     file_name = 'msds.csv'
 
