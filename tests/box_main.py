@@ -70,7 +70,7 @@ def main():
     file_name = 'msds.csv'
 
     # create df and save it
-    df = pd.DataFrame(msds.T, rows=times)
+    df = pd.DataFrame(msds.T, index=times)
     df.to_csv(file_name, index = False)
 
 
