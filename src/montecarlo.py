@@ -171,35 +171,48 @@ class KMCRunner():
 
         return qd
     
-
-    # OLD displacements
-    def _update_displacement_naive(self, trajectory_current, trajectory_start, start_pol, end_pol):
-        """
-        add explanation
-        """
-        start_pol = np.asarray(start_pol, dtype=float)
-        end_pol   = np.asarray(end_pol,   dtype=float)
-        new_current = np.asarray(trajectory_current, dtype=float) + (end_pol - start_pol)
-        diff = new_current - np.asarray(trajectory_start, dtype=float)
-        # get square displacement
-        sq_displacement = float(np.dot(diff, diff))
-        return new_current, sq_displacement
     
     # NEW displacements
-    def _update_displacement_minimage(self, trajectory_current,
-                                     trajectory_start,
-                                     start_pol,
-                                     end_pol,
-                                     box_lengths,
-                                     periodic=None):
+    # NOTE : if periodic = True, this incorporates periodic boundary conditions
+    def _update_displacement_minimage(self, trajectory_curr,
+                                      trajectory_start,
+                                      start_pol,
+                                      end_pol,
+                                      box_lengths,
+                                      periodic=None
+                                      ):
         """
-        add explanation.
+        Pper-step update for MSD under periodic boundary conditions.
+
+        Inputs
+        ------
+        trajectory_curr : (D,) array
+            The current (unwrapped) position accumulator R(t) in D dimensions.
+            This is NOT a wrapped coordinate; it's the sum of all previous
+            displacements.
+        trajectory_start : (D,) array
+            The reference position at the start of the trajectory.
+        start_pol, end_pol : (D,) arrays
+            Polaron coordinates before and after the current KMC hop. These should
+            be in the SAME coordinate system as the box (e.g., in [0, L_d) per dim).
+        box_lengths : float or (D,) array
+            Box side lengths [Lx, Ly, ...]. If scalar, it is broadcast to all dims.
+        periodic : None or (D,) bool array
+            Mask indicating which dimensions are periodic. If None → all periodic.
+
+        Returns
+        -------
+        new_current : (D,) array
+            Updated unwrapped accumulator R(t + Δt) = R(t) + Δr_minimage.
+        sq_displacement : float
+            || new_current - trajectory_start ||^2, i.e., squared net displacement
+            from the start, in unwrapped space.
         """
         # ensure 1D vectors
         start_pol = np.atleast_1d(np.asarray(start_pol, dtype=float))
-        end_pol   = np.atleast_1d(np.asarray(end_pol,   dtype=float))
-        curr      = np.atleast_1d(np.asarray(trajectory_current, dtype=float))
-        start0    = np.atleast_1d(np.asarray(trajectory_start,   dtype=float))
+        end_pol   = np.atleast_1d(np.asarray(end_pol, dtype=float))
+        curr      = np.atleast_1d(np.asarray(trajectory_curr, dtype=float))
+        start0    = np.atleast_1d(np.asarray(trajectory_start, dtype=float))
 
         delta = end_pol - start_pol
 
@@ -231,7 +244,7 @@ class KMCRunner():
         step_counter = 0
 
         # running positions (start/current) in polaron coordinate space
-        trajectory_prev = np.zeros(qd_lattice.geom.dims, dtype=float)
+        trajectory_start = np.zeros(qd_lattice.geom.dims, dtype=float)
         trajectory_curr = np.zeros(qd_lattice.geom.dims, dtype=float)
 
         time_idx = 0
@@ -253,15 +266,18 @@ class KMCRunner():
 
             # (3) update trajectory & MSD (naive, no PBC min-image)
             if step_counter == 0:
-                trajectory_prev = np.asarray(start_pol, dtype=float)
+                trajectory_start = np.asarray(start_pol, dtype=float)
                 trajectory_curr = np.asarray(start_pol, dtype=float)
 
             if clock < t_final:
 
                 # accumulate current position by raw difference
                 trajectory_curr, last_r2 = self._update_displacement_minimage(
-                trajectory_curr, trajectory_prev, start_pol, end_pol, box_lengths=qd_lattice.geom.lattice_dimension, periodic=False
-                )
+                            trajectory_curr, 
+                            trajectory_start, 
+                            start_pol, end_pol, 
+                            box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
+                            )
 
                 # add squared displacement at correct position in the times_msds grid
                 inc = np.searchsorted(times_msds[time_idx:], clock)
