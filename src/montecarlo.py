@@ -248,12 +248,9 @@ class KMCRunner():
         clock = 0.0                             # set clock to 0
         step_counter = 0                        # counter of KMC steps
         time_idx = 0
-        sq_displacement = 0.0
+        last_r2 = 0.0
         tot_comp_time = 0.0                     # NOTE : this is only for debugging and tracking computational time
 
-        # # running positions (start/current) in polaron coordinate space
-        # trajectory_start = np.zeros(qd_lattice.geom.dims, dtype=float)
-        # trajectory_curr = np.zeros(qd_lattice.geom.dims, dtype=float)
 
         # (2) draw initial center uniformly in site basis and map to nearest polaron
         idx0 = (np.random.randint(0, qd_lattice.geom.n_sites) if rng is None
@@ -266,24 +263,14 @@ class KMCRunner():
         trajectory_curr  = trajectory_start.copy()                      # stores R(t)
         
 
-        # # --- draw initial center uniformly in site basis, then map to nearest polaron ---
-        # idx0 = np.random.randint(0, qd_lattice.geom.n_sites) if rng is None else rng.integers(0, qd_lattice.geom.n_sites)
-        # # NOTE: Generator.integers is exclusive on 'high', so use high = n_sites to include last index.
-        # start_site = qd_lattice.qd_locations[idx0]
-        # start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
-
-        # --- main KMC loop (mirrors your current logic) ---
+        # (4) main KMC loop
         while clock < t_final:
-            # (2) perform a KMC step; advances self.time internally
-            #     returns (start_pol, end_pol) coordinates and a compute-time contribution
+            # (4.1) perform a KMC step from start_pol to end_pol
             _, end_pol, clock, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
+            # update computational time
             tot_comp_time += step_comp_time
 
-            # # (3) update trajectory & MSD (naive, no PBC min-image)
-            # if step_counter == 0:
-            #     trajectory_start = np.asarray(start_pol, dtype=float)
-            #     trajectory_curr = np.asarray(start_pol, dtype=float)
-
+            # (4.2) accumulate current position as long as we have not exceeded t_final yet
             if clock < t_final:
 
                 # accumulate current position by raw difference
@@ -298,7 +285,7 @@ class KMCRunner():
                 inc = np.searchsorted(times_msds[time_idx:], clock)
                 time_idx += inc
                 if time_idx < times_msds.size:
-                    sds[time_idx:] = last_r2#sq_displacement
+                    sds[time_idx:] = last_r2
 
             # prepare next step
             start_pol = end_pol
