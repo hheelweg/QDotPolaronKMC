@@ -210,7 +210,7 @@ class KMCRunner():
         start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
 
         # --- main KMC loop (mirrors your current logic) ---
-        while self.time < t_final:
+        while time < t_final:
             # (2) perform a KMC step; advances self.time internally
             #     returns (start_pol, end_pol) coordinates and a compute-time contribution
             _, end_pol, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
