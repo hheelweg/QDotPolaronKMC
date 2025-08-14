@@ -239,6 +239,9 @@ class KMCRunner():
             self.step_counter += 1
 
 
+            if time_idx >= times_msds.size:
+                break
+
 
         # ensure tail is filled if loop ended before the last grid point
         if time_idx < times_msds.size:
