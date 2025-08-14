@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.linalg as la
+import pandas as pd
 
 
 """
@@ -27,6 +28,18 @@ def diagonalize(H, S=None):
 
     return E,C
 
+
+def export_msds(times, msds, file_name = "msds.csv"):
+
+    # obtain mean MSD averaged over all realizations of noise
+    msds_mean = np.mean(msds, axis = 0)
+
+    # create df and save it
+    data = np.column_stack([times, msds_mean.T, msds.T])
+    columns = ["time"] + ["ave. msd"] + [f"msd lattice_{i}" for i in range(msds.shape[0])]
+
+    df = pd.DataFrame(data, columns=columns)
+    df.to_csv(file_name, index=False)
 
 
 def get_diffusivity(msds, times):
