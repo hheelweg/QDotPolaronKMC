@@ -293,7 +293,7 @@ class KMCRunner():
                     if self.step_counter == 0:
                         # draw initial center of the box (here: 'uniform') in the exciton site basis
                         # TODO : might want to add other initializations
-                        start_site = qd_lattice.qd_locations[rng_traj.integers(low=0, high=self.geom.n_sites-1)]
+                        start_site = qd_lattice.qd_locations[rng_traj.integers(low=0, high=self.geom.n_sites)]
                         start_pol = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
 
                     else:
