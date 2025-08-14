@@ -221,7 +221,7 @@ class KMCRunner():
                 trajectory_start   = np.asarray(start_pol, dtype=float)
                 trajectory_current = np.asarray(start_pol, dtype=float)
 
-            if self.time < t_final:
+            if time < t_final:
 
                 # accumulate current position by raw difference
                 trajectory_current, last_r2 = self._update_displacement_naive(
