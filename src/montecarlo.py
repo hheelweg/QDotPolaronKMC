@@ -174,10 +174,8 @@ class KMCRunner():
     
     # NEW displacements
     # NOTE : if periodic = True, this incorporates periodic boundary conditions
-    def _update_displacement_minimage(self, trajectory_curr,
-                                      trajectory_start,
-                                      start_pol,
-                                      end_pol,
+    def _update_displacement_minimage(self, trajectory_curr, trajectory_start,
+                                      start_pol, end_pol,
                                       box_lengths,
                                       periodic=None
                                       ):
@@ -228,9 +226,9 @@ class KMCRunner():
             L_p = L[periodic]
             delta[periodic] = delta_p - L_p * np.round(delta_p / L_p)
 
-        trajectory_curr += delta
-        diff = trajectory_curr - start0
-        return trajectory_curr, float(np.dot(diff, diff))
+        new_curr = curr + delta
+        diff = new_curr - start0
+        return new_curr, float(np.dot(diff, diff))
 
 
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
