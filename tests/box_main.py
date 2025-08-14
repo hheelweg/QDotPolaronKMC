@@ -3,6 +3,7 @@ from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
 from src.config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 import pandas as pd
+import qdotkmc
 import os
 # track performance bottlenecks
 from pyinstrument import Profiler
