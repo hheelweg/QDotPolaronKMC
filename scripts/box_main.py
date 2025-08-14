@@ -64,9 +64,13 @@ def main():
     # perform KMC simulation
     times, msds = kmc_setup.simulate_kmc(t_final)
 
+    
+    # directory you submitted the job from
+    submit_dir = os.environ.get("SLURM_SUBMIT_DIR", os.getcwd())
+
     # create df and save it
     df = pd.DataFrame(msds, columns=times)
-    df.to_csv("msds.csv", index = False)
+    df.to_csv(os.path.join(submit_dir, "msds.csv"), index = False)
 
 
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds[0], times, ndim)
