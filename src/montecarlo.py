@@ -191,7 +191,7 @@ class KMCRunner():
             This is NOT a wrapped coordinate; it's the sum of all previous
             displacements.
         trajectory_start : (D,) array
-            The reference position at the start of the trajectory.
+            The reference position R(0) at the start of the trajectory.
         start_pol, end_pol : (D,) arrays
             Polaron coordinates before and after the current KMC hop. These should
             be in the SAME coordinate system as the box (e.g., in [0, L_d) per dim).
@@ -203,9 +203,9 @@ class KMCRunner():
         Returns
         -------
         new_current : (D,) array
-            Updated unwrapped accumulator R(t + Δt) = R(t) + Δr_minimage.
+            Updated unwrapped accumulator R(t + Δt) = R(t) + Δr.
         sq_displacement : float
-            || new_current - trajectory_start ||^2, i.e., squared net displacement
+            || R(t + Δt) - R(0) ||^2, i.e., squared net displacement
             from the start, in unwrapped space.
         """
         # ensure 1D vectors
@@ -228,9 +228,9 @@ class KMCRunner():
             L_p = L[periodic]
             delta[periodic] = delta_p - L_p * np.round(delta_p / L_p)
 
-        new_current = curr + delta
-        diff = new_current - start0
-        return new_current, float(np.dot(diff, diff))
+        trajectory_curr += delta
+        diff = trajectory_curr - start0
+        return trajectory_curr, float(np.dot(diff, diff))
 
 
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
