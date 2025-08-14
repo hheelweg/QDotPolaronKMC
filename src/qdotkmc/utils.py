@@ -42,7 +42,7 @@ def export_msds(times, msds, file_name = "msds.csv"):
     df.to_csv(file_name, index=False)
 
 
-def get_diffusivity(msd, times, dim, slope_tol=0.05, min_points=5):
+def get_diffusivity(msd, times, dim, slope_tol=0.05, min_points=10):
     msd = np.asarray(msd, dtype=float)
     times = np.asarray(times, dtype=float)
 
