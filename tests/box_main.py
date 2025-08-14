@@ -5,6 +5,7 @@ import os
 # track performance bottlenecks
 from pyinstrument import Profiler
 
+
 from qdotkmc import montecarlo as mc
 from qdotkmc.config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 
@@ -67,11 +68,13 @@ def main():
 
     
     # directory you submitted the job from
-    submit_dir = os.environ.get("SLURM_SUBMIT_DIR", os.getcwd())
+    #submit_dir = os.environ.get("SLURM_SUBMIT_DIR", os.getcwd())
+    #file_name = os.path.join(submit_dir, "msds.csv")
+    file_name = 'msds.csv'
 
     # create df and save it
     df = pd.DataFrame(msds, columns=times)
-    df.to_csv(os.path.join(submit_dir, "msds.csv"), index = False)
+    df.to_csv(file_name, index = False)
 
 
     diff, diff_err = kmc_setup.get_diffusivity_hh(msds[0], times, ndim)

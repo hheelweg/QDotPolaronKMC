@@ -1,7 +1,8 @@
 # %%
 import numpy as np
-import src.montecarlo as mc
-import src.utils as utils
+import qdotkmc
+from qdotkmc import montecarlo as mc
+from qdotkmc import utils
 import math
 import matplotlib.pyplot as plt
 import time
