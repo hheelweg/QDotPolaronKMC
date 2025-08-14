@@ -42,50 +42,109 @@ def export_msds(times, msds, file_name = "msds.csv"):
     df.to_csv(file_name, index=False)
 
 
-def get_diffusivity(msd, times, dim, slope_tol=0.05, min_points=10):
-    msd = np.asarray(msd, dtype=float)
-    times = np.asarray(times, dtype=float)
+def get_diffusivity(msd, times, dim, *,
+                    slope_tol=0.20,     # tolerance around slope=1 in log-log
+                    min_points=8,       # minimum points in the detected window
+                    fallback_quantiles=(0.5, 0.9)):  # if auto-window fails
+    """
+    Estimate diffusivity D from MSD(t) using Einstein relation:
+        MSD(t) ~ a + b t  =>  D = b / (2*dim)
+    Strategy:
+      1) Find the longest log-log region where slope ~ 1 (diffusive).
+      2) Fit MSD ~ a + b t in *linear* space on that window.
+      3) If no region long enough, fall back to fitting the tail
+         between the given quantiles of time.
 
-    # Compute local log-log slopes
-    log_t = np.log(times[1:])
-    log_msd = np.log(msd[1:])
-    slope_local = np.gradient(log_msd, log_t)
+    Returns
+    -------
+    D, b, a, b_stderr, r2, info
+      info: dict with keys:
+        'used_fallback' (bool), 'tmin','tmax','npts','slope_mean'
+    """
+    t = np.asarray(times, dtype=float)
+    y = np.asarray(msd,   dtype=float)
 
-    # Identify indices where slope ~ 1
-    mask = np.abs(slope_local - 1.0) < slope_tol
-    if not np.any(mask):
-        raise ValueError("No diffusive regime found with given slope tolerance.")
+    # Basic sanity masks
+    mask = np.isfinite(t) & np.isfinite(y)
+    mask &= t > 0.0
+    mask &= y > 0.0
+    if mask.sum() < 3:
+        raise ValueError("Not enough valid (positive, finite) points to estimate D.")
 
-    # Find largest consecutive block in mask
-    max_len = 0
-    start_idx = 0
-    curr_len = 0
-    curr_start = 0
-    for i, val in enumerate(mask):
-        if val:
-            if curr_len == 0:
-                curr_start = i
-            curr_len += 1
-            if curr_len > max_len:
-                max_len = curr_len
-                start_idx = curr_start
+    t = t[mask]; y = y[mask]
+
+    # 1) Local log-log slope (central differences where possible)
+    logt = np.log(t)
+    logy = np.log(y)
+    # central gradient on interior; forward/backward at ends
+    slope = np.gradient(logy, logt)
+
+    # Find longest consecutive block where |slope-1| < slope_tol
+    in_diff = np.abs(slope - 1.0) < slope_tol
+    best_start = best_len = 0
+    cur_start = cur_len = 0
+    for i, ok in enumerate(in_diff):
+        if ok:
+            if cur_len == 0:
+                cur_start = i
+            cur_len += 1
+            if cur_len > best_len:
+                best_len = cur_len
+                best_start = cur_start
         else:
-            curr_len = 0
+            cur_len = 0
 
-    if max_len < min_points:
-        raise ValueError("Diffusive regime too short.")
+    used_fallback = False
+    if best_len >= min_points:
+        fit_slice = slice(best_start, best_start + best_len)
+    else:
+        # 2) Fallback: fit the tail between given quantiles
+        q0, q1 = fallback_quantiles
+        if not (0.0 <= q0 < q1 <= 1.0):
+            raise ValueError("fallback_quantiles must be within [0,1] and q0 < q1.")
+        tmin = np.quantile(t, q0)
+        tmax = np.quantile(t, q1)
+        fit_slice = (t >= tmin) & (t <= tmax)
+        if fit_slice.sum() < max(3, min_points//2):
+            # last resort: take the last max(min_points, 5) points
+            k = max(min_points, 5)
+            fit_slice = slice(max(0, t.size - k), t.size)
+        used_fallback = True
 
-    fit_slice = slice(start_idx, start_idx + max_len)
-    t_fit = times[fit_slice]
-    msd_fit = msd[fit_slice]
+    T = t[fit_slice]; Y = y[fit_slice]
+    if T.size < 3:
+        raise ValueError("Diffusive regime too short even after fallback.")
 
-    # Fit MSD ~ a + b t in linear space
-    A = np.vstack([t_fit, np.ones_like(t_fit)]).T
-    coef, _, _, _ = np.linalg.lstsq(A, msd_fit, rcond=None)
+    # 3) Linear least squares: MSD ~ a + b t
+    A = np.vstack([T, np.ones_like(T)]).T
+    coef, residuals, _, _ = np.linalg.lstsq(A, Y, rcond=None)
     b, a = coef[0], coef[1]
+    yfit = A @ coef
 
-    D = b / (2 * dim)
-    slope_mean = np.mean(slope_local[fit_slice])
+    ss_res = np.sum((Y - yfit)**2)
+    ss_tot = np.sum((Y - Y.mean())**2)
+    r2 = 1.0 - ss_res/ss_tot if ss_tot > 0 else np.nan
+    dof = max(len(T) - 2, 1)
+    sigma2 = ss_res / dof
+    cov = sigma2 * np.linalg.inv(A.T @ A)
+    b_stderr = float(np.sqrt(cov[0, 0]))
 
-    return D, slope_mean, a, (t_fit[0], t_fit[-1])
+    D = b / (2.0 * dim)
+
+    # Diagnostics
+    if isinstance(fit_slice, slice):
+        i0, i1 = fit_slice.start or 0, fit_slice.stop or T.size
+        slope_mean = float(np.mean(slope[i0:i1]))
+        tmin, tmax = float(t[i0]), float(t[i1-1])
+        npts = int(i1 - i0)
+    else:
+        slope_mean = float(np.mean(slope[fit_slice]))
+        tmin, tmax = float(T[0]), float(T[-1])
+        npts = int(T.size)
+
+    info = dict(used_fallback=used_fallback,
+                tmin=tmin, tmax=tmax, npts=npts,
+                slope_mean=slope_mean)
+
+    return D, b, a, b_stderr, r2, info
 
