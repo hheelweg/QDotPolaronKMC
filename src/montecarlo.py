@@ -209,26 +209,33 @@ class KMCRunner():
         # ensure 1D vectors
         start_pol = np.atleast_1d(np.asarray(start_pol, dtype=float))
         end_pol   = np.atleast_1d(np.asarray(end_pol, dtype=float))
-        trajectory_curr      = np.atleast_1d(np.asarray(trajectory_curr, dtype=float))
+        curr      = np.atleast_1d(np.asarray(trajectory_curr, dtype=float))
         start0    = np.atleast_1d(np.asarray(trajectory_start, dtype=float))
 
+        # raw hop vector in box coordinates
         delta = end_pol - start_pol
 
+        # box lengths per dimension (broadcast a scalar if needed)
         L = np.atleast_1d(np.asarray(box_lengths, dtype=float))
+
+        # set periodic axes
         if periodic is None:
             periodic = np.ones(L.shape, dtype=bool)
         else:
             periodic = np.asarray(periodic, dtype=bool)
 
-        # apply minimum-image only where periodic=True
+        # for each periodic dimension d: Δ_d ← Δ_d − L_d * round(Δ_d / L_d)
+        # this maps any hop across a boundary to the nearest periodic image
         if np.any(periodic):
             delta_p = delta[periodic]
             L_p = L[periodic]
             delta[periodic] = delta_p - L_p * np.round(delta_p / L_p)
 
-        trajectory_curr += delta
-        diff = trajectory_curr - start0
-        return trajectory_curr, float(np.dot(diff, diff))
+        # accumulate the unwrapped displacement R(t) ← R(t) + Δr
+        new_curr = curr + delta
+        # squared net displacement from the start (unwrapped)
+        diff = new_curr - start0
+        return new_curr, float(np.dot(diff, diff))
 
 
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
