@@ -29,15 +29,6 @@ def diagonalize(H,S=None):
 
 
 
-# def matrix_dot(*matrices):
-#     """Calculate the matrix product of multiple matrices."""
-#     A = matrices[0].copy()
-#     for B in matrices[1:]:
-#         A = np.dot(A,B)
-#     return A
-
-
-
 def draw_circle(center, radius):
     # feeds circle-center (np.array), and radius
     return plt.Circle(tuple(center), radius, color = 'grey', alpha = 0.1)
