@@ -309,7 +309,7 @@ class KMCRunner():
         msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
         self.simulated_time = 0
         
-        # loop over realization
+        # loop over number of QDLattice realizations
         for r in range(self.run.nrealizations):
 
             # build QD lattice realization
