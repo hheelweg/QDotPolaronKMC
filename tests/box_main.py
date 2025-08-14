@@ -1,12 +1,13 @@
 import matplotlib.pyplot as plt
-from src import montecarlo as mc
 from multiprocessing import Pool, cpu_count
-from src.config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 import pandas as pd
-import qdotkmc
 import os
 # track performance bottlenecks
 from pyinstrument import Profiler
+
+import qdotkmc
+from qdotkmc import montecarlo as mc
+from qdotkmc import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 
 
 def main():
