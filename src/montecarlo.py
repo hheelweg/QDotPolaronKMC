@@ -197,8 +197,8 @@ class KMCRunner():
         step_counter = 0
 
         # running positions (start/current) in polaron coordinate space
-        trajectory_start   = np.zeros(qd_lattice.geom.dims, dtype=float)
-        trajectory_current = np.zeros(qd_lattice.geom.dims, dtype=float)
+        trajectory_prev = np.zeros(qd_lattice.geom.dims, dtype=float)
+        trajectory_curr = np.zeros(qd_lattice.geom.dims, dtype=float)
 
         time_idx = 0
         sq_displacement = 0.0
@@ -219,14 +219,14 @@ class KMCRunner():
 
             # (3) update trajectory & MSD (naive, no PBC min-image)
             if step_counter == 0:
-                trajectory_start   = np.asarray(start_pol, dtype=float)
-                trajectory_current = np.asarray(start_pol, dtype=float)
+                trajectory_prev = np.asarray(start_pol, dtype=float)
+                trajectory_curr = np.asarray(start_pol, dtype=float)
 
             if clock < t_final:
 
                 # accumulate current position by raw difference
-                trajectory_current, last_r2 = self._update_displacement_naive(
-                trajectory_current, trajectory_start, start_pol, end_pol
+                trajectory_curr, last_r2 = self._update_displacement_naive(
+                trajectory_curr, trajectory_prev, start_pol, end_pol
                 )
 
                 # add squared displacement at correct position in the times_msds grid
