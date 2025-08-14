@@ -300,7 +300,7 @@ class KMCRunner():
         # this is needed if the trajectory ended before all time grid points were reached (e.g., t_final was reached mid-interval)
         # without this, the later entries in sds would stay at zero, which would artificially drop the average MSD in those bins
         if time_idx < times_msds.size:
-            sds[time_idx:] = sq_displacement
+            sds[time_idx:] = last_r2
 
         return sds, tot_comp_time
 
