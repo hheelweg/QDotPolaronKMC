@@ -150,7 +150,7 @@ class KMCRunner():
         # (4) final polaron coordinate in GLOBAL frame
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
-        return start_pol, end_pol, time, tot_time
+        return start_pol, end_pol, clock, tot_time
     
 
     # build realization of QD lattice
