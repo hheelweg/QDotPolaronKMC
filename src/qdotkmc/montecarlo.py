@@ -345,7 +345,7 @@ class KMCRunner():
 
 
     # parallel KMC
-    def simulate_kmc_parallel(self):
+    def simulate_kmc_parallel(self, max_workers = None):
         """Parallel over realizations on CPU (one process per realization)."""
         import os
         from concurrent.futures import ProcessPoolExecutor, as_completed
