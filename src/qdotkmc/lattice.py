@@ -158,7 +158,7 @@ class QDLattice():
 
     # setup polaron-transformed Hamiltonian
     # def _setup_hamil(self, temp, spectrum, kappa_polaron, periodic = True):
-    def _setup_hamil(self, spectrum, kappa_polaron, periodic = True):
+    def _setup_hamil(self, kappa_polaron, periodic = True):
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         J = self._build_J(
@@ -244,7 +244,10 @@ class QDLattice():
         kappa_polaron = self.get_kappa_polaron(bath.spectrum)
 
         # polaron-tranformed Hamiltonian
-        self._setup_hamil(bath.spectrum, kappa_polaron)
+        self._setup_hamil(kappa_polaron)
+
+        # add bath
+        self.full_ham.spec = bath
 
         # initialize instance of Redfield class
         self._setup_redfield()
