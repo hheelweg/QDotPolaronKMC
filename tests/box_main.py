@@ -63,11 +63,11 @@ def main():
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
     # perform KMC simulation (parallel)
-    # max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    # times, msds = kmc_setup.simulate_kmc_parallel(max_workers=max_workers)
+    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
+    times, msds = kmc_setup.simulate_kmc_parallel(max_workers=max_workers)
 
     # perform KMC simulation (serial)
-    times, msds = kmc_setup.simulate_kmc()
+    #times, msds = kmc_setup.simulate_kmc()
 
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)
