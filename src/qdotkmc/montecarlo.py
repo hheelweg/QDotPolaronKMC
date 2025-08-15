@@ -10,11 +10,11 @@ import time
 class KMCRunner():
     
     
-    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath : BathConfig, run : RunConfig):
+    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig):
 
         self.geom = geom
         self.dis = dis
-        self.bath = bath
+        self.bath_cfg = bath_cfg
         self.run = run
 
         # root seed sequence controls the entire experiment for reproducibility
@@ -333,7 +333,12 @@ class KMCRunner():
 
         return msd
 
-    
+    def _one_lattice_worker(self):
+
+        pass
+
+
+    # serial KMC
     def simulate_kmc(self, t_final):
 
         times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
@@ -342,7 +347,7 @@ class KMCRunner():
 
         # build bath spectral density
         # TODO : add this here
-        bath = hamiltonian_box.SpecDens(self.bath.spectrum, const.kB * self.bath.temp)
+        bath = hamiltonian_box.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
         
         # loop over number of QDLattice realizations
         for r in range(self.run.nrealizations):
