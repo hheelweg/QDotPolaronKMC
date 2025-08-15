@@ -363,7 +363,7 @@ class KMCRunner():
         sim_time = 0.0
 
         # Build bath ONCE in parent
-        bath = SpecDens(self.bath.spectrum, const.kB * self.bath.temp)
+        bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
 
         # Expose it to workers via module-global, then FORK the pool
         global _BATH_GLOBAL
