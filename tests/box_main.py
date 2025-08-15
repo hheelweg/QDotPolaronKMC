@@ -38,7 +38,7 @@ def main():
     ntrajs = 20                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
-    t_final = 5                                 # final time for each trajectory (units?)
+    t_final = 50                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
 
     # lattice spacing
@@ -57,7 +57,7 @@ def main():
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
                           dipolegen=dipolegen, J_c = J_c, seed_base = seed)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
-    run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=100)
+    run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=1000)
 
     
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
