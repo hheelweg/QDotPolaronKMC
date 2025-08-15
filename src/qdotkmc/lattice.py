@@ -3,6 +3,7 @@ import math
 from scipy import integrate
 from . import utils, const, redfield_box, hamiltonian_box
 from .config import GeometryConfig, DisorderConfig, BathConfig
+from .hamiltonian_box import SpecDens
 
 # class to set up QD Lattice 
 class QDLattice():
@@ -156,7 +157,8 @@ class QDLattice():
 
 
     # setup polaron-transformed Hamiltonian
-    def _setup_hamil(self, temp, spectrum, kappa_polaron, periodic = True):
+    # def _setup_hamil(self, temp, spectrum, kappa_polaron, periodic = True):
+    def _setup_hamil(self, spectrum, kappa_polaron, periodic = True):
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         J = self._build_J(
@@ -194,9 +196,13 @@ class QDLattice():
         self.J_dense = J_off.copy()
 
         # (5) set up Hamilonian instance, spectral density, etc. 
+        # self.full_ham = hamiltonian_box.Hamiltonian(
+        #     self.eignrgs, self.eigstates,
+        #     spec_density=spectrum, kT = const.kB * self.temp, J_dense=self.J_dense
+        #     )
         self.full_ham = hamiltonian_box.Hamiltonian(
             self.eignrgs, self.eigstates,
-            spec_density=spectrum, kT = const.kB * self.temp, J_dense=self.J_dense
+            J_dense = self.J_dense
             )
 
 
@@ -209,17 +215,36 @@ class QDLattice():
         )
 
     # this calls _setu_hamil and _setup_redfield
-    def _setup(self, temp, spectrum):
+    # def _setup(self, temp, spectrum):
 
-        # set temperature
-        self.temp = temp
-        self.beta = 1/(const.kB * self.temp)
+    #     # set temperature
+    #     self.temp = temp
+    #     self.beta = 1/(const.kB * self.temp)
+
+    #     # compute 𝜅 for polaron transformation          
+    #     kappa_polaron = self.get_kappa_polaron(spectrum)
+
+    #     # polaron-tranformed Hamiltonian
+    #     self._setup_hamil(self.temp, spectrum, kappa_polaron)
+
+    #     # initialize instance of Redfield class
+    #     self._setup_redfield()
+    
+
+    # this calls _setu_hamil and _setup_redfield
+    def _setup(self, bath):
+
+        assert isinstance(bath, SpecDens), 'Need to specify valid SpecDens instance \
+                                            to set up QDLattic Hamiltonian.'
+
+        # set (inverse) temperature (do we still need this?)
+        self.beta = bath.beta
 
         # compute 𝜅 for polaron transformation          
-        kappa_polaron = self.get_kappa_polaron(spectrum)
+        kappa_polaron = self.get_kappa_polaron(bath.spectrum)
 
         # polaron-tranformed Hamiltonian
-        self._setup_hamil(self.temp, spectrum, kappa_polaron)
+        self._setup_hamil(bath.spectrum, kappa_polaron)
 
         # initialize instance of Redfield class
         self._setup_redfield()

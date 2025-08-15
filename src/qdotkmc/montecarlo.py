@@ -172,8 +172,8 @@ class KMCRunner():
 
         # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
         # NOTE : we currenly feed the bath information here as well
-        qd._setup(self.bath.temp, self.bath.spectrum)
-        #qd._setup(bath)
+        # qd._setup(self.bath.temp, self.bath.spectrum)
+        qd._setup(bath)
 
         return qd
     

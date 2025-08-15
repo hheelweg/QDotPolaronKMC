@@ -155,6 +155,7 @@ class SpecDens:
     def __init__(self, spec_dens_list, kT):
         sd_type = spec_dens_list[0]
         self.beta = 1.0 / kT
+        self.spectrum = spec_dens_list
 
         if sd_type == 'cubic-exp':
             self.lamda = spec_dens_list[1]
