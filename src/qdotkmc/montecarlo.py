@@ -7,12 +7,13 @@ from .hamiltonian_box import SpecDens
 
 # --- top-level worker so it's picklable by ProcessPool ---
 def _one_lattice_worker(args):
-    (geom, dis, bath_cfg, run, rid, t_final) = args
+    (geom, dis, bath_cfg, run, t_final, times_msds, rid) = args
     runner = KMCRunner(geom, dis, bath_cfg, run)
     bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
     return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
                                             bath = bath,
                                             t_final = run.t_final,
+                                            times = times_msds
                                             realization_id=rid)
 
 
@@ -344,7 +345,7 @@ class KMCRunner():
 
 
     # parallel KMC
-    def simulate_kmc_parallel(self, t_final):
+    def simulate_kmc_parallel(self):
         """Parallel over realizations on CPU (one process per realization)."""
         import os
         from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -352,7 +353,19 @@ class KMCRunner():
         os.environ.setdefault("MKL_NUM_THREADS", "1")
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
-        pass
+        R = self.run.nrealizations
+        times_msds = self._make_time_grid()
+        # dispatch configs (lightweight) + indices
+        jobs = [(self.geom, self.dis, self.bath, self.run, self.run.t_final, times_msds, r) for r in range(R)]
+
+        msds = None
+        with ProcessPoolExecutor(max_workers=max_workers) as ex:
+            futs = [ex.submit(_one_realization_worker, j) for j in jobs]
+            msds = np.zeros((R, len(times_msds)))
+            for fut in as_completed(futs):
+                rid, msd_r = fut.result()
+                msds[rid] = msd_r
+        return times_msds, msds
 
 
     # serial KMC
