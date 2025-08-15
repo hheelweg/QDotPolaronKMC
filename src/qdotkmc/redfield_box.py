@@ -343,8 +343,8 @@ class Redfield():
         red_R_tensor_full = 2.0 * np.real(gamma_plus) / const.hbar  # [P] incl. center
 
         if getattr(self, "enforce_db", False):
-            beta = float(self.ham.beta)           # make sure self.ham.beta exists (1/kT)
-            E    = np.asarray(self.ham.E)         # or use omega_diff below if E not available
+            beta = float(self.ham.beta)                     # make sure self.ham.beta exists (1/kT)
+            E    = np.asarray(self.ham.omega_diff)          # or use omega_diff below if E not available
 
             # helper: build bath rows for another center (reuse caches)
             def _bath_rows_for(center_idx):
