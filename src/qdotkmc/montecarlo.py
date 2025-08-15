@@ -10,7 +10,6 @@ _BATH_GLOBAL = None
 # --- top-level worker so it's picklable by ProcessPool ---
 def _one_lattice_worker(args):
     (geom, dis, bath_cfg, run, t_final, times_msds, rid, sim_time) = args
-    #from . import _BATH_GLOBAL
     runner = KMCRunner(geom, dis, bath_cfg, run)
     return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
                                             bath = _BATH_GLOBAL,
