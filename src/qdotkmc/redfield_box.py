@@ -312,95 +312,95 @@ class Redfield():
                     + bath_map[ 1.0] * H1
                     + bath_map[ 2.0] * H2)
 
-        # # (4) build 𝛾_+(𝜈')
-        # t2 = time.time()
-        # gamma_plus = _build_gamma_plus(J, J2, Up, u0, bath_map)
-        # if time_verbose:
-        #     print('time(gamma accumulation)', time.time() - t2, flush=True)
-
-        # # (5) compute only outgoing rates R_{𝜈𝜈'} = 2 Re𝛤_{𝜈'𝜈,𝜈𝜈'} = 2 Re 𝛾_+(𝜈') for (𝜈' = 𝜈)
-        # # need to remove center_loc, scale by ħ; return global final polaron indices 
-        # red_R_tensor = 2.0 * np.real(gamma_plus)
-        # rates = np.delete(red_R_tensor, center_loc) / const.hbar
-        # final_site_idxs = np.delete(pol_g, center_loc).astype(int)
-
-
-
-        # if time_verbose:
-        #     print('time(total)', time.time() - t_all, flush=True)
-
-        # print('rates sum/shape', np.sum(rates), rates.shape)
-        # return rates, final_site_idxs, time.time() - t_all
-
-        # (4) build 𝛾_+(ν′)
+        # (4) build 𝛾_+(𝜈')
         t2 = time.time()
         gamma_plus = _build_gamma_plus(J, J2, Up, u0, bath_map)
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
-        # (4b) OPTIONAL: enforce pairwise detailed balance for explicit neighbors
-        # We do this BEFORE removing center_loc, working on the full "pol_g"-aligned vector.
-        red_R_tensor_full = 2.0 * np.real(gamma_plus) / const.hbar  # [P] incl. center
-
-        if getattr(self, "enforce_db", False):
-            beta = float(self.ham.beta)                     # make sure self.ham.beta exists (1/kT)
-            E    = np.asarray(self.ham.omega_diff)          # or use omega_diff below if E not available
-
-            # helper: build bath rows for another center (reuse caches)
-            def _bath_rows_for(center_idx):
-                return {
-                    lam: (np.zeros_like(red_R_tensor_full, dtype=np.complex128) if lam == 0.0
-                        else self._corr_row(lam, int(center_idx), pol_g))
-                    for lam in (-2.0, -1.0, 0.0, 1.0, 2.0)
-                }
-
-            # corrected copy we will fill
-            red_R_tensor_corr = red_R_tensor_full.copy()
-
-            # Loop over destinations (skip the center entry)
-            for dest_loc in range(pol_g.size):
-                if dest_loc == center_loc:
-                    continue
-                j_global = int(pol_g[dest_loc])
-
-                # forward (i -> j): already have it
-                k_ij_R = max(0.0, red_R_tensor_full[dest_loc])
-
-                # reverse (j -> i): compute in THE SAME BOX by swapping u0 to the j-column
-                # build bath rows with center = j, and use u1 = U[site_g, j]
-                bath_map_rev = _bath_rows_for(j_global)
-                u1 = U[site_g, j_global]                   # column for j in the global U
-                gamma_plus_rev = _build_gamma_plus(J, J2, Up, u1, bath_map_rev)
-
-                # find index of m0 inside pol_g to read the reverse element
-                idx_m0_in_pol_g = center_loc
-                k_ji_R = max(0.0, 2.0 * np.real(gamma_plus_rev[idx_m0_in_pol_g]) / const.hbar)
-
-                # target ratio exp(-beta * ΔE); use energies if available, else omega_diff
-                if hasattr(self.ham, "E"):
-                    dE = float(E[j_global] - E[m0])
-                else:
-                    dE = float(self.ham.omega_diff[j_global, m0])  # E_j - E_i
-                g = np.exp(-beta * dE)
-
-                # Metropolis-like symmetric correction (keeps scale, enforces k_ij/k_ji = g)
-                k_ij = np.sqrt(k_ij_R * k_ji_R * g) if (k_ij_R > 0.0 and k_ji_R > 0.0) else 0.0
-
-                red_R_tensor_corr[dest_loc] = k_ij
-
-            red_R_tensor_used = red_R_tensor_corr
-        else:
-            red_R_tensor_used = red_R_tensor_full
-
-        # (5) now drop the center entry and return
-        rates = np.delete(red_R_tensor_used, center_loc)
+        # (5) compute only outgoing rates R_{𝜈𝜈'} = 2 Re𝛤_{𝜈'𝜈,𝜈𝜈'} = 2 Re 𝛾_+(𝜈') for (𝜈' = 𝜈)
+        # need to remove center_loc, scale by ħ; return global final polaron indices 
+        red_R_tensor = 2.0 * np.real(gamma_plus)
+        rates = np.delete(red_R_tensor, center_loc) / const.hbar
         final_site_idxs = np.delete(pol_g, center_loc).astype(int)
+
+
 
         if time_verbose:
             print('time(total)', time.time() - t_all, flush=True)
 
         print('rates sum/shape', np.sum(rates), rates.shape)
         return rates, final_site_idxs, time.time() - t_all
+
+        # # (4) build 𝛾_+(ν′)
+        # t2 = time.time()
+        # gamma_plus = _build_gamma_plus(J, J2, Up, u0, bath_map)
+        # if time_verbose:
+        #     print('time(gamma accumulation)', time.time() - t2, flush=True)
+
+        # # (4b) OPTIONAL: enforce pairwise detailed balance for explicit neighbors
+        # # We do this BEFORE removing center_loc, working on the full "pol_g"-aligned vector.
+        # red_R_tensor_full = 2.0 * np.real(gamma_plus) / const.hbar  # [P] incl. center
+
+        # if getattr(self, "enforce_db", False):
+        #     beta = float(self.ham.beta)                     # make sure self.ham.beta exists (1/kT)
+        #     E    = np.asarray(self.ham.omega_diff)          # or use omega_diff below if E not available
+
+        #     # helper: build bath rows for another center (reuse caches)
+        #     def _bath_rows_for(center_idx):
+        #         return {
+        #             lam: (np.zeros_like(red_R_tensor_full, dtype=np.complex128) if lam == 0.0
+        #                 else self._corr_row(lam, int(center_idx), pol_g))
+        #             for lam in (-2.0, -1.0, 0.0, 1.0, 2.0)
+        #         }
+
+        #     # corrected copy we will fill
+        #     red_R_tensor_corr = red_R_tensor_full.copy()
+
+        #     # Loop over destinations (skip the center entry)
+        #     for dest_loc in range(pol_g.size):
+        #         if dest_loc == center_loc:
+        #             continue
+        #         j_global = int(pol_g[dest_loc])
+
+        #         # forward (i -> j): already have it
+        #         k_ij_R = max(0.0, red_R_tensor_full[dest_loc])
+
+        #         # reverse (j -> i): compute in THE SAME BOX by swapping u0 to the j-column
+        #         # build bath rows with center = j, and use u1 = U[site_g, j]
+        #         bath_map_rev = _bath_rows_for(j_global)
+        #         u1 = U[site_g, j_global]                   # column for j in the global U
+        #         gamma_plus_rev = _build_gamma_plus(J, J2, Up, u1, bath_map_rev)
+
+        #         # find index of m0 inside pol_g to read the reverse element
+        #         idx_m0_in_pol_g = center_loc
+        #         k_ji_R = max(0.0, 2.0 * np.real(gamma_plus_rev[idx_m0_in_pol_g]) / const.hbar)
+
+        #         # target ratio exp(-beta * ΔE); use energies if available, else omega_diff
+        #         if hasattr(self.ham, "E"):
+        #             dE = float(E[j_global] - E[m0])
+        #         else:
+        #             dE = float(self.ham.omega_diff[j_global, m0])  # E_j - E_i
+        #         g = np.exp(-beta * dE)
+
+        #         # Metropolis-like symmetric correction (keeps scale, enforces k_ij/k_ji = g)
+        #         k_ij = np.sqrt(k_ij_R * k_ji_R * g) if (k_ij_R > 0.0 and k_ji_R > 0.0) else 0.0
+
+        #         red_R_tensor_corr[dest_loc] = k_ij
+
+        #     red_R_tensor_used = red_R_tensor_corr
+        # else:
+        #     red_R_tensor_used = red_R_tensor_full
+
+        # # (5) now drop the center entry and return
+        # rates = np.delete(red_R_tensor_used, center_loc)
+        # final_site_idxs = np.delete(pol_g, center_loc).astype(int)
+
+        # if time_verbose:
+        #     print('time(total)', time.time() - t_all, flush=True)
+
+        # print('rates sum/shape', np.sum(rates), rates.shape)
+        # return rates, final_site_idxs, time.time() - t_all
     
 
 
