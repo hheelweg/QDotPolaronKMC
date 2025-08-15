@@ -8,6 +8,7 @@ from pyinstrument import Profiler
 import qdotkmc
 
 
+
 def main():
 
 
@@ -61,8 +62,9 @@ def main():
     
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
-    # perform KMC simulation
-    times, msds = kmc_setup.simulate_kmc_parallel()
+    # perform KMC simulation (parallel)
+    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
+    times, msds = kmc_setup.simulate_kmc_parallel(max_workers=max_workers)
 
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)
