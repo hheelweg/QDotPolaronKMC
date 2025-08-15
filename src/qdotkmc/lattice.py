@@ -11,9 +11,9 @@ class QDLattice():
     
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, seed_realization : int):
 
+        # load geometric and energetic properties for set-up of lattice
         self.geom = geom
         self.dis = dis
-        #self.bath = bath                                        # NOTE : do we want to load bath information here?
 
         # set seed for 
         self.seed_realization = int(seed_realization)
@@ -27,7 +27,7 @@ class QDLattice():
 
 
 
-    # NOTE: old make_qd_array method (unchanged)
+    # NOTE: old make_qd_array method (basically unchanged)
     def _make_lattice(self):    
         # set locations for each QD
         self.qd_locations = np.zeros((self.geom.n_sites, self.geom.dims))
@@ -208,6 +208,7 @@ class QDLattice():
             self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron, self.r_hop, self.r_ove,
             time_verbose=True
         )
+
 
     # this calls _setup_hamil and _setup_redfield, and links the bath to the QDLattice
     def _setup(self, bath):
