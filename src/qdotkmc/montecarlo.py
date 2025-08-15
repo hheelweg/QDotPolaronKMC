@@ -308,13 +308,13 @@ class KMCRunner():
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
-    def _run_single_lattice(self, ntrajs, rid, bath, t_final, times):
+    def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id):
 
         # build QD lattice realization
-        qd_lattice = self._build_grid_realization(bath, rid=rid)
+        qd_lattice = self._build_grid_realization(bath, rid = realization_id)
 
         # get trajectory seed sequence
-        traj_ss = self._spawn_trajectory_seedseq(rid=rid)
+        traj_ss = self._spawn_trajectory_seedseq(rid = realization_id)
 
         # initialize mean squared displacement
         msd = np.zeros_like(times)
@@ -369,7 +369,12 @@ class KMCRunner():
             #     # streaming mean over trajectories (same as before)
             #     w = 1.0 / (t + 1)
             #     msd = (1.0 - w) * msd + w * sds
-            msd = self._run_single_lattice(self.run.ntrajs, r, bath, t_final = t_final, times = times_msds)
+            msd = self._run_single_lattice(ntrajs = self.run.ntrajs,
+                                           bath = bath, 
+                                           t_final = t_final, 
+                                           times = times_msds,
+                                           realization_id = r
+                                           )
                 
             # store mean squared displacement for QDLattice realization r
             msds[r] = msd
