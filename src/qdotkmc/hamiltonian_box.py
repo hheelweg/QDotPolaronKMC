@@ -19,7 +19,7 @@ class Hamiltonian():
 
         const.kT = float(kT)
 
-        self.spec = spec_density if isinstance(spec_density, SpecDens) else SpecDens(spec_density, float(np.ptp(evals)))
+        self.spec = spec_density if isinstance(spec_density, SpecDens) else SpecDens(spec_density)
 
         self.init_system(self.evals, self.Umat)
         self.J_dense = np.asarray(J_dense, dtype=np.float64, order='C')
@@ -152,9 +152,8 @@ class _BathCorrFFT:
 
 class SpecDens:
 
-    def __init__(self, spec_dens_list, max_energy_diff):
+    def __init__(self, spec_dens_list):
         sd_type = spec_dens_list[0]
-        self.max_energy_diff = max_energy_diff  # if you need it elsewhere
         beta = 1.0 / const.kT
 
         if sd_type == 'cubic-exp':
@@ -170,6 +169,7 @@ class SpecDens:
         self.correlationFT = self._correlationFT_fft
 
 
+    # cubic-exponential bath spectral density
     def cubic_exp(self, omega):
         w = abs(omega)
         Jw = (self.lamda / (2 * self.omega_c**3)) * w**3 * np.exp(-w / self.omega_c)

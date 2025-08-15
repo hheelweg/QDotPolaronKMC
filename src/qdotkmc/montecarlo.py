@@ -2,7 +2,7 @@ import numpy as np
 from scipy.linalg import eigh
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
-from . import lattice
+from . import lattice, hamiltonian_box
 import time
 
 
@@ -311,6 +311,7 @@ class KMCRunner():
 
         # build bath spectral density
         # TODO : add this here
+        #bath = hamiltonian_box.SpecDens()
         
         # loop over number of QDLattice realizations
         for r in range(self.run.nrealizations):
