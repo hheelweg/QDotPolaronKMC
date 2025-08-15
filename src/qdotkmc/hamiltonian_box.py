@@ -19,7 +19,7 @@ class Hamiltonian():
 
         const.kT = float(kT)
 
-        self.spec = spec_density if isinstance(spec_density, SpecDens) else SpecDens(spec_density)
+        self.spec = spec_density if isinstance(spec_density, SpecDens) else SpecDens(spec_density, const.kT)
 
         self.init_system(self.evals, self.Umat)
         self.J_dense = np.asarray(J_dense, dtype=np.float64, order='C')
@@ -152,9 +152,9 @@ class _BathCorrFFT:
 
 class SpecDens:
 
-    def __init__(self, spec_dens_list):
+    def __init__(self, spec_dens_list, kT):
         sd_type = spec_dens_list[0]
-        beta = 1.0 / const.kT
+        self.beta = 1.0 / kT
 
         if sd_type == 'cubic-exp':
             self.lamda = spec_dens_list[1]
@@ -164,7 +164,7 @@ class SpecDens:
             self.omega_inf = 40 * self.omega_c
 
         # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15)
-        self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c, self.omega_inf, self.low_freq_cutoff)
+        self._phi_tr = _PhiTransformer(self.J, self.beta, self.omega_c, self.omega_inf, self.low_freq_cutoff)
         self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
         self.correlationFT = self._correlationFT_fft
 
