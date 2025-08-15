@@ -16,13 +16,10 @@ class Hamiltonian():
     def __init__(self, evals, eigstates, J_dense=None):
 
 
-        self.evals = np.asarray(evals, dtype=np.float64)
-        self.Umat  = np.asarray(eigstates, dtype=np.complex128, order='C')
+        self.evals = np.asarray(evals, dtype=np.float64)                            # eigenvalues
+        self.Umat  = np.asarray(eigstates, dtype=np.complex128, order='C')          # eigenvectors
 
-        # const.kT = float(kT)
-        self.spec = None
-
-        # self.spec = spec_density if isinstance(spec_density, SpecDens) else SpecDens(spec_density, const.kT)
+        self.spec = None                                                            # SpecDense instance initialization
 
         self._init_system(self.evals, self.Umat)
         self.J_dense = np.asarray(J_dense, dtype=np.float64, order='C')
@@ -30,7 +27,7 @@ class Hamiltonian():
 
     def _init_system(self, evals, eigstates):
         self.nsite = int(np.size(evals))
-        self.evals, self.Umat = evals, eigstates
+        # self.evals, self.Umat = evals, eigstates
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
 
 
