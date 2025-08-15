@@ -345,6 +345,13 @@ class KMCRunner():
 
     # parallel KMC
     def simulate_kmc_parallel(self, t_final):
+        """Parallel over realizations on CPU (one process per realization)."""
+        import os
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
         pass
 
 
@@ -353,14 +360,15 @@ class KMCRunner():
 
         times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
         msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
-        self.simulated_time = 0
+        self.simulated_time = 0                                             # simulated time
 
-        # build bath spectral density
-        # TODO : add this here
+        # build bath spectral density (once for all QDLattice realizations!)
         bath = hamiltonian_box.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
+
+        R = self.run.nrealizations
         
         # loop over number of QDLattice realizations
-        for r in range(self.run.nrealizations):
+        for r in range(R):
 
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
             msd = self._run_single_lattice(ntrajs = self.run.ntrajs,
