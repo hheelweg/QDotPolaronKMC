@@ -196,7 +196,7 @@ class QDLattice():
         # (5) set up Hamilonian instance, spectral density, etc. 
         self.full_ham = hamiltonian_box.Hamiltonian(
             self.eignrgs, self.eigstates,
-            spec_density=spectrum, kT=const.kB*self.temp, J_dense=self.J_dense
+            spec_density=spectrum, kT = const.kB * self.temp, J_dense=self.J_dense
             )
 
 
