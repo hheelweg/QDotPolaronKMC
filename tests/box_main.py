@@ -13,7 +13,7 @@ def main():
 
 
     ndim = 2                                    # number of dimensions
-    N = 30                                      # number of QDs in each dimension
+    N = 50                                      # number of QDs in each dimension
     nc_edgelength = 8                           # length of each QD (units?)
     ligand_length = 1                           # length of ligands on QD (units?)
 
@@ -33,7 +33,7 @@ def main():
 
     # PTRE and KMC related parameters
     r_hop = 5                                   # hopping radius (see Kassal) (in units of lattice spacing)
-    r_ove = 14                                   # overlap radius (see Kassal) (in units of lattice spacing)
+    r_ove = 10                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
     ntrajs = 20                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
