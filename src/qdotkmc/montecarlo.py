@@ -306,7 +306,8 @@ class KMCRunner():
         return sds, tot_comp_time
 
 
-    def _run_single_lattice(self, rid : int, bath, times_msds):
+    # 
+    def _run_single_lattice(self, rid : int, bath, t_final, times_msds):
 
         # build QD lattice realization
         qd_lattice = self._build_grid_realization(bath, rid=rid)
@@ -345,28 +346,29 @@ class KMCRunner():
         # loop over number of QDLattice realizations
         for r in range(self.run.nrealizations):
 
-            # build QD lattice realization
-            qd_lattice = self._build_grid_realization(bath, rid=r)
+            # # build QD lattice realization
+            # qd_lattice = self._build_grid_realization(bath, rid=r)
 
-            # get trajectory seed sequence
-            traj_ss = self._spawn_trajectory_seedseq(rid=r)
+            # # get trajectory seed sequence
+            # traj_ss = self._spawn_trajectory_seedseq(rid=r)
 
-            # initialize mean squared displacement
-            msd = np.zeros_like(times_msds)
+            # # initialize mean squared displacement
+            # msd = np.zeros_like(times_msds)
 
-            # loop over number of trajectories per realization
-            for t in range(self.run.ntrajs):
+            # # loop over number of trajectories per realization
+            # for t in range(self.run.ntrajs):
                 
-                # random generator for trajectory
-                rng_traj = default_rng(traj_ss[t])
+            #     # random generator for trajectory
+            #     rng_traj = default_rng(traj_ss[t])
 
-                # run trajectory and resturn squared displacement in unwrapped coordinates
-                sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
-                self.simulated_time += comp
+            #     # run trajectory and resturn squared displacement in unwrapped coordinates
+            #     sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
+            #     self.simulated_time += comp
 
-                # streaming mean over trajectories (same as before)
-                w = 1.0 / (t + 1)
-                msd = (1.0 - w) * msd + w * sds
+            #     # streaming mean over trajectories (same as before)
+            #     w = 1.0 / (t + 1)
+            #     msd = (1.0 - w) * msd + w * sds
+            msd = self._run_single_lattice(r, bath, t_final = t_final, times = times_msds)
                 
             # store mean squared displacement for QDLattice realization r
             msds[r] = msd
