@@ -21,11 +21,11 @@ class Hamiltonian():
 
         self.spec = spec_density if isinstance(spec_density, SpecDens) else SpecDens(spec_density, const.kT)
 
-        self.init_system(self.evals, self.Umat)
+        self._init_system(self.evals, self.Umat)
         self.J_dense = np.asarray(J_dense, dtype=np.float64, order='C')
 
 
-    def init_system(self, evals, eigstates):
+    def _init_system(self, evals, eigstates):
         self.nsite = int(np.size(evals))
         self.evals, self.Umat = evals, eigstates
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
