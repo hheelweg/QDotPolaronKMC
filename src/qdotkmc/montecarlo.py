@@ -311,7 +311,7 @@ class KMCRunner():
 
         # build bath spectral density
         # TODO : add this here
-        #bath = hamiltonian_box.SpecDens()
+        bath = hamiltonian_box.SpecDens(self.bath.spectrum)
         
         # loop over number of QDLattice realizations
         for r in range(self.run.nrealizations):
