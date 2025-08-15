@@ -3,6 +3,7 @@ from scipy.linalg import eigh
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
 from . import lattice, hamiltonian_box, const
+from .hamiltonian_box import SpecDens
 import time
 
 
@@ -154,10 +155,14 @@ class KMCRunner():
     
 
     # build realization of QD lattice
-    def _build_grid_realization(self, rid : int):
+    def _build_grid_realization(self, bath : SpecDens, rid : int):
+
+        assert isinstance(bath, SpecDens), "Need to make sure we have a proper \
+                                            bath set up to build QDLattice instance"
 
         # get random seef from realization id (rid)
         rnd_seed = self._spawn_realization_seed(rid)
+        # NOTE : just for debugging
         print('seed realization', rnd_seed)
         
         # initialize instance of QDLattice class
@@ -168,6 +173,7 @@ class KMCRunner():
         # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
         # NOTE : we currenly feed the bath information here as well
         qd._setup(self.bath.temp, self.bath.spectrum)
+        #qd._setup(bath)
 
         return qd
     
@@ -316,8 +322,8 @@ class KMCRunner():
         # loop over number of QDLattice realizations
         for r in range(self.run.nrealizations):
 
-            # build QD lattice realization
-            qd_lattice = self._build_grid_realization(rid=r)
+            # build QD lattice realization attached to bath
+            qd_lattice = self._build_grid_realization(bath, rid=r)
 
             # get trajectory seed sequence
             traj_ss = self._spawn_trajectory_seedseq(rid=r)
