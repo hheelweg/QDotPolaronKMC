@@ -12,7 +12,6 @@ from . import utils
 
 class Hamiltonian():
 
-    #def __init__(self, evals, eigstates, spec_density, kT, J_dense=None):
     def __init__(self, evals, eigstates, J_dense=None):
 
 
@@ -27,7 +26,6 @@ class Hamiltonian():
 
     def _init_system(self, evals, eigstates):
         self.nsite = int(np.size(evals))
-        # self.evals, self.Umat = evals, eigstates
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
 
 

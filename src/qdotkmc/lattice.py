@@ -13,7 +13,7 @@ class QDLattice():
 
         self.geom = geom
         self.dis = dis
-        self.bath = bath                                        # NOTE : do we want to load bath information here?
+        #self.bath = bath                                        # NOTE : do we want to load bath information here?
 
         # set seed for 
         self.seed_realization = int(seed_realization)
@@ -157,7 +157,6 @@ class QDLattice():
 
 
     # setup polaron-transformed Hamiltonian
-    # def _setup_hamil(self, temp, spectrum, kappa_polaron, periodic = True):
     def _setup_hamil(self, kappa_polaron, periodic = True):
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
@@ -195,11 +194,7 @@ class QDLattice():
         J_off = self.hamil - np.diag(np.diag(self.hamil))
         self.J_dense = J_off.copy()
 
-        # (5) set up Hamilonian instance, spectral density, etc. 
-        # self.full_ham = hamiltonian_box.Hamiltonian(
-        #     self.eignrgs, self.eigstates,
-        #     spec_density=spectrum, kT = const.kB * self.temp, J_dense=self.J_dense
-        #     )
+        # (5) set up Hamilonian instance etc. 
         self.full_ham = hamiltonian_box.Hamiltonian(
             self.eignrgs, self.eigstates,
             J_dense = self.J_dense
@@ -214,24 +209,7 @@ class QDLattice():
             time_verbose=True
         )
 
-    # this calls _setu_hamil and _setup_redfield
-    # def _setup(self, temp, spectrum):
-
-    #     # set temperature
-    #     self.temp = temp
-    #     self.beta = 1/(const.kB * self.temp)
-
-    #     # compute 𝜅 for polaron transformation          
-    #     kappa_polaron = self.get_kappa_polaron(spectrum)
-
-    #     # polaron-tranformed Hamiltonian
-    #     self._setup_hamil(self.temp, spectrum, kappa_polaron)
-
-    #     # initialize instance of Redfield class
-    #     self._setup_redfield()
-    
-
-    # this calls _setu_hamil and _setup_redfield
+    # this calls _setup_hamil and _setup_redfield, and links the bath to the QDLattice
     def _setup(self, bath):
 
         assert isinstance(bath, SpecDens), 'Need to specify valid SpecDens instance \
