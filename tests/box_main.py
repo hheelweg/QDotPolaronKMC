@@ -32,13 +32,13 @@ def main():
     spec_density = 'cubic-exp'                  # bath spectral density
 
     # PTRE and KMC related parameters
-    r_hop = 12                                   # hopping radius (see Kassal) (in units of lattice spacing)
-    r_ove = 14                                   # overlap radius (see Kassal) (in units of lattice spacing)
+    r_hop = 5                                   # hopping radius (see Kassal) (in units of lattice spacing)
+    r_ove = 5                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
-    ntrajs = 50                                 # number of trajectories to compute MSDs over
+    ntrajs = 20                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
-    t_final = 10                                # final time for each trajectory (units?)
+    t_final = 5                                # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
 
     # lattice spacing

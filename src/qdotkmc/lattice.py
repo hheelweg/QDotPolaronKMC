@@ -173,7 +173,7 @@ class QDLattice():
 
 
         # (2) keep original diagonalization routine
-        # NOTE : can we improve this function somehow? 
+        # NOTE : can we improve this function somehow? (maybe torch/GPU/cupy?)
         self.eignrgs, self.eigstates = utils.diagonalize(self.hamil)
 
         # (3) polaron positions 

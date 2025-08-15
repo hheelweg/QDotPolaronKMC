@@ -24,6 +24,7 @@ class Hamiltonian():
         self.J_dense = np.asarray(J_dense, dtype=np.float64, order='C')
 
 
+    # TODO : do we need this? maybe just put this into __init__
     def _init_system(self, evals, eigstates):
         self.nsite = int(np.size(evals))
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
