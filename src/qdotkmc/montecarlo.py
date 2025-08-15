@@ -5,13 +5,15 @@ from . import lattice, hamiltonian_box, const
 from .hamiltonian_box import SpecDens
 
 
+_BATH_GLOBAL = None
+
 # --- top-level worker so it's picklable by ProcessPool ---
 def _one_lattice_worker(args):
     (geom, dis, bath_cfg, run, t_final, times_msds, rid, sim_time) = args
+    import _BATH_GLOBAL
     runner = KMCRunner(geom, dis, bath_cfg, run)
-    bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
     return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
-                                            bath = bath,
+                                            bath = _BATH_GLOBAL,
                                             t_final = run.t_final,
                                             times = times_msds,
                                             realization_id=rid,
@@ -349,6 +351,7 @@ class KMCRunner():
     def simulate_kmc_parallel(self, max_workers = None):
         """Parallel over realizations on CPU (one process per realization)."""
         import os
+        import multiprocessing as mp
         from concurrent.futures import ProcessPoolExecutor, as_completed
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
@@ -357,13 +360,23 @@ class KMCRunner():
         R = self.run.nrealizations
         times_msds = self._make_time_grid()
         msds = np.zeros((R, len(times_msds)))
-        sim_time = 0
+        sim_time = 0.0
+
+        # Build bath ONCE in parent
+        bath = SpecDens(self.bath.spectrum, const.kB * self.bath.temp)
+
+        # Expose it to workers via module-global, then FORK the pool
+        global _BATH_GLOBAL
+        _BATH_GLOBAL = bath
+
+        # Use fork context so children inherit memory instead of pickling args
+        ctx = mp.get_context("fork")
 
         # dispatch configs (lightweight) + indices
         jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r, sim_time) for r in range(R)]
 
         #msds = None
-        with ProcessPoolExecutor(max_workers=max_workers) as ex:
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
             for fut in as_completed(futs):
                 rid, msd_r, sim_time = fut.result()
