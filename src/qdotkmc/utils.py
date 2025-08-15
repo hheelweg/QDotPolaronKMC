@@ -44,7 +44,7 @@ def export_msds(times, msds, file_name = "msds.csv"):
 
 
 # get diffusivity from single msd trajectory and times array
-def get_diffusivity(msd, times, dim, tail_frac=0.5):
+def get_diffusivity(msd, times, dim, tail_frac=0.9):
     """
     Minimal single-curve diffusivity:
       - Fit MSD(t) ~ a + b t on the last `tail_frac` of points.
