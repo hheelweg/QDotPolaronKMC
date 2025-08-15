@@ -49,7 +49,7 @@ def main():
 
 
     # create instance of MC class to run KMC simulation
-    print('parameter check:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
+    print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
     
     # define dataclasses

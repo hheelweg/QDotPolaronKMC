@@ -24,9 +24,6 @@ class Redfield():
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
 
-        # set to true when we want to enforce detailled balance on rates
-        self.enforce_db = enforce_db
-
         # bath-correlation cache
         self._corr_cache = {}  # key: (lam, self.kappa, center_global) -> dict[int -> complex]
 
