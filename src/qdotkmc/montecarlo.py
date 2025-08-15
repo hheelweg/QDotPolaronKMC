@@ -356,7 +356,7 @@ class KMCRunner():
         R = self.run.nrealizations
         times_msds = self._make_time_grid()
         # dispatch configs (lightweight) + indices
-        jobs = [(self.geom, self.dis, self.bath, self.run, self.run.t_final, times_msds, r) for r in range(R)]
+        jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r) for r in range(R)]
 
         msds = None
         with ProcessPoolExecutor(max_workers=max_workers) as ex:
