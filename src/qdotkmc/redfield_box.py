@@ -5,18 +5,18 @@ from . import utils
 import time
 from scipy import sparse
 
-# TODO : can this go?
-class Unitary(object):
-    """A unitary evolution class
-    """
+# # TODO : can this go?
+# class Unitary(object):
+#     """A unitary evolution class
+#     """
 
-    def __init__(self, hamiltonian):
-        self.ham = hamiltonian
+#     def __init__(self, hamiltonian):
+#         self.ham = hamiltonian
 
-    def setup(self):
-        pass
+#     def setup(self):
+#         pass
 
-class Redfield(Unitary):
+class Redfield():
     """ class to compute the Redfield rates for KMC
     """
 
