@@ -355,13 +355,15 @@ class KMCRunner():
 
         R = self.run.nrealizations
         times_msds = self._make_time_grid()
+        msds = np.zeros((R, len(times_msds)))
+        self.simulated_time = 0
+
         # dispatch configs (lightweight) + indices
         jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r) for r in range(R)]
 
         msds = None
         with ProcessPoolExecutor(max_workers=max_workers) as ex:
             futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
-            msds = np.zeros((R, len(times_msds)))
             for fut in as_completed(futs):
                 rid, msd_r = fut.result()
                 msds[rid] = msd_r
