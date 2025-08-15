@@ -5,20 +5,8 @@ from . import utils
 import time
 from scipy import sparse
 
-# # TODO : can this go?
-# class Unitary(object):
-#     """A unitary evolution class
-#     """
-
-#     def __init__(self, hamiltonian):
-#         self.ham = hamiltonian
-
-#     def setup(self):
-#         pass
 
 class Redfield():
-    """ class to compute the Redfield rates for KMC
-    """
 
     def __init__(self, hamiltonian, polaron_locations, site_locations, kappa, r_hop, r_ove, time_verbose = True):
 
