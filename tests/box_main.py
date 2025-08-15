@@ -62,7 +62,7 @@ def main():
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
     # perform KMC simulation
-    times, msds = kmc_setup.simulate_kmc_parallel()
+    times, msds = kmc_setup.simulate_kmc()
 
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)

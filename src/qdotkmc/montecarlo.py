@@ -318,7 +318,7 @@ class KMCRunner():
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
-    def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id):
+    def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, simulated_time):
 
         # build QD lattice realization
         qd_lattice = self._build_grid_realization(bath, rid = realization_id)
@@ -335,13 +335,13 @@ class KMCRunner():
 
             # run trajectory and resturn squared displacement in unwrapped coordinates
             sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
-            self.simulated_time += comp
+            simulated_time += comp
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
 
-        return msd
+        return msd, simulated_time
 
 
     # parallel KMC
@@ -375,7 +375,7 @@ class KMCRunner():
 
         times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
         msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
-        self.simulated_time = 0                                             # simulated time
+        sim_time = 0                                                        # simulated time
 
         R = self.run.nrealizations                                          # number of QDLattice realizations
         T = self.run.ntrajs                                                 # number of trajetories per QDLattice realization
@@ -388,19 +388,19 @@ class KMCRunner():
         for r in range(R):
 
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
-            msd = self._run_single_lattice(ntrajs = T,
-                                           bath = bath, 
-                                           t_final = self.run.t_final, 
-                                           times = times_msds,
-                                           realization_id = r
-                                           )
+            msd, sim_time = self._run_single_lattice(ntrajs = T,
+                                                     bath = bath, 
+                                                     t_final = self.run.t_final, 
+                                                     times = times_msds,
+                                                     realization_id = r
+                                                     )
                 
             # store mean squared displacement for QDLattice realization r
             msds[r] = msd
 
             print('----------------------------------')
             print('---- SIMULATED TIME SUMMARY -----')
-            print(f'total simulated time {self.simulated_time:.3f}')
+            print(f'total simulated time {sim_time:.3f}')
             print('----------------------------------')
         return times_msds, msds
 
