@@ -362,16 +362,18 @@ class KMCRunner():
         msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
         self.simulated_time = 0                                             # simulated time
 
+        R = self.run.nrealizations                                          # number of QDLattice realizations
+        T = self.run.ntrajs                                                 # number of trajetories per QDLattice realization
+
         # build bath spectral density (once for all QDLattice realizations!)
         bath = hamiltonian_box.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
 
-        R = self.run.nrealizations
-        
+
         # loop over number of QDLattice realizations
         for r in range(R):
 
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
-            msd = self._run_single_lattice(ntrajs = self.run.ntrajs,
+            msd = self._run_single_lattice(ntrajs = T,
                                            bath = bath, 
                                            t_final = self.run.t_final, 
                                            times = times_msds,
