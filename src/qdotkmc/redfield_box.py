@@ -9,7 +9,7 @@ from scipy import sparse
 class Redfield():
 
     def __init__(self, hamiltonian, polaron_locations, site_locations, kappa, r_hop, r_ove,
-                time_verbose = True, enforce_db = True):
+                time_verbose = True, enforce_db = False):
 
         self.ham = hamiltonian
         self.polaron_locations = polaron_locations          # polaron locations (global frame)
