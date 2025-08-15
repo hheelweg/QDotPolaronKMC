@@ -307,7 +307,7 @@ class KMCRunner():
 
 
     # 
-    def _run_single_lattice(self, rid : int, bath, t_final, times_msds):
+    def _run_single_lattice(self, rid : int, bath, t_final, times):
 
         # build QD lattice realization
         qd_lattice = self._build_grid_realization(bath, rid=rid)
@@ -316,7 +316,7 @@ class KMCRunner():
         traj_ss = self._spawn_trajectory_seedseq(rid=rid)
 
         # initialize mean squared displacement
-        msd = np.zeros_like(times_msds)
+        msd = np.zeros_like(times)
 
         for t in range(self.run.ntrajs):
             # random generator for trajectory
