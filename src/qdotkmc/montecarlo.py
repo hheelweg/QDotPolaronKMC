@@ -360,7 +360,7 @@ class KMCRunner():
 
         msds = None
         with ProcessPoolExecutor(max_workers=max_workers) as ex:
-            futs = [ex.submit(_one_realization_worker, j) for j in jobs]
+            futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
             msds = np.zeros((R, len(times_msds)))
             for fut in as_completed(futs):
                 rid, msd_r = fut.result()
