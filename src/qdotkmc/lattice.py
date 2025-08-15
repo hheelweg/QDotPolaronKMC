@@ -9,7 +9,7 @@ from .hamiltonian_box import SpecDens
 class QDLattice():
 
     
-    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath : BathConfig, seed_realization : int):
+    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, seed_realization : int):
 
         self.geom = geom
         self.dis = dis
