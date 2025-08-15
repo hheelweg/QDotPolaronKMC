@@ -43,7 +43,8 @@ def export_msds(times, msds, file_name = "msds.csv"):
     df.to_csv(file_name, index=False)
 
 
-# get diffusivity from single msd trajectory and times array
+# get diffusivity from single (or pooled) MSD trajectory and times array via linear regression
+# NOTE : this is conceptually identical to former get_diffusivity_hh function
 def get_diffusivity(msd, times, dim, tail_frac=1.0):
     """
     Estimate the diffusion coefficient from a single MSD curve using a linear fit. The
@@ -111,7 +112,6 @@ def get_diffusivity(msd, times, dim, tail_frac=1.0):
     D = b / (2.0 * dim)
     D_stderr = b_stderr / (2.0 * dim)
     return D, D_stderr
-
 
 
 # summary multiple diffusivities based on 

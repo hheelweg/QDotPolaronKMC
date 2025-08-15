@@ -76,16 +76,14 @@ def main():
     msds_mean = np.mean(msds, axis = 0)
 
 
-    diff, diff_err = kmc_setup.get_diffusivity_hh(msds_mean, times, ndim)
-
     diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times, ndim)
 
     diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
     
     # -------------------------------------------------------------------------
     # without taking into account units:
-    print('diffusivity ', diff, diff1, diff2)
-    print('diffusivity error', diff_err, sigma_D1, sigma_D2)
+    print('diffusivity ', diff1, diff2)
+    print('diffusivity error', sigma_D1, sigma_D2)
     
 
 if __name__ == '__main__':

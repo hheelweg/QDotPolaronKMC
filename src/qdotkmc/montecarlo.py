@@ -363,19 +363,6 @@ class KMCRunner():
         return np.argmin(dists_squared)
     
 
-
-
-    def get_diffusivity_hh(self, msds, times, dims):
-        # note : I here assume that the whole time arrange is approx. linear (might break down)
-        fit_params, cov = np.polyfit(times, msds, 1, cov=True)
-        diff = fit_params[0]/(2*dims)
-        # obtain error on diffusvity as from error on slope parameter 
-        diff_err = np.sqrt(np.diag(cov))[0]/(2*dims)
-        return diff, diff_err
-    
-
-
-
     # ---------------------------------------------------------------------------------------------------------
     # HH : for some arrays of r_hop and r_ove, comopute the rates and check
     # for convergence (you are more than invited to play around with this!)
