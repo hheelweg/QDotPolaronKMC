@@ -5,11 +5,7 @@ import os
 import numpy as np
 # track performance bottlenecks
 from pyinstrument import Profiler
-
-
 import qdotkmc
-#from qdotkmc import montecarlo as mc
-#from qdotkmc.config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 
 
 def main():
@@ -39,7 +35,7 @@ def main():
     r_ove = 7                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
     ntrajs = 10                                 # number of trajectories to compute MSDs over
-    nrealizations = 2                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    nrealizations = 5                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
     t_final = 5                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
@@ -72,7 +68,7 @@ def main():
     qdotkmc.utils.export_msds(times, msds)
 
 
-    # get noise-averaged MSDS
+    # get noise-averaged (pooled) trajectory MSD
     msds_mean = np.mean(msds, axis = 0)
 
 
