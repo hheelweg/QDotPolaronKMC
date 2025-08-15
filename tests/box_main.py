@@ -36,7 +36,7 @@ def main():
     r_ove = 7                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
     ntrajs = 20                                 # number of trajectories to compute MSDs over
-    nrealizations = 2                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    nrealizations = 10                          # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
     t_final = 5                                 # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
@@ -63,8 +63,11 @@ def main():
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
     # perform KMC simulation (parallel)
-    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    times, msds = kmc_setup.simulate_kmc_parallel(max_workers=max_workers)
+    # max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
+    # times, msds = kmc_setup.simulate_kmc_parallel(max_workers=max_workers)
+
+    # perform KMC simulation (serial)
+    times, msds = kmc_setup.simulate_kmc(max_workers=max_workers)
 
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)
