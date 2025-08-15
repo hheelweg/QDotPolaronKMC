@@ -32,8 +32,8 @@ def main():
     spec_density = 'cubic-exp'                  # bath spectral density
 
     # PTRE and KMC related parameters
-    r_hop = 7                                   # hopping radius (see Kassal) (in units of lattice spacing)
-    r_ove = 7                                   # overlap radius (see Kassal) (in units of lattice spacing)
+    r_hop = 8                                   # hopping radius (see Kassal) (in units of lattice spacing)
+    r_ove = 8                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
     ntrajs = 20                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
@@ -65,10 +65,10 @@ def main():
     # perform KMC simulation (parallel)
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
     print('max_workers', max_workers)
-    #times, msds = kmc_setup.simulate_kmc_parallel(max_workers=max_workers)
+    times, msds = kmc_setup.simulate_kmc_parallel(max_workers=max_workers)
 
     # perform KMC simulation (serial)
-    times, msds = kmc_setup.simulate_kmc()
+    #times, msds = kmc_setup.simulate_kmc()
 
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)
