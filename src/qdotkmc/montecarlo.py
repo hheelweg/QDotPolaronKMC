@@ -347,28 +347,7 @@ class KMCRunner():
         # loop over number of QDLattice realizations
         for r in range(self.run.nrealizations):
 
-            # # build QD lattice realization
-            # qd_lattice = self._build_grid_realization(bath, rid=r)
-
-            # # get trajectory seed sequence
-            # traj_ss = self._spawn_trajectory_seedseq(rid=r)
-
-            # # initialize mean squared displacement
-            # msd = np.zeros_like(times_msds)
-
-            # # loop over number of trajectories per realization
-            # for t in range(self.run.ntrajs):
-                
-            #     # random generator for trajectory
-            #     rng_traj = default_rng(traj_ss[t])
-
-            #     # run trajectory and resturn squared displacement in unwrapped coordinates
-            #     sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
-            #     self.simulated_time += comp
-
-            #     # streaming mean over trajectories (same as before)
-            #     w = 1.0 / (t + 1)
-            #     msd = (1.0 - w) * msd + w * sds
+            # run ntrajs KMC trajectories for single QDLattice realization indexed with r
             msd = self._run_single_lattice(ntrajs = self.run.ntrajs,
                                            bath = bath, 
                                            t_final = t_final, 
