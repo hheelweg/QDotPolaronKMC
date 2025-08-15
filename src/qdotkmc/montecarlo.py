@@ -305,6 +305,32 @@ class KMCRunner():
 
         return sds, tot_comp_time
 
+
+    def _run_single_lattice(self, rid : int, bath, times_msds):
+
+        # build QD lattice realization
+        qd_lattice = self._build_grid_realization(bath, rid=rid)
+
+        # get trajectory seed sequence
+        traj_ss = self._spawn_trajectory_seedseq(rid=rid)
+
+        # initialize mean squared displacement
+        msd = np.zeros_like(times_msds)
+
+        for t in range(self.run.ntrajs):
+            # random generator for trajectory
+            rng_traj = default_rng(traj_ss[t])
+
+            # run trajectory and resturn squared displacement in unwrapped coordinates
+            sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
+            self.simulated_time += comp
+
+            # streaming mean over trajectories (same as before)
+            w = 1.0 / (t + 1)
+            msd = (1.0 - w) * msd + w * sds
+
+        return msd
+
     
     def simulate_kmc(self, t_final):
 
@@ -319,13 +345,13 @@ class KMCRunner():
         # loop over number of QDLattice realizations
         for r in range(self.run.nrealizations):
 
-            # build QD lattice realization attached to bath
+            # build QD lattice realization
             qd_lattice = self._build_grid_realization(bath, rid=r)
 
             # get trajectory seed sequence
             traj_ss = self._spawn_trajectory_seedseq(rid=r)
 
-            # compute mean squared displacement
+            # initialize mean squared displacement
             msd = np.zeros_like(times_msds)
 
             # loop over number of trajectories per realization
@@ -354,6 +380,7 @@ class KMCRunner():
     
     
     # (08/09/2025) more efficient version
+    # NOTE : move to uitls.py?
     def get_closest_idx(self, qd_lattice, pos, array):
         """
         Find the index in `array` closest to `pos` under periodic boundary conditions.
