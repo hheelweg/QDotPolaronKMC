@@ -13,7 +13,7 @@ def _one_lattice_worker(args):
     return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
                                             bath = bath,
                                             t_final = run.t_final,
-                                            times = times_msds
+                                            times = times_msds,
                                             realization_id=rid)
 
 
