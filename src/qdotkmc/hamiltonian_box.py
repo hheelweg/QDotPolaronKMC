@@ -164,7 +164,7 @@ class SpecDens:
             self.low_freq_cutoff = self.omega_c / 200.0
             self.omega_inf = 40 * self.omega_c
 
-        # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15) if using 'exact'
+        # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15)
         self._phi_tr = _PhiTransformer(self.J, beta, self.omega_c, self.omega_inf, self.low_freq_cutoff)
         self._fft = _BathCorrFFT(self._phi_tr, self.omega_c)
         self.correlationFT = self._correlationFT_fft

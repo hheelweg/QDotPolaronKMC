@@ -308,6 +308,9 @@ class KMCRunner():
         times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
         msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
         self.simulated_time = 0
+
+        # build bath spectral density
+        # TODO : add this here
         
         # loop over number of QDLattice realizations
         for r in range(self.run.nrealizations):
