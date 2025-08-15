@@ -7,14 +7,15 @@ from .hamiltonian_box import SpecDens
 
 # --- top-level worker so it's picklable by ProcessPool ---
 def _one_lattice_worker(args):
-    (geom, dis, bath_cfg, run, t_final, times_msds, rid) = args
+    (geom, dis, bath_cfg, run, t_final, times_msds, rid, sim_time) = args
     runner = KMCRunner(geom, dis, bath_cfg, run)
     bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
     return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
                                             bath = bath,
                                             t_final = run.t_final,
                                             times = times_msds,
-                                            realization_id=rid)
+                                            realization_id=rid,
+                                            simulated_time=sim_time)
 
 
 class KMCRunner():
@@ -356,17 +357,22 @@ class KMCRunner():
         R = self.run.nrealizations
         times_msds = self._make_time_grid()
         msds = np.zeros((R, len(times_msds)))
-        self.simulated_time = 0
+        sim_time = 0
 
         # dispatch configs (lightweight) + indices
-        jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r) for r in range(R)]
+        jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r, sim_time) for r in range(R)]
 
         msds = None
         with ProcessPoolExecutor(max_workers=max_workers) as ex:
             futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
             for fut in as_completed(futs):
-                rid, msd_r = fut.result()
+                rid, msd_r, sim_time = fut.result()
                 msds[rid] = msd_r
+
+        print('----------------------------------')
+        print('---- SIMULATED TIME SUMMARY -----')
+        print(f'total simulated time {sim_time:.3f}')
+        print('----------------------------------')
         return times_msds, msds
 
 
