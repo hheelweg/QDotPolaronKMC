@@ -19,6 +19,7 @@ class Hamiltonian():
         self.Umat  = np.asarray(eigstates, dtype=np.complex128, order='C')          # eigenvectors
 
         self.spec = None                                                            # SpecDense instance initialization
+        self.beta = None
 
         self._init_system(self.evals, self.Umat)
         self.J_dense = np.asarray(J_dense, dtype=np.float64, order='C')

@@ -225,8 +225,9 @@ class QDLattice():
         # polaron-tranformed Hamiltonian
         self._setup_hamil(kappa_polaron)
 
-        # add bath
+        # add bath and temperature
         self.full_ham.spec = bath
+        self.full_ham.beta = bath.beta
 
         # initialize instance of Redfield class
         self._setup_redfield()
