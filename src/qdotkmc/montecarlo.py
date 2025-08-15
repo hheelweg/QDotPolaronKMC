@@ -1,10 +1,19 @@
 import numpy as np
-from scipy.linalg import eigh
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
 from . import lattice, hamiltonian_box, const
 from .hamiltonian_box import SpecDens
-import time
+
+
+# --- top-level worker so it's picklable by ProcessPool ---
+def _one_lattice_worker(args):
+    (geom, dis, bath_cfg, run, rid, t_final) = args
+    runner = KMCRunner(geom, dis, bath_cfg, run)
+    bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+    return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
+                                            bath = bath,
+                                            t_final = run.t_final,
+                                            realization_id=rid)
 
 
 class KMCRunner():
@@ -333,13 +342,14 @@ class KMCRunner():
 
         return msd
 
-    def _one_lattice_worker(self):
 
+    # parallel KMC
+    def simulate_kmc_parallel(self, t_final):
         pass
 
 
     # serial KMC
-    def simulate_kmc(self, t_final):
+    def simulate_kmc(self):
 
         times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
         msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
@@ -355,7 +365,7 @@ class KMCRunner():
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
             msd = self._run_single_lattice(ntrajs = self.run.ntrajs,
                                            bath = bath, 
-                                           t_final = t_final, 
+                                           t_final = self.run.t_final, 
                                            times = times_msds,
                                            realization_id = r
                                            )
