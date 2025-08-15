@@ -85,106 +85,33 @@ def get_diffusivity(msd, times, dim, tail_frac=1.0):
 
 
 
-
 # summary multiple diffusivities
-def summarize_diffusivities(msds: np.ndarray,
-                            times: np.ndarray,
-                            dim: int,
-                            *,
-                            fit_single: Callable[..., Tuple[float, float, float, float, float, Dict[str, Any]]],
-                            # pass-through options for the single-curve fitter:
-                            slope_tol: float = 0.20,
-                            min_points: int = 8,
-                            fallback_quantiles: Tuple[float, float] = (0.5, 0.9)
-                            ):
-    msds = np.asarray(msds, dtype=float)
-    times = np.asarray(times, dtype=float)
-    if msds.ndim != 2:
-        raise ValueError("msds must have shape (R, T).")
+def summarize_diffusivity(msds, times, dim, tail_frac=1.0):
+    """
+    Minimal many-curve summary:
+      - Fit each realization with fit_diffusivity_simple.
+      - Inverse-variance weighted mean of D_i with standard error 1/sqrt(sum w_i).
+    Returns: (D_weighted, D_weighted_stderr, n_used)
+    """
+    msds = np.asarray(msds, float)
     R, T = msds.shape
-    if times.shape != (T,):
-        raise ValueError("times must have length T matching msds.shape[1].")
+    Ds, sDs = [], []
 
-    D_list, sD_list, r2_list, winfo, used_fb = [], [], [], [], []
-
-    # --- fit each realization ---
     for i in range(R):
-        msd_i = msds[i]
-        # Skip if too many NaNs
-        if not np.isfinite(msd_i).any():
-            continue
         try:
-            D_i, b, a, b_se, r2, info = fit_single(
-                msd_i, times, dim,
-                slope_tol=slope_tol,
-                min_points=min_points,
-                fallback_quantiles=fallback_quantiles
-            )
+            D_i, sD_i = get_diffusivity(msds[i], times, dim, tail_frac=tail_frac)
+            if np.isfinite(D_i) and np.isfinite(sD_i) and sD_i > 0:
+                Ds.append(D_i)
+                sDs.append(sD_i)
         except Exception:
-            continue  # skip failed fits
-
-        sigma_D_i = float(b_se) / (2.0 * dim)
-        if not (np.isfinite(D_i) and np.isfinite(sigma_D_i) and sigma_D_i >= 0):
             continue
 
-        D_list.append(float(D_i))
-        sD_list.append(float(sigma_D_i))
-        r2_list.append(float(r2))
-        winfo.append((float(info.get('tmin', np.nan)),
-                      float(info.get('tmax', np.nan)),
-                      int(info.get('npts', 0))))
-        used_fb.append(bool(info.get('used_fallback', False)))
+    Ds = np.asarray(Ds)
+    sDs = np.asarray(sDs)
 
-    if len(D_list) == 0:
-        raise ValueError("No realization could be fitted to extract diffusivity.")
+    # inverse-variance weighting
+    w = 1.0 / (sDs ** 2)
+    D_weighted = float(np.sum(w * Ds) / np.sum(w))
+    D_weighted_stderr = float(1.0 / np.sqrt(np.sum(w)))
 
-    D_arr = np.asarray(D_list)
-    sD_arr = np.asarray(sD_list)
-
-    # Inverse-variance weights; guard tiny/zero errors
-    w = 1.0 / np.maximum(sD_arr, 1e-300)**2
-    W = np.sum(w)
-
-    D_weighted = float(np.sum(w * D_arr) / W)
-    D_weighted_err = float(1.0 / np.sqrt(W))  # internal (within-fit) SE
-
-    # Between-realization variability (captures disorder spread)
-    D_weighted_sem = float(D_arr.std(ddof=1) / np.sqrt(D_arr.size)) if D_arr.size > 1 else np.nan
-
-    # Total uncertainty (recommended): combine internal + between-realization in quadrature
-    D_weighted_total = float(np.sqrt(D_weighted_err**2 + (0.0 if np.isnan(D_weighted_sem) else D_weighted_sem**2)))
-
-    # --- pooled MSD fit (cross-check) ---
-    msd_pooled = np.nanmean(msds, axis=0)
-    D_pooled, b, a, b_se, r2_pooled, info_pooled = fit_single(
-        msd_pooled, times, dim,
-        slope_tol=slope_tol,
-        min_points=min_points,
-        fallback_quantiles=fallback_quantiles
-    )
-    D_pooled_err = float(b_se) / (2.0 * dim)
-
-    # Package per-realization details
-    per_real = np.zeros(len(D_arr), dtype=[
-        ('D', float), ('sigma_D', float), ('r2', float),
-        ('tmin', float), ('tmax', float), ('npts', int), ('used_fallback', bool)
-    ])
-    per_real['D'] = D_arr
-    per_real['sigma_D'] = sD_arr
-    per_real['r2'] = np.asarray(r2_list, dtype=float)
-    if winfo:
-        per_real['tmin'] = np.asarray([w[0] for w in winfo], dtype=float)
-        per_real['tmax'] = np.asarray([w[1] for w in winfo], dtype=float)
-        per_real['npts'] = np.asarray([w[2] for w in winfo], dtype=int)
-    per_real['used_fallback'] = np.asarray(used_fb, dtype=bool)
-
-    return dict(
-        D_weighted=D_weighted,
-        D_weighted_err=D_weighted_err,
-        D_weighted_sem=D_weighted_sem,
-        D_weighted_total=D_weighted_total,
-        D_pooled=float(D_pooled),
-        D_pooled_err=D_pooled_err,
-        pooled_info=dict(info_pooled, r2=r2_pooled),
-        per_real=per_real,
-    )
+    return D_weighted, D_weighted_stderr, len(Ds)
