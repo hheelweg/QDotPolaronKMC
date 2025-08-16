@@ -224,7 +224,8 @@ class KMCRunner():
         self._get_box(qd_lattice, polaron_start_site)
 
         # (1.1) NOTE : this is for testing only right now
-        site_g, pol_g = self._get_states(qd_lattice, polaron_start_site)
+        polaron_start_site_idx = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.qd_locations)
+        site_g, pol_g = self._get_states(qd_lattice, polaron_start_site_idx)
         print('site_g, pol_g (test)', len(site_g), len(pol_g))
 
         center_global = qd_lattice.center_global
