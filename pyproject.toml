@@ -8,11 +8,10 @@ version = "1.0.2"
 description = "Quantum-dot polaron KMC / Redfield box utilities"
 readme = "README.md"
 requires-python = ">=3.9"
-authors = [{ name = "Henrik Heelweg" }]
+authors = [{ name = "Henrik Heelweg", "Thomas Sheehan" }]
 dependencies = [
   "numpy",
   "pandas",
-  # add others you truly need at runtime, e.g. "scipy", "numba"
 ]
 
 [tool.setuptools]
