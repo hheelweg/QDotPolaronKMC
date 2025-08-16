@@ -4,7 +4,7 @@ from numpy.random import SeedSequence, default_rng
 from . import lattice, hamiltonian_box, const
 from .hamiltonian_box import SpecDens
 
-
+# global variable to allow parallel workers to use the same bath setup
 _BATH_GLOBAL = None
 
 # --- top-level worker so it's picklable by ProcessPool ---
@@ -24,10 +24,10 @@ class KMCRunner():
     
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig):
 
-        self.geom = geom
-        self.dis = dis
-        self.bath_cfg = bath_cfg
-        self.run = run
+        self.geom = geom                        # geometry for QDLattice
+        self.dis = dis                          # energetic parameters for QDLattice
+        self.bath_cfg = bath_cfg                # bath setup, temperature ...
+        self.run = run                          # KMC related parameters
 
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
@@ -83,6 +83,7 @@ class KMCRunner():
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
+    # NOTE : this function does obtain a box around center
     def _get_box(self, qd_lattice, center, periodic=True):
 
         # (1) box size (unchanged)
@@ -129,6 +130,91 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
+    def select_sites_and_polarons(self, qd_lattice,
+                                  center_global: int,
+                                  *,
+                                  epsilon_site: float = 1e-6,   # leakage tolerance for freezing site set
+                                  halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
+                                  coverage_tau: float = 1e-4,   # keep j if sum_{s in S_i^+} |U_{s j}|^2 >= tau
+                                  energy_alpha: float = None    # optional: keep |ΔE_{ij}| <= alpha * W; set None to disable
+                                  ):
+        """
+        Returns:
+            site_g : 1D np.ndarray[int]
+                Frozen site indices for center i (≥1 - epsilon_site mass), with optional halo.
+            pol_g  : 1D np.ndarray[int]
+                Destination polarons j passing the coverage (and optional energy) filters; i is excluded.
+                Order is descending by coverage C_ij to help rate computation locality.
+        Notes:
+            - Overlap-only selection (no far-field closure, no DB).
+            - No in-box renormalization is performed.
+        """
+
+        ham = qd_lattice.full_ham
+        U = ham.Umat                   # (N_sites, N_polarons)
+        E = ham.evals                  # (N_polarons,)
+
+        i = int(center_global)
+
+        # ---------- (1) Freeze site set S_i by overlap mass ----------
+        wi = np.abs(U[:, i])**2                     # |psi_i|^2 over sites
+        order = np.argsort(wi)[::-1]                # largest first
+        csum = np.cumsum(wi[order])
+        k = int(np.searchsorted(csum, 1.0 - epsilon_site, side="left")) + 1
+        site_g = np.sort(order[:k]).astype(np.intp) # freeze; sorted for cache-friendliness
+
+        # Optional: add a tiny geometric halo (if you have a grid/neighbor map)
+        if halo and hasattr(qd_lattice, "site_neighbors_for_radius"):
+            # Expect qd_lattice.site_neighbors_for_radius(site_indices, r) -> np.ndarray[int]
+            site_g = np.unique(qd_lattice.site_neighbors_for_radius(site_g, halo)).astype(np.intp)
+
+        # Build S_i^+ (with halo) once
+        S_plus = site_g
+
+        # ---------- (2) Destination filter by coverage on S_i^+ ----------
+        # Coverage C_ij = sum_{s in S_i^+} |U_{s j}|^2
+        Wj_on_S = np.abs(U[S_plus, :])**2           # (|S|, N_polarons)
+        C = Wj_on_S.sum(axis=0)                     # (N_polarons,)
+        mask_cov = (C >= coverage_tau)
+
+        # Exclude the center itself
+        mask_cov[i] = False
+
+        # ---------- (optional) Energy window ----------
+        if energy_alpha is not None:
+            # Choose a width W; since you asked for overlap-only, use a simple thermal width.
+            # (If ham.beta is set, use kT; otherwise skip energy).
+            if getattr(ham, "beta", None):
+                kT = 1.0 / float(ham.beta)
+                W = kT
+                dE = E - E[i]
+                mask_energy = (np.abs(dE) <= energy_alpha * W)
+                mask = mask_cov & mask_energy
+            else:
+                mask = mask_cov   # no beta info; stick to overlap-only
+        else:
+            mask = mask_cov
+
+        # Final destination list, ordered by descending coverage (helps locality)
+        pol_candidates = np.where(mask)[0]
+        if pol_candidates.size:
+            sort_idx = np.argsort(C[pol_candidates])[::-1]
+            pol_g = pol_candidates[sort_idx].astype(np.intp)
+        else:
+            pol_g = np.empty(0, dtype=np.intp)
+
+        return site_g, pol_g
+
+
+
+    # TODO : determine which sites and polarons are the most relevant ot the rates based on overlaps
+    # NOTE : this is an alternative to _get_box
+    def _get_states(self, qd_lattice, center):
+
+        site_g, pol_g = self.select_sites_and_polarons(qd_lattice, center)
+        return site_g, pol_g
+
+
     def _make_kmc_step(self, qd_lattice, clock, polaron_start_site, rnd_generator = None):
 
         # (0) check whether we have a valid instance of QDLattice class
@@ -136,6 +222,10 @@ class KMCRunner():
 
         # (1) build box (just indices + center_global)
         self._get_box(qd_lattice, polaron_start_site)
+
+        # (1.1) NOTE : this is for testing only right now
+        site_g, pol_g = self._get_states(qd_lattice, polaron_start_site)
+        print('site_g, pol_g (test)', len(site_g), len(pol_g))
 
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
