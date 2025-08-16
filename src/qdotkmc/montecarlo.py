@@ -133,9 +133,9 @@ class KMCRunner():
     def select_sites_and_polarons(self, qd_lattice,
                                   center_global: int,
                                   *,
-                                  epsilon_site: float = 1e-6,   # leakage tolerance for freezing site set
+                                  epsilon_site: float = 1e-2,   # leakage tolerance for freezing site set
                                   halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
-                                  coverage_tau: float = 1e-4,   # keep j if sum_{s in S_i^+} |U_{s j}|^2 >= tau
+                                  coverage_tau: float = 1e-2,   # keep j if sum_{s in S_i^+} |U_{s j}|^2 >= tau
                                   energy_alpha: float = None    # optional: keep |ΔE_{ij}| <= alpha * W; set None to disable
                                   ):
         """
