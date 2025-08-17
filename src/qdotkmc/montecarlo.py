@@ -132,7 +132,7 @@ class KMCRunner():
 
     import numpy as np
 
-    def select_sites_and_polarons_enrichment(
+    def select_sites_and_polarons_enrichment(self,
         qd_lattice,
         center_global: int,
         *,
