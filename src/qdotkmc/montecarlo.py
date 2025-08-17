@@ -139,8 +139,7 @@ class KMCRunner():
         epsilon_site: float = 1e-2,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
         tau_enrich: float = 5.0,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
-        tau_min: float = 1e-3,        # tiny absolute floor on C_ij to avoid vanishingly small cases
-        energy_alpha: float | None = None  # optional energy window multiplier; None = disabled
+        tau_min: float = 1e-3        # tiny absolute floor on C_ij to avoid vanishingly small cases
     ):
         """
         Returns
@@ -195,13 +194,13 @@ class KMCRunner():
         mask[i] = False  # exclude the center itself
 
         # ---------- (optional) Energy window ----------
-        if energy_alpha is not None:
-            if getattr(ham, "beta", None):
-                kT = 1.0 / float(ham.beta)
-                W = kT  # simple thermal width; swap for your bath-specific W if desired
-                dE = E - E[i]
-                mask &= (np.abs(dE) <= float(energy_alpha) * W)
-            # else: beta not set -> skip energy gating (still overlap-driven)
+        # if energy_alpha is not None:
+        #     if getattr(ham, "beta", None):
+        #         kT = 1.0 / float(ham.beta)
+        #         W = kT  # simple thermal width; swap for your bath-specific W if desired
+        #         dE = E - E[i]
+        #         mask &= (np.abs(dE) <= float(energy_alpha) * W)
+        #     # else: beta not set -> skip energy gating (still overlap-driven)
 
         # Final destination list, ordered by descending enrichment (helps locality)
         pol_candidates = np.where(mask)[0]
