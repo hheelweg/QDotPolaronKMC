@@ -130,75 +130,83 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
-    def select_sites_and_polarons(self, qd_lattice,
-                                  center_global: int,
-                                  *,
-                                  epsilon_site: float = 1e-1,   # leakage tolerance for freezing site set
-                                  halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
-                                  coverage_tau: float = 1e-1,   # keep j if sum_{s in S_i^+} |U_{s j}|^2 >= tau
-                                  energy_alpha: float = None    # optional: keep |ΔE_{ij}| <= alpha * W; set None to disable
-                                  ):
-        """
-        Returns:
-            site_g : 1D np.ndarray[int]
-                Frozen site indices for center i (≥1 - epsilon_site mass), with optional halo.
-            pol_g  : 1D np.ndarray[int]
-                Destination polarons j passing the coverage (and optional energy) filters; i is excluded.
-                Order is descending by coverage C_ij to help rate computation locality.
-        Notes:
-            - Overlap-only selection (no far-field closure, no DB).
-            - No in-box renormalization is performed.
-        """
+    import numpy as np
 
+    def select_sites_and_polarons_enrichment(
+        qd_lattice,
+        center_global: int,
+        *,
+        epsilon_site: float = 1e-2,   # leakage tolerance for freezing site set (inner cutoff)
+        halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
+        tau_enrich: float = 5.0,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
+        tau_min: float = 1e-3,        # tiny absolute floor on C_ij to avoid vanishingly small cases
+        energy_alpha: float | None = None  # optional energy window multiplier; None = disabled
+    ):
+        """
+        Returns
+        -------
+        site_g : 1D np.ndarray[int]
+            Frozen site indices S_i for the center i (mass >= 1 - epsilon_site), optionally with a halo.
+            No renormalization inside S_i is performed.
+        pol_g : 1D np.ndarray[int]
+            Destination polarons j passing the enrichment filter (and optional energy window), i excluded.
+            Ordered by descending enrichment E_ij for better locality.
+
+        Notes
+        -----
+        - Enrichment fixes the issue where absolute coverage thresholds keep ~everyone when S_i is large.
+        phi_i = |S_i^+| / N_sites is the baseline coverage for a delocalized state; we require C_ij >> phi_i.
+        - This function is overlap-only (no DB, no far-field tail).
+        """
         ham = qd_lattice.full_ham
-        U = ham.Umat                   # (N_sites, N_polarons)
-        E = ham.evals                  # (N_polarons,)
+        U = ham.Umat     # shape: (N_sites, N_polarons)
+        E = ham.evals    # shape: (N_polarons,)
+        N_sites = U.shape[0]
 
         i = int(center_global)
 
         # ---------- (1) Freeze site set S_i by overlap mass ----------
-        wi = np.abs(U[:, i])**2                     # |psi_i|^2 over sites
-        order = np.argsort(wi)[::-1]                # largest first
+        wi = np.abs(U[:, i])**2                    # |psi_i|^2 over sites (sums to 1)
+        order = np.argsort(wi)[::-1]               # largest first
         csum = np.cumsum(wi[order])
-        k = int(np.searchsorted(csum, 1.0 - epsilon_site, side="left")) + 1
-        site_g = np.sort(order[:k]).astype(np.intp) # freeze; sorted for cache-friendliness
+        k = int(np.searchsorted(csum, 1.0 - float(epsilon_site), side="left")) + 1
+        site_g = np.sort(order[:k]).astype(np.intp)
 
-        # Optional: add a tiny geometric halo (if you have a grid/neighbor map)
+        # Optional geometric halo (if your lattice exposes a neighbor utility)
         if halo and hasattr(qd_lattice, "site_neighbors_for_radius"):
-            # Expect qd_lattice.site_neighbors_for_radius(site_indices, r) -> np.ndarray[int]
-            site_g = np.unique(qd_lattice.site_neighbors_for_radius(site_g, halo)).astype(np.intp)
+            site_g = np.unique(qd_lattice.site_neighbors_for_radius(site_g, int(halo))).astype(np.intp)
 
-        # Build S_i^+ (with halo) once
         S_plus = site_g
+        if S_plus.size == 0:
+            # degenerate case; nothing to do
+            return S_plus, np.empty(0, dtype=np.intp)
 
-        # ---------- (2) Destination filter by coverage on S_i^+ ----------
-        # Coverage C_ij = sum_{s in S_i^+} |U_{s j}|^2
-        Wj_on_S = np.abs(U[S_plus, :])**2           # (|S|, N_polarons)
-        C = Wj_on_S.sum(axis=0)                     # (N_polarons,)
-        mask_cov = (C >= coverage_tau)
+        # Baseline fraction: expected coverage of a delocalized state on S_plus
+        phi_i = max(S_plus.size / float(N_sites), 1.0 / float(N_sites))  # guard against 0
 
-        # Exclude the center itself
-        mask_cov[i] = False
+        # ---------- (2) Destination filter by ENRICHMENT on S_i^+ ----------
+        # Coverage C_ij = sum_{s in S_plus} |U_{s j}|^2
+        Wj_on_S = np.abs(U[S_plus, :])**2              # (|S_plus|, N_polarons)
+        C = Wj_on_S.sum(axis=0)                        # (N_polarons,)
+        E_enrich = C / phi_i                           # enrichment relative to uniform coverage
+
+        # Basic mask: enrichment and tiny absolute floor
+        mask = (E_enrich >= float(tau_enrich)) & (C >= float(tau_min))
+        mask[i] = False  # exclude the center itself
 
         # ---------- (optional) Energy window ----------
         if energy_alpha is not None:
-            # Choose a width W; since you asked for overlap-only, use a simple thermal width.
-            # (If ham.beta is set, use kT; otherwise skip energy).
             if getattr(ham, "beta", None):
                 kT = 1.0 / float(ham.beta)
-                W = kT
+                W = kT  # simple thermal width; swap for your bath-specific W if desired
                 dE = E - E[i]
-                mask_energy = (np.abs(dE) <= energy_alpha * W)
-                mask = mask_cov & mask_energy
-            else:
-                mask = mask_cov   # no beta info; stick to overlap-only
-        else:
-            mask = mask_cov
+                mask &= (np.abs(dE) <= float(energy_alpha) * W)
+            # else: beta not set -> skip energy gating (still overlap-driven)
 
-        # Final destination list, ordered by descending coverage (helps locality)
+        # Final destination list, ordered by descending enrichment (helps locality)
         pol_candidates = np.where(mask)[0]
         if pol_candidates.size:
-            sort_idx = np.argsort(C[pol_candidates])[::-1]
+            sort_idx = np.argsort(E_enrich[pol_candidates])[::-1]
             pol_g = pol_candidates[sort_idx].astype(np.intp)
         else:
             pol_g = np.empty(0, dtype=np.intp)
@@ -211,7 +219,7 @@ class KMCRunner():
     # NOTE : this is an alternative to _get_box
     def _get_states(self, qd_lattice, center):
 
-        site_g, pol_g = self.select_sites_and_polarons(qd_lattice, center)
+        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center)
         return site_g, pol_g
 
 
