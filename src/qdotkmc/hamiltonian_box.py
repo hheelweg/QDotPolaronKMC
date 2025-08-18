@@ -29,7 +29,7 @@ class Hamiltonian():
     def _init_system(self, evals, eigstates):
         self.nsite = int(np.size(evals))
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
-        print('max/min', max(self.omega_diff))
+        print('max/min', np.max(self.omega_diff))
 
 
 class _PhiTransformer:
