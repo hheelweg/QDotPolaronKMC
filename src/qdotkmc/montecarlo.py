@@ -136,7 +136,7 @@ class KMCRunner():
         qd_lattice,
         center_global: int,
         *,
-        epsilon_site: float = 1e-2,   # leakage tolerance for freezing site set (inner cutoff)
+        epsilon_site: float = 1e-1,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
         tau_enrich: float = 2.0,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
         tau_min: float = 1e-3         # tiny absolute floor on C_ij to avoid vanishingly small cases
@@ -232,8 +232,8 @@ class KMCRunner():
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
-            #rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
-            rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global, pol_g, site_g)
+            rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
+            #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global, pol_g, site_g)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
