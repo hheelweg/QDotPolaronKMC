@@ -136,7 +136,7 @@ class KMCRunner():
         *,
         epsilon_site: float = 1e-3,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
-        tau_enrich: float = 0.8      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
+        tau_enrich: float = 0.2      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
     ):
         """
         Add explanation. 
@@ -151,7 +151,7 @@ class KMCRunner():
         wi = np.abs(U[:, i])**2                    # |psi_i|^2 over sites (sums to 1)
         order = np.argsort(wi)[::-1]               # largest first
         csum = np.cumsum(wi[order])
-        k = int(np.searchsorted(csum, 1.0 - float(epsilon_site), side="left")) + 1
+        k = int(np.searchsorted(csum, 1.0)) + 1 # - float(epsilon_site), side="left")) + 1
         site_g = np.sort(order[:k]).astype(np.intp)
 
         # --- opional : IPR / PR diagnostics ---
