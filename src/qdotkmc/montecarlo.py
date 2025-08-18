@@ -161,7 +161,7 @@ class KMCRunner():
 
         # Optional geometric halo (if your lattice exposes a neighbor utility)
         if halo and hasattr(qd_lattice, "site_neighbors_for_radius"):
-            site_g = np.unique(qd_lattice.site_neighbors_for_radius(site_g, int(halo), j_thresh = 1e-4)).astype(np.intp)
+            site_g = np.unique(qd_lattice.site_neighbors_for_radius(site_g, int(halo), j_thresh = 0.0)).astype(np.intp)
 
         S_plus = site_g
         if S_plus.size == 0:
