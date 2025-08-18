@@ -2,8 +2,9 @@ import numpy as np
 import math
 from scipy import integrate
 from . import utils, const, redfield_box, hamiltonian_box
-from .config import GeometryConfig, DisorderConfig, BathConfig
+from .config import GeometryConfig, DisorderConfig
 from .hamiltonian_box import SpecDens
+from collections import deque
 
 # class to set up QD Lattice 
 class QDLattice():
@@ -24,6 +25,100 @@ class QDLattice():
 
         # initialize lattice
         self._make_lattice()
+
+        # caches for neighbors
+        self._nbr1_cache = {}   # per-site 1-hop neighbors
+        self._nbrR_cache = {}   # (tuple(sorted(seed)), radius, thresh) -> np.ndarray[int]
+    
+
+
+    def _one_hop_neighbors(self, idx: int, *, j_thresh: float = 0.0) -> np.ndarray:
+        """
+        Return 1-hop graph neighbors of a single site index `idx`,
+        defined by |J_dense[idx, j]| > j_thresh (excluding self).
+        Cached for speed.
+        """
+        key = (int(idx), float(j_thresh))
+        hit = self._nbr1_cache.get(key)
+        if hit is not None:
+            return hit
+
+        J = self.full_ham.J_dense
+        row = J[int(idx), :]
+        # neighbors are those with |J| > threshold and j != idx
+        mask = np.abs(row) > float(j_thresh)
+        mask[int(idx)] = False
+        nbrs = np.nonzero(mask)[0].astype(np.intp)
+
+        # cache and return sorted for deterministic behavior
+        nbrs.sort()
+        self._nbr1_cache[key] = nbrs
+        return nbrs
+    
+    def site_neighbors_for_radius(
+        self,
+        site_indices,
+        radius: int,
+        *,
+        include_self: bool = True,
+        j_thresh: float = 0.0,
+        hard_cap: int | None = None,
+    ) -> np.ndarray:
+        """
+        Expand `site_indices` by graph distance ≤ `radius` using J_dense connectivity.
+
+        Args
+        ----
+        site_indices : array-like[int]
+            Seed sites to grow a halo around.
+        radius : int
+            Number of graph steps (hops) to expand. 0 returns the seeds (or empty if include_self=False).
+        include_self : bool
+            If True, include the seed sites in the result (recommended for “halo” use).
+        j_thresh : float
+            Treat edges with |J| ≤ j_thresh as absent (useful if J has tiny numerical tails).
+        hard_cap : int or None
+            Optional safety cap on the number of returned sites; if exceeded, early-exit with current set.
+
+        Returns
+        -------
+        np.ndarray[int] (sorted, dtype=intp)
+            Unique site indices within graph distance ≤ radius from the seeds.
+        """
+        seeds = np.atleast_1d(np.asarray(site_indices, dtype=np.intp))
+        if seeds.size == 0 or radius <= 0:
+            return (seeds.copy() if include_self else np.empty(0, dtype=np.intp))
+
+        # Cache key for repeated calls (radius, threshold, seed set)
+        key = (tuple(np.sort(seeds).tolist()), int(radius), float(j_thresh))
+        cached = self._nbrR_cache.get(key)
+        if cached is not None:
+            return cached
+
+        visited = set(int(s) for s in seeds) if include_self else set()
+        frontier = deque(int(s) for s in seeds)
+
+        steps = 0
+        while frontier and steps < int(radius):
+            # BFS layer
+            next_frontier = deque()
+            seen_in_layer = set()
+            while frontier:
+                u = frontier.popleft()
+                for v in self._one_hop_neighbors(u, j_thresh=j_thresh):
+                    if v not in visited and v not in seen_in_layer:
+                        next_frontier.append(v)
+                        seen_in_layer.add(v)
+            # add this layer
+            visited.update(seen_in_layer)
+            if hard_cap is not None and len(visited) >= int(hard_cap):
+                break
+            frontier = next_frontier
+            steps += 1
+
+        out = np.fromiter(sorted(visited), dtype=np.intp)
+        self._nbrR_cache[key] = out
+        return out
 
 
 
