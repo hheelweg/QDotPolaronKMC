@@ -134,9 +134,9 @@ class KMCRunner():
         qd_lattice,
         center_global: int,
         *,
-        epsilon_site: float = 1e-1,   # leakage tolerance for freezing site set (inner cutoff)
+        epsilon_site: float = 1e-2,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
-        tau_enrich: float = 2.0,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
+        tau_enrich: float = 1.0,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
         tau_min: float = 1e-3         # tiny absolute floor on C_ij to avoid vanishingly small cases
     ):
         """
@@ -154,6 +154,11 @@ class KMCRunner():
         csum = np.cumsum(wi[order])
         k = int(np.searchsorted(csum, 1.0 - float(epsilon_site), side="left")) + 1
         site_g = np.sort(order[:k]).astype(np.intp)
+
+        # --- IPR / PR diagnostics ---
+        IPR_i = float(np.sum(wi**2))            # \sum_s |psi_i(s)|^4
+        PR_i  = 1.0 / IPR_i                     # participation ratio
+        print('IPR_i', PR_i)
 
         # Optional geometric halo (if your lattice exposes a neighbor utility)
         if halo and hasattr(qd_lattice, "site_neighbors_for_radius"):
