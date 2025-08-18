@@ -136,7 +136,7 @@ class KMCRunner():
         *,
         epsilon_site: float = 5e-2,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
-        tau_enrich: float = 1.0,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
+        tau_enrich: float = 0.8,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
         tau_min: float = 1e-3         # tiny absolute floor on C_ij to avoid vanishingly small cases
     ):
         """
