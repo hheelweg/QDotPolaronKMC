@@ -234,14 +234,14 @@ class KMCRunner():
         pol_g = qd_lattice.redfield.select_polaron_candidates(
             center_global,
             K_top=48,       # tweak
-            tau_K=1e-3,     # tweak
+            tau_K=0.00,     # tweak
             use_core_J=False  # set True if you want even faster S-screening
         )
 
         site_g = qd_lattice.redfield.select_sites_for_box(
             pol_g,
-            eps_site=1e-2,   # tweak
-            add_J_neighbors=True,
+            eps_site=0.00,   # tweak
+            add_J_neighbors=False,
             Jpct=97.0,       # keep neighbors via top 3% |J|
             # halo_coords=self.ham.qd_lattice_rel,  # if you have coords
             # halo_radius=your_value               # e.g., 1–2 lattice spacings
