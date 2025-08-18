@@ -28,7 +28,7 @@ def main():
     nrg_center = 2.0                            # mean site energy (units ?)
     rel_spatial_disorder = 0.0                  # relative spatial disorder
     dipolegen = 'random'                        # dipole generation procedure
-    temp = 10                                  # temperature (K)
+    temp = 200                                  # temperature (K)
     spec_density = 'cubic-exp'                  # bath spectral density
 
     # PTRE and KMC related parameters
