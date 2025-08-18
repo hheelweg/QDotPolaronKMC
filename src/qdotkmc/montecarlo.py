@@ -232,8 +232,8 @@ class KMCRunner():
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
-            rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
-            #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global, pol_g, site_g)
+            #rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
+            rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global, pol_g, site_g)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
