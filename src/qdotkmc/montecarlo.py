@@ -135,7 +135,7 @@ class KMCRunner():
         center_global: int,
         *,
         epsilon_site: float = 1e-1,   # leakage tolerance for freezing site set (inner cutoff)
-        halo: int = 1,                # optional geometric halo (in lattice steps); 0 = off
+        halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
         tau_enrich: float = 1.0,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
         tau_min: float = 1e-3         # tiny absolute floor on C_ij to avoid vanishingly small cases
     ):
@@ -190,7 +190,12 @@ class KMCRunner():
         else:
             pol_g = np.empty(0, dtype=np.intp)
 
-        return site_g, pol_g
+        # only consider the top sites/polarons
+        frac = 0.4
+        site_g_final = site_g[:int(len(site_g) * frac)]
+        pol_g_final = pol_g[:int(len(pol_g) * frac)]
+
+        return site_g_final, pol_g_final
 
 
 
