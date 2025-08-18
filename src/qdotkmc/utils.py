@@ -161,3 +161,10 @@ def summarize_diffusivity(msds, times, dim, tail_frac=1.0):
     D_weighted_stderr = float(1.0 / np.sqrt(np.sum(w)))
 
     return D_weighted, D_weighted_stderr
+
+
+# NOTE : move to utils.py ?
+def get_ipr(Umat):
+    # returns ipr of one column vector, or mean ipr of multiple column vectors
+    IPRs = 1/np.sum(Umat ** 4, axis = 0)
+    return np.mean(IPRs), np.std(IPRs)

@@ -26,6 +26,7 @@ class QDLattice():
         # initialize lattice
         self._make_lattice()
 
+
         # caches for neighbors
         self._nbr1_cache = {}   # per-site 1-hop neighbors
         self._nbrR_cache = {}   # (tuple(sorted(seed)), radius, thresh) -> np.ndarray[int]
@@ -291,6 +292,10 @@ class QDLattice():
             self.eignrgs, self.eigstates,
             J_dense = self.J_dense
             )
+        
+        # (6) optional : get IPR statistics
+        ipr_mean, ipr_std = utils.get_ipr(self.eigstates)
+        print('IPR mean/std', ipr_mean, ipr_std)
 
 
     # setup instance of Redfield class

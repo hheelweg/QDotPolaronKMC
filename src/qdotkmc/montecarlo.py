@@ -227,7 +227,7 @@ class KMCRunner():
 
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
-        print('start pol', polaron_start_site_idx, center_global)
+        # print('start pol', polaron_start_site_idx, center_global)
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
@@ -593,10 +593,7 @@ class KMCRunner():
         cum_three_biggest_norm = np.sum(three_biggest)
         return mean_final, three_biggest, cum_three_biggest_norm   
     
-    # NOTE : move to utils.py ?
-    def get_ipr(self):
-        # returns ipr of one column vector, or mean ipr of multiple column vectors
-        return np.mean(1/np.sum(self.eigstates ** 4, axis = 0))
+
     
 
 
