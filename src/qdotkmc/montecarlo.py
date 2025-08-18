@@ -152,6 +152,7 @@ class KMCRunner():
         wi = np.abs(U[:, i])**2                    # |psi_i|^2 over sites (sums to 1)
         order = np.argsort(wi)[::-1]               # largest first
         csum = np.cumsum(wi[order])
+        print("cumsum", csum)
         k = int(np.searchsorted(csum, 1.0 - float(epsilon_site), side="left")) + 1
         site_g = np.sort(order[:k]).astype(np.intp)
 
