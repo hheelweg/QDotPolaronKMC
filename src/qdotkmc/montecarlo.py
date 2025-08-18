@@ -235,7 +235,7 @@ class KMCRunner():
             center_global,
             K_top=200,       # tweak
             tau_K=0.00,     # tweak
-            use_core_J=False  # set True if you want even faster S-screening
+            use_core_J=True  # set True if you want even faster S-screening
         )
 
         site_g = qd_lattice.redfield.select_sites_for_box(
