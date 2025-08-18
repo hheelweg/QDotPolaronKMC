@@ -229,7 +229,7 @@ class KMCRunner():
         site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center, halo = 1)
         return site_g, pol_g
     
-    def _make_kmatrix_boxNEW(self, qd_lattice, center_global):#, pol_g, site_g):
+    def _make_kmatrix_boxNEW(self, qd_lattice, center_global, pol_g, site_g):
 
         # pol_g = qd_lattice.redfield.select_polaron_candidates(
         #     center_global,
