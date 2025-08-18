@@ -191,7 +191,7 @@ class KMCRunner():
             pol_g = np.empty(0, dtype=np.intp)
 
         # only consider the top sites/polarons
-        frac = 0.4
+        frac = 0.8
         site_g_final = site_g[:int(len(site_g) * frac)]
         pol_g_final = pol_g[:int(len(pol_g) * frac)]
 
