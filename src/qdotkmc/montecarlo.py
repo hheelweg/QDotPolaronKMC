@@ -192,7 +192,7 @@ class KMCRunner():
 
         # only consider the top sites/polarons
         site_g_final = site_g #site_g[:int(len(site_g) * frac)]
-        pol_g_final = pol_g #pol_g[:int(len(pol_g) * frac)]
+        pol_g_final = pol_candidates #pol_g[:int(len(pol_g) * frac)]
 
         return site_g_final, pol_g_final
 
