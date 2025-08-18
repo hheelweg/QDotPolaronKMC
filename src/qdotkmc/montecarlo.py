@@ -135,7 +135,7 @@ class KMCRunner():
         qd_lattice,
         center_global: int,
         *,
-        epsilon_site: float = 1e-2,   # site-mass leakage for S_i (smaller -> more sites)
+        epsilon_site: float = 5e-2,   # site-mass leakage for S_i (smaller -> more sites)
         halo: int = 0,                # optional J-graph halo radius (in "hops"); 0 = off
         tau_enrich: float = 0.75,          # keep j if E_ij = C_ij / phi_i >= tau_enrich
         omega_max: float = np.inf,       # energy pre-screen: keep |E_j - E_i| <= omega_max; None = no screen
