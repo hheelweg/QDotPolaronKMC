@@ -184,14 +184,13 @@ class KMCRunner():
 
         # Final destination list, ordered by descending enrichment (helps locality)
         pol_candidates = np.where(mask)[0]
-        if pol_candidates.size:
-            sort_idx = np.argsort(E_enrich[pol_candidates])[::-1]
-            pol_g = pol_candidates[sort_idx].astype(np.intp)
-        else:
-            pol_g = np.empty(0, dtype=np.intp)
+        # if pol_candidates.size:
+        #     sort_idx = np.argsort(E_enrich[pol_candidates])[::-1]
+        #     pol_g = pol_candidates[sort_idx].astype(np.intp)
+        # else:
+        #     pol_g = np.empty(0, dtype=np.intp)
 
         # only consider the top sites/polarons
-        frac = 0.8
         site_g_final = site_g #site_g[:int(len(site_g) * frac)]
         pol_g_final = pol_g #pol_g[:int(len(pol_g) * frac)]
 
