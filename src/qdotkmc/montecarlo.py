@@ -139,27 +139,13 @@ class KMCRunner():
         epsilon_site: float = 1e-1,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
         tau_enrich: float = 2.0,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
-        tau_min: float = 1e-3        # tiny absolute floor on C_ij to avoid vanishingly small cases
+        tau_min: float = 1e-3         # tiny absolute floor on C_ij to avoid vanishingly small cases
     ):
         """
-        Returns
-        -------
-        site_g : 1D np.ndarray[int]
-            Frozen site indices S_i for the center i (mass >= 1 - epsilon_site), optionally with a halo.
-            No renormalization inside S_i is performed.
-        pol_g : 1D np.ndarray[int]
-            Destination polarons j passing the enrichment filter (and optional energy window), i excluded.
-            Ordered by descending enrichment E_ij for better locality.
-
-        Notes
-        -----
-        - Enrichment fixes the issue where absolute coverage thresholds keep ~everyone when S_i is large.
-        phi_i = |S_i^+| / N_sites is the baseline coverage for a delocalized state; we require C_ij >> phi_i.
-        - This function is overlap-only (no DB, no far-field tail).
+        Add explanation. 
         """
         ham = qd_lattice.full_ham
         U = ham.Umat     # shape: (N_sites, N_polarons)
-        E = ham.evals    # shape: (N_polarons,)
         N_sites = U.shape[0]
 
         i = int(center_global)
@@ -192,15 +178,6 @@ class KMCRunner():
         # Basic mask: enrichment and tiny absolute floor
         mask = (E_enrich >= float(tau_enrich)) & (C >= float(tau_min))
         mask[i] = False  # exclude the center itself
-
-        # ---------- (optional) Energy window ----------
-        # if energy_alpha is not None:
-        #     if getattr(ham, "beta", None):
-        #         kT = 1.0 / float(ham.beta)
-        #         W = kT  # simple thermal width; swap for your bath-specific W if desired
-        #         dE = E - E[i]
-        #         mask &= (np.abs(dE) <= float(energy_alpha) * W)
-        #     # else: beta not set -> skip energy gating (still overlap-driven)
 
         # Final destination list, ordered by descending enrichment (helps locality)
         pol_candidates = np.where(mask)[0]
