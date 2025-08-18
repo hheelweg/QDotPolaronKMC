@@ -122,7 +122,7 @@ class Redfield():
         k = int(np.searchsorted(csum, 1.0 - float(eps), side='left')) + 1
         return set(order[:k].tolist())
 
-    def _percentile_threshold(arr_abs, pct=97.0):
+    def _percentile_threshold(self, arr_abs, pct=97.0):
         """|x| threshold at percentile pct (0..100)."""
         return float(np.percentile(arr_abs.ravel(), pct))
 
