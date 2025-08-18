@@ -61,8 +61,7 @@ class QDLattice():
         radius: int,
         *,
         include_self: bool = True,
-        j_thresh: float = 0.0,
-        hard_cap: int | None = None,
+        j_thresh: float = 0.0
     ) -> np.ndarray:
         """
         Expand `site_indices` by graph distance ≤ `radius` using J_dense connectivity.
@@ -111,8 +110,6 @@ class QDLattice():
                         seen_in_layer.add(v)
             # add this layer
             visited.update(seen_in_layer)
-            if hard_cap is not None and len(visited) >= int(hard_cap):
-                break
             frontier = next_frontier
             steps += 1
 
