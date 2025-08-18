@@ -231,23 +231,23 @@ class KMCRunner():
     
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global):#, pol_g, site_g):
 
-        pol_g = qd_lattice.redfield.select_polaron_candidates(
-            center_global,
-            K_top=200,       # tweak
-            tau_K=0.00,     # tweak
-            use_core_J=True  # set True if you want even faster S-screening
-        )
+        # pol_g = qd_lattice.redfield.select_polaron_candidates(
+        #     center_global,
+        #     K_top=200,       # tweak
+        #     tau_K=0.00,     # tweak
+        #     use_core_J=True  # set True if you want even faster S-screening
+        # )
 
-        site_g = qd_lattice.redfield.select_sites_for_box(
-            pol_g,
-            eps_site=1e-1,   # tweak
-            add_J_neighbors=True,
-            Jpct=97.0,       # keep neighbors via top 3% |J|
-            # halo_coords=self.ham.qd_lattice_rel,  # if you have coords
-            # halo_radius=your_value               # e.g., 1–2 lattice spacings
-        )
+        # site_g = qd_lattice.redfield.select_sites_for_box(
+        #     pol_g,
+        #     eps_site=1e-1,   # tweak
+        #     add_J_neighbors=True,
+        #     Jpct=97.0,       # keep neighbors via top 3% |J|
+        #     # halo_coords=self.ham.qd_lattice_rel,  # if you have coords
+        #     # halo_radius=your_value               # e.g., 1–2 lattice spacings
+        # )
 
-        print('pol_g, site_g len', len(pol_g), len(site_g))
+        # print('pol_g, site_g len', len(pol_g), len(site_g))
 
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
@@ -273,8 +273,8 @@ class KMCRunner():
 
         # (1.1) NOTE : this is for testing only right now
         polaron_start_site_idx = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.qd_locations)
-        # site_g, pol_g = self._get_states(qd_lattice, polaron_start_site_idx)
-        #print('site_g, pol_g (test)', len(site_g), len(pol_g))
+        site_g, pol_g = self._get_states(qd_lattice, polaron_start_site_idx)
+        print('site_g, pol_g (test)', len(site_g), len(pol_g))
 
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
@@ -283,8 +283,8 @@ class KMCRunner():
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             #rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
-            # rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx, pol_g, site_g)
-            rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx)
+            rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx, pol_g, site_g)
+            #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
