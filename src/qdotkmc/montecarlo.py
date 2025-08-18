@@ -233,7 +233,7 @@ class KMCRunner():
 
         pol_g = qd_lattice.redfield.select_polaron_candidates(
             center_global,
-            K_top=400,       # tweak
+            K_top=100,       # tweak
             tau_K=0.00,     # tweak
             use_core_J=False  # set True if you want even faster S-screening
         )
