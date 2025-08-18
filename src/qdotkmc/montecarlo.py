@@ -137,7 +137,7 @@ class KMCRunner():
         *,
         epsilon_site: float = 1e-1,   # mass leakage target for S_i (smaller -> more sites)
         halo: int = 0,                # graph halo radius (in J-steps) around S_i; 0 = off
-        tau_enrich: float = 1.6,      # keep j if E_ij = C_ij / phi_i >= tau_enrich
+        tau_enrich: float = 1.0,      # keep j if E_ij = C_ij / phi_i >= tau_enrich
         tau_min: float = 1e-3,        # tiny absolute floor on coverage C_ij
         # --- new optional knobs ---
         cap_kappa: float = 3.5,       # cap |S_i| <= ceil(cap_kappa * PR_i)
