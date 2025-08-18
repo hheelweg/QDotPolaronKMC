@@ -134,9 +134,9 @@ class KMCRunner():
         qd_lattice,
         center_global: int,
         *,
-        epsilon_site: float = 1e-2,   # leakage tolerance for freezing site set (inner cutoff)
+        epsilon_site: float = 1e-3,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
-        tau_enrich: float = 1.0      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
+        tau_enrich: float = 0.3      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
     ):
         """
         Add explanation. 
@@ -184,15 +184,15 @@ class KMCRunner():
 
         # Final destination list, ordered by descending enrichment (helps locality)
         pol_candidates = np.where(mask)[0]
-        # if pol_candidates.size:
-        #     sort_idx = np.argsort(E_enrich[pol_candidates])[::-1]
-        #     pol_g = pol_candidates[sort_idx].astype(np.intp)
-        # else:
-        #     pol_g = np.empty(0, dtype=np.intp)
+        if pol_candidates.size:
+            sort_idx = np.argsort(E_enrich[pol_candidates])[::-1]
+            pol_g = pol_candidates[sort_idx].astype(np.intp)
+        else:
+            pol_g = np.empty(0, dtype=np.intp)
 
         # only consider the top sites/polarons
         site_g_final = site_g #site_g[:int(len(site_g) * frac)]
-        pol_g_final = pol_candidates #pol_g[:int(len(pol_g) * frac)]
+        pol_g_final = pol_g #pol_g[:int(len(pol_g) * frac)]
 
         return site_g_final, pol_g_final
 
