@@ -130,126 +130,67 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
-    def select_sites_and_polarons_enrichment(
-        self,
+    def select_sites_and_polarons_enrichment(self,
         qd_lattice,
         center_global: int,
         *,
-        epsilon_site: float = 1e-1,   # mass leakage target for S_i (smaller -> more sites)
-        halo: int = 0,                # graph halo radius (in J-steps) around S_i; 0 = off
-        tau_enrich: float = 1.0,      # keep j if E_ij = C_ij / phi_i >= tau_enrich
-        tau_min: float = 1e-3,        # tiny absolute floor on coverage C_ij
-        # --- new optional knobs ---
-        cap_kappa: float = 3.5,       # cap |S_i| <= ceil(cap_kappa * PR_i)
-        omega_max: float = None,        # energy window (|E_j - E_i| <= omega_max); None = no filter
-        tail_tol: float = 1e-3,       # early-stop: keep destinations until cum C >= (1 - tail_tol) * total
-        j_thresh: float = 0.0,        # edge threshold for halo expansion (in |J|)
-        verbose: bool = False,
-        ):
+        epsilon_site: float = 1e-1,   # leakage tolerance for freezing site set (inner cutoff)
+        halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
+        tau_enrich: float = 1.6,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
+        tau_min: float = 1e-3         # tiny absolute floor on C_ij to avoid vanishingly small cases
+    ):
         """
-        Select (site_g, pol_g) for rate computation around center_global using overlap/enrichment.
-
-        Strategy:
-        1) Build S_i by cumulative mass with an optional PR-based cap, then add a small J-graph halo.
-        2) Optionally energy-prefilter candidate destinations within |E_j - E_i| <= omega_max.
-        3) Compute coverage C_ij = sum_{s in S_i^+} |U_{s j}|^2 and enrichment E_ij = C_ij / phi_i.
-        4) Keep j with E_ij >= tau_enrich and C_ij above a relative floor; sort by E_ij.
-        5) Early-stop the tail by cumulative C_ij (optional).
-        6) Return pol_g with the center i as the first entry (needed by make_redfield_box).
+        Add explanation. 
         """
         ham = qd_lattice.full_ham
-        U = ham.Umat                                    # (N_sites, N_polarons)
-        N_sites, N_pols = U.shape
+        U = ham.Umat     # shape: (N_sites, N_polarons)
+        N_sites = U.shape[0]
+
         i = int(center_global)
 
-        # ---- (0) cache |U|^2 if not present ----
-        if getattr(ham, "_U2", None) is None:
-            ham._U2 = np.abs(ham.Umat)**2
-        U2 = ham._U2
-
-        # ---- (1) Freeze site set S_i by overlap mass + PR cap ----
-        wi = U2[:, i]                                   # |psi_i|^2 over sites
-        order = np.argsort(wi)[::-1]                    # largest first
-        csum  = np.cumsum(wi[order])
-        k_mass = int(np.searchsorted(csum, 1.0 - float(epsilon_site), side="left")) + 1
-
-        # PR-based cap to avoid fat-tail explosion
-        IPR_i = float(np.sum(wi**2))                    # sum_s |psi_i|^4
-        PR_i  = 1.0 / max(IPR_i, 1e-300)               # participation ratio
-        K_cap = int(np.ceil(float(cap_kappa) * PR_i))
-        k = min(k_mass, K_cap)
-
-        # materialize S_i
+        # ---------- (1) Freeze site set S_i by overlap mass ----------
+        wi = np.abs(U[:, i])**2                    # |psi_i|^2 over sites (sums to 1)
+        order = np.argsort(wi)[::-1]               # largest first
+        csum = np.cumsum(wi[order])
+        k = int(np.searchsorted(csum, 1.0 - float(epsilon_site), side="left")) + 1
         site_g = np.sort(order[:k]).astype(np.intp)
 
-        # optional J-graph halo
+        # --- IPR / PR diagnostics ---
+        IPR_i = float(np.sum(wi**2))            # \sum_s |psi_i(s)|^4
+        PR_i  = 1.0 / IPR_i                     # participation ratio
+        print('IPR_i', PR_i)
+
+        # Optional geometric halo (if your lattice exposes a neighbor utility)
         if halo and hasattr(qd_lattice, "site_neighbors_for_radius"):
-            site_g = qd_lattice.site_neighbors_for_radius(
-                site_g, int(halo), include_self=True, j_thresh=float(j_thresh)
-            )
+            site_g = np.unique(qd_lattice.site_neighbors_for_radius(site_g, int(halo), j_thresh = 1e-2)).astype(np.intp)
 
         S_plus = site_g
         if S_plus.size == 0:
-            # degenerate: return center-only pol_g so make_redfield_box can proceed safely
-            return S_plus, np.array([i], dtype=np.intp)
+            # degenerate case; nothing to do
+            return S_plus, np.empty(0, dtype=np.intp)
 
-        # baseline fraction for a delocalized state on S_plus
-        phi_i = max(S_plus.size / float(N_sites), 1.0 / float(N_sites))
+        # Baseline fraction: expected coverage of a delocalized state on S_plus
+        phi_i = max(S_plus.size / float(N_sites), 1.0 / float(N_sites))  # guard against 0
 
-        # ---- (2) Destination prefilter: energy window (optional) ----
-        if omega_max is not None and getattr(ham, "evals", None) is not None:
-            delta = ham.evals - ham.evals[i]
-            cand = np.where(np.abs(delta) <= float(omega_max))[0]
-        else:
-            cand = np.arange(N_pols, dtype=np.intp)
-
-        # exclude center from scoring but we'll reinsert it into pol_g at the end
-        cand = cand[cand != i]
-
-        # ---- (3) Coverage & enrichment on S_plus for candidates ----
-        if cand.size == 0:
-            # nothing passes; still return center first for kernel alignment
-            return S_plus, np.array([i], dtype=np.intp)
-
+        # ---------- (2) Destination filter by ENRICHMENT on S_i^+ ----------
         # Coverage C_ij = sum_{s in S_plus} |U_{s j}|^2
-        C_cand = U2[np.ix_(S_plus, cand)].sum(axis=0)   # shape (cand.size,)
-        E_enrich_cand = C_cand / phi_i                  # enrichment vs uniform baseline
+        Wj_on_S = np.abs(U[S_plus, :])**2              # (|S_plus|, N_polarons)
+        C = Wj_on_S.sum(axis=0)                        # (N_polarons,)
+        E_enrich = C / phi_i                           # enrichment relative to uniform coverage
 
-        # relative floor tied to baseline avoids keeping states that only pass because S_plus is large
-        C_floor = max(float(tau_min), 0.1 * phi_i)
+        # Basic mask: enrichment and tiny absolute floor
+        mask = (E_enrich >= float(tau_enrich)) & (C >= float(tau_min))
+        # mask[i] = False  # exclude the center itself
 
-        keep_mask = (E_enrich_cand >= float(tau_enrich)) & (C_cand >= C_floor)
-        if not np.any(keep_mask):
-            # only center survives
-            pol_g = np.array([i], dtype=np.intp)
-            return S_plus, pol_g
+        # Final destination list, ordered by descending enrichment (helps locality)
+        pol_candidates = np.where(mask)[0]
+        if pol_candidates.size:
+            sort_idx = np.argsort(E_enrich[pol_candidates])[::-1]
+            pol_g = pol_candidates[sort_idx].astype(np.intp)
+        else:
+            pol_g = np.empty(0, dtype=np.intp)
 
-        # sort survivors by enrichment (desc)
-        cand_kept = cand[keep_mask]
-        E_kept    = E_enrich_cand[keep_mask]
-        C_kept    = C_cand[keep_mask]
-        sort_idx  = np.argsort(E_kept)[::-1]
-
-        cand_kept = cand_kept[sort_idx]
-        E_kept    = E_kept[sort_idx]
-        C_kept    = C_kept[sort_idx]
-
-        # ---- (4) Early-stop tail by cumulative coverage (optional) ----
-        if C_kept.size and float(tail_tol) > 0.0:
-            cum = np.cumsum(C_kept)
-            cutoff = np.searchsorted(cum, (1.0 - float(tail_tol)) * cum[-1])
-            cutoff = int(min(max(cutoff, 0), C_kept.size - 1))
-            cand_kept = cand_kept[:cutoff + 1]
-
-        # ---- (5) Final polaron list: center first, then destinations ----
-        pol_g = np.concatenate(([i], cand_kept)).astype(np.intp)
-
-        if verbose:
-            captured_mass = float(wi[order[:k]].sum())
-            print(f"[select] i={i} |S_i|={S_plus.size} (mass≈{captured_mass:.4f}, PR={PR_i:.1f}), "
-                f"|pol_g|-1={cand_kept.size}, phi_i={phi_i:.3f}")
-
-        return S_plus, pol_g
+        return site_g, pol_g
 
 
 
