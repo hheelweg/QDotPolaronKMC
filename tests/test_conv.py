@@ -36,7 +36,7 @@ def main():
     r_ove = 5                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
     ntrajs = 20                                 # number of trajectories to compute MSDs over
-    nrealizations = 1                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
     t_final = 5                                # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
