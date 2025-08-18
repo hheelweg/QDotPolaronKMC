@@ -137,8 +137,8 @@ class KMCRunner():
         *,
         epsilon_site: float = 1e-2,   # site-mass leakage for S_i (smaller -> more sites)
         halo: int = 0,                # optional J-graph halo radius (in "hops"); 0 = off
-        tau_enrich: float = 1,          # keep j if E_ij = C_ij / phi_i >= tau_enrich
-        omega_max: float = 0.06,       # energy pre-screen: keep |E_j - E_i| <= omega_max; None = no screen
+        tau_enrich: float = 0.8,          # keep j if E_ij = C_ij / phi_i >= tau_enrich
+        omega_max: float = 0.07,       # energy pre-screen: keep |E_j - E_i| <= omega_max; None = no screen
         j_thresh: float = 1e-2,       # edge threshold used by the halo expansion
         verbose: bool = False,
         ):
@@ -226,7 +226,7 @@ class KMCRunner():
     # NOTE : this is an alternative to _get_box
     def _get_states(self, qd_lattice, center):
 
-        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center, halo = 1)
+        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center, halo = 0)
         return site_g, pol_g
     
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global, pol_g, site_g):
