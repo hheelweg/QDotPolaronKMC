@@ -134,9 +134,9 @@ class KMCRunner():
         qd_lattice,
         center_global: int,
         *,
-        epsilon_site: float = 1e-1,   # leakage tolerance for freezing site set (inner cutoff)
+        epsilon_site: float = 1e-2,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
-        tau_enrich: float = 1.0      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
+        tau_enrich: float = 0.8      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
     ):
         """
         Add explanation. 
