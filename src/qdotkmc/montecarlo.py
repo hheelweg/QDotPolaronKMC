@@ -134,9 +134,9 @@ class KMCRunner():
         qd_lattice,
         center_global: int,
         *,
-        epsilon_site: float = 1e-3,   # leakage tolerance for freezing site set (inner cutoff)
+        epsilon_site: float = 1e-2,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
-        tau_enrich: float = 0.2      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
+        tau_enrich: float = 1.0      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
     ):
         """
         Add explanation. 
@@ -151,7 +151,7 @@ class KMCRunner():
         wi = np.abs(U[:, i])**2                    # |psi_i|^2 over sites (sums to 1)
         order = np.argsort(wi)[::-1]               # largest first
         csum = np.cumsum(wi[order])
-        k = int(np.searchsorted(csum, 1.0)) + 1 # - float(epsilon_site), side="left")) + 1
+        k = int(np.searchsorted(csum, 1.0 - float(epsilon_site), side="left")) + 1
         site_g = np.sort(order[:k]).astype(np.intp)
 
         # --- opional : IPR / PR diagnostics ---
@@ -170,7 +170,6 @@ class KMCRunner():
 
         # Baseline fraction: expected coverage of a delocalized state on S_plus
         phi_i = max(S_plus.size / float(N_sites), 1.0 / float(N_sites))  # guard against 0
-        print('phi_i', phi_i)
 
         # ---------- (2) Destination filter by ENRICHMENT on S_i^+ ----------
         # Coverage C_ij = sum_{s in S_plus} |U_{s j}|^2
@@ -190,11 +189,7 @@ class KMCRunner():
         else:
             pol_g = np.empty(0, dtype=np.intp)
 
-        # only consider the top sites/polarons
-        site_g_final = site_g #site_g[:int(len(site_g) * frac)]
-        pol_g_final = pol_g #pol_g[:int(len(pol_g) * frac)]
-
-        return site_g_final, pol_g_final
+        return site_g, pol_g
 
 
 
@@ -202,7 +197,7 @@ class KMCRunner():
     # NOTE : this is an alternative to _get_box
     def _get_states(self, qd_lattice, center):
 
-        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center, halo = 0)
+        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center, halo = 1)
         return site_g, pol_g
     
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global, pol_g, site_g):
