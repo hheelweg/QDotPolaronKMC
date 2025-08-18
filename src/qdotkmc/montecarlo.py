@@ -180,7 +180,7 @@ class KMCRunner():
 
         # Basic mask: enrichment and tiny absolute floor
         mask = (E_enrich >= float(tau_enrich)) & (C >= float(tau_min))
-        # mask[i] = False  # exclude the center itself
+        mask[i] = False  # exclude the center itself
 
         # Final destination list, ordered by descending enrichment (helps locality)
         pol_candidates = np.where(mask)[0]
