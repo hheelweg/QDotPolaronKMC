@@ -134,7 +134,7 @@ class KMCRunner():
         qd_lattice,
         center_global: int,
         *,
-        epsilon_site: float = 1e-2,   # leakage tolerance for freezing site set (inner cutoff)
+        epsilon_site: float = 1e-1,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
         tau_enrich: float = 1.0      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
     ):
@@ -197,7 +197,7 @@ class KMCRunner():
     # NOTE : this is an alternative to _get_box
     def _get_states(self, qd_lattice, center):
 
-        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center, halo = 1)
+        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center, halo = 0)
         return site_g, pol_g
     
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global, pol_g, site_g):
