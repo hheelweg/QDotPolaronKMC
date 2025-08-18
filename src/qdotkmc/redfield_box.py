@@ -114,6 +114,138 @@ class Redfield():
         return pol_g, site_g
  
 
+    def _mass_core_indices(self, u_col, eps=1e-2):
+        """Smallest index set whose |u|^2 mass ≥ 1-eps."""
+        w = np.abs(u_col)**2
+        order = np.argsort(w)[::-1]
+        csum = np.cumsum(w[order])
+        k = int(np.searchsorted(csum, 1.0 - float(eps), side='left')) + 1
+        return set(order[:k].tolist())
+
+    def _percentile_threshold(arr_abs, pct=97.0):
+        """|x| threshold at percentile pct (0..100)."""
+        return float(np.percentile(arr_abs.ravel(), pct))
+
+    def select_polaron_candidates(self, center_global, *, K_top=48, tau_K=1e-3,
+                                use_core_J=False, eps_site_core=1e-2, Jpct=97.0):
+        """
+        Returns a 1D np.array of global polaron indices (including center_global),
+        ranked by bath-weighted contact score.
+        """
+        U = self.ham.Umat                   # (N_sites, N_pol)
+        J = self.ham.J_dense                # (N_sites, N_sites), real
+        Npol = U.shape[1]
+        pol_all = np.arange(Npol, dtype=np.intp)
+
+        # --- A1) Bath gate: W_{nu'} = sum_lambda |K_lambda(omega_{nu'nu})|
+        lamvals = (-2.0, -1.0, 0.0, 1.0, 2.0)
+        bath_rows = {lam: (np.zeros(Npol, np.complex128) if lam == 0.0
+                        else self._corr_row(lam, center_global, pol_all))
+                    for lam in lamvals}
+        W = np.zeros(Npol, dtype=float)
+        for lam, row in bath_rows.items():
+            W += np.abs(row)
+
+        # normalize/gate
+        Wmax = W.max() if W.size else 0.0
+        keep_bath = (W >= tau_K * Wmax)
+
+        # --- A2) Contact score: S_{nu->nu'} = w_nu^T |J|^2 w_{nu'}
+        # Optionally restrict J to a small core around the source to speed up
+        if use_core_J:
+            core = np.array(sorted(self._mass_core_indices(U[:, center_global], eps=eps_site_core)))
+            Jsub = J[np.ix_(core, core)]
+            M = (np.abs(Jsub)**2)
+            w_src = (np.abs(U[core, center_global])**2)
+            t = M @ w_src
+            # we'll only award score on the same core; cheap and works well
+            S = np.zeros(Npol, dtype=float)
+            Wpol = np.abs(U[core, :])**2
+            S = t @ Wpol
+        else:
+            # full sites (simple; if J is very sparse this is fine)
+            M = (np.abs(J)**2)
+            w_src = (np.abs(U[:, center_global])**2)
+            t = M @ w_src                       # (N_sites,)
+            S = t @ (np.abs(U)**2)              # (N_pol,)
+
+        # Optional: suppress very weak J globally by percentile (helps speed)
+        # (only changes ranking slightly; safe to comment out)
+        # Jthr = _percentile_threshold(np.abs(J), pct=Jpct)
+        # mask = (np.abs(J) >= Jthr)
+        # M_sparse_score = (np.abs(J) * mask)**2
+        # t = M_sparse_score @ w_src
+        # S = t @ (np.abs(U)**2)
+
+        score = W * S
+        score[center_global] = np.inf  # ensure center is included, but we’ll drop later
+
+        # pick top-K among those passing the bath gate
+        cand = np.flatnonzero(keep_bath)
+        if cand.size == 0:
+            cand = np.arange(Npol)
+        order = cand[np.argsort(-score[cand])]
+        keep = order[:max(K_top, 1)]
+        # include the center as well
+        pol_idxs_global = np.unique(np.r_[keep, [int(center_global)]]).astype(np.intp)
+        return pol_idxs_global
+    
+
+    def select_sites_for_box(self, pol_idxs_global, *, eps_site=1e-2,
+                         add_J_neighbors=True, Jpct=97.0, max_neighbors=None,
+                         halo_coords=None, halo_radius=None):
+        """
+        Returns a sorted 1D np.array of site indices.
+        - Mass cores per polaron (ε cutoff), unioned.
+        - Optional: add strong-J neighbors (percentile Jpct or top max_neighbors).
+        - Optional: add geometric halo if you pass (halo_coords, halo_radius).
+        """
+        U = self.ham.Umat
+        J = self.ham.J_dense
+        Nsites = U.shape[0]
+
+        # mass cores
+        site_set = set()
+        for p in np.asarray(pol_idxs_global, dtype=int):
+            site_set |= self._mass_core_indices(U[:, p], eps=eps_site)
+
+        # optional geometric halo (if you have coordinates)
+        if halo_coords is not None and halo_radius is not None:
+            coords = np.asarray(halo_coords, float)  # shape (Nsites, dim)
+            core_pts = coords[list(site_set)]
+            # add sites within halo_radius of any core point
+            # (simple O(N*|core|); for big N you can KDTree it later)
+            rr = halo_radius**2
+            for j in range(Nsites):
+                if j in site_set: 
+                    continue
+                d2 = np.min(np.sum((core_pts - coords[j])**2, axis=1))
+                if d2 <= rr:
+                    site_set.add(j)
+
+        # expand by strong-J neighbors
+        if add_J_neighbors:
+            Jabs = np.abs(J)
+            thr = self._percentile_threshold(Jabs, pct=Jpct)
+            edges = np.argwhere(Jabs >= thr)
+            if max_neighbors is not None and edges.shape[0] > max_neighbors:
+                # keep strongest edges only
+                mags = Jabs[tuple(edges.T)]
+                keep = np.argsort(-mags)[:max_neighbors]
+                edges = edges[keep]
+            for i, j in edges:
+                if i in site_set: 
+                    site_set.add(int(j))
+                if j in site_set: 
+                    site_set.add(int(i))
+
+        site_idxs_global = np.array(sorted(site_set), dtype=np.intp)
+        return site_idxs_global
+
+
+
+
+
     # obtain redfield rates within box
     def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global):
         """
