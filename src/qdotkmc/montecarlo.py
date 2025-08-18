@@ -136,8 +136,7 @@ class KMCRunner():
         *,
         epsilon_site: float = 5e-2,   # leakage tolerance for freezing site set (inner cutoff)
         halo: int = 0,                # optional geometric halo (in lattice steps); 0 = off
-        tau_enrich: float = 0.8,      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
-        tau_min: float = 1e-3         # tiny absolute floor on C_ij to avoid vanishingly small cases
+        tau_enrich: float = 1.0      # keep j if enrichment E_ij = C_ij / phi_i >= tau_enrich
     ):
         """
         Add explanation. 
@@ -171,6 +170,7 @@ class KMCRunner():
 
         # Baseline fraction: expected coverage of a delocalized state on S_plus
         phi_i = max(S_plus.size / float(N_sites), 1.0 / float(N_sites))  # guard against 0
+        print('phi_i', phi_i)
 
         # ---------- (2) Destination filter by ENRICHMENT on S_i^+ ----------
         # Coverage C_ij = sum_{s in S_plus} |U_{s j}|^2
@@ -178,8 +178,8 @@ class KMCRunner():
         C = Wj_on_S.sum(axis=0)                        # (N_polarons,)
         E_enrich = C / phi_i                           # enrichment relative to uniform coverage
 
-        # Basic mask: enrichment and tiny absolute floor
-        mask = (E_enrich >= float(tau_enrich)) & (C >= float(tau_min))
+        # Basic mask: enrichment
+        mask = (E_enrich >= float(tau_enrich))
         # mask[i] = False  # exclude the center itself
 
         # Final destination list, ordered by descending enrichment (helps locality)
@@ -192,8 +192,8 @@ class KMCRunner():
 
         # only consider the top sites/polarons
         frac = 0.8
-        site_g_final = site_g[:int(len(site_g) * frac)]
-        pol_g_final = pol_g[:int(len(pol_g) * frac)]
+        site_g_final = site_g #site_g[:int(len(site_g) * frac)]
+        pol_g_final = pol_g #pol_g[:int(len(pol_g) * frac)]
 
         return site_g_final, pol_g_final
 
