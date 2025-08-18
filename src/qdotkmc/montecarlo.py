@@ -197,6 +197,21 @@ class KMCRunner():
 
         site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center, halo=1)
         return site_g, pol_g
+    
+    def _make_kmatrix_boxNEW(self, qd_lattice, center_global, pol_g, site_g):
+
+        # (2) compute rates on those exact indices (no re-derivation)
+        rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
+            pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
+        )
+
+        # (3) cache by global center index
+        overall_idx_start = center_global
+        qd_lattice.stored_npolarons_box[overall_idx_start] = len(pol_g)
+        qd_lattice.stored_polaron_sites[overall_idx_start] = np.copy(final_states)   # global indices
+        qd_lattice.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
+
+        return rates, final_states, tot_time
 
 
     def _make_kmc_step(self, qd_lattice, clock, polaron_start_site, rnd_generator = None):
@@ -217,7 +232,8 @@ class KMCRunner():
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
-            rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
+            #rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
+            rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global, pol_g, site_g)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
