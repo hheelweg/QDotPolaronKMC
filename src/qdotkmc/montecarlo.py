@@ -235,7 +235,7 @@ class KMCRunner():
     
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global):
 
-        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center_global, halo = 0)
+        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center_global)
         print('site_g, pol_g (test)', len(site_g), len(pol_g))
 
         # (2) compute rates on those exact indices (no re-derivation)
