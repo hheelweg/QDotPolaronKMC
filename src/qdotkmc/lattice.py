@@ -20,14 +20,10 @@ class QDLattice():
         self.seed_realization = int(seed_realization)
         self.rng = np.random.default_rng(self.seed_realization)
 
-        # initialize the box dimensions we consider for the KMC simulation
-        # self._init_box_dims(self.geom.r_hop, self.geom.r_ove)
-
         # initialize lattice
         self._make_lattice()
 
         
-
     # NOTE: old make_qd_array method (basically unchanged)
     def _make_lattice(self):    
         # set locations for each QD

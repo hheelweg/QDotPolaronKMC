@@ -94,11 +94,11 @@ class KMCRunner():
     def _make_kmatrix_box(self, qd_lattice, center_global, r_hop, r_ove):
 
         # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
-        qd_lattice._init_box_dims(r_hop, r_ove)
         qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop * qd_lattice.geom.qd_spacing, r_ove * qd_lattice.geom.qd_spacing
 
-        # (1) use legacy self._get_box()
+        # (1) use legacy self._get_box() and initialize box 
         # NOTE : this can likely be deleted
+        qd_lattice._init_box_dims(r_hop, r_ove)
         polaron_start_site = qd_lattice.polaron_locs[center_global]
         self._get_box(qd_lattice, polaron_start_site)
 
