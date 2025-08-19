@@ -169,7 +169,7 @@ class Redfield():
             print(f"[build_LW] done. Stored T in self._LW ({mem_mb:.1f} MB)")
 
         
-        # ---------- helper: smallest index set capturing (1 - theta) of mass ----------
+    # ---------- helper: smallest index set capturing (1 - theta) of mass ----------
     def _mass_core_by_theta(self, w_col, theta: float) -> np.ndarray:
         w = np.asarray(w_col, float).ravel()
         if w.size == 0:
