@@ -51,11 +51,11 @@ class KMCRunner():
         return ss_real.spawn(self.run.ntrajs)
     
 
-    def _rate_convergence(self, no_samples, *kwargs):
+    def _rate_convergence(self, no_samples):
 
         # (0) draw a lattice realization
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
-        qd_lattice = self._build_grid_realization(bath, rid=self.dis.seed_base)
+        qd_lattice = self._build_grid_realization(bath, rid = 0)
 
         # (1) produce no_samples starting indices from where to compute rate vectors
         ss_conv = self._ss_root.spawn(1)[0]
