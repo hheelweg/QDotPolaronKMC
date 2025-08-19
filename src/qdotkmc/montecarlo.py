@@ -92,6 +92,7 @@ class KMCRunner():
 
         # (0) set up r_hop and r_ove
         qd_lattice.redfield.r_hop, qd_lattice.redfield.r_hop = r_hop, r_ove
+        print('check', qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove)
 
 
         # (1) use the global indices of polaron and site inside box
@@ -163,7 +164,6 @@ class KMCRunner():
 
         # (4) define the GLOBAL center index once
         qd_lattice.center_global = int(self.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
-        print('center global', qd_lattice.center_global)
 
         # (5) optional: local position of the center inside the box (rarely needed now)
         where = np.nonzero(qd_lattice.pol_idxs_last == qd_lattice.center_global)[0]
