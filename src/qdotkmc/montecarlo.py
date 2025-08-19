@@ -263,11 +263,11 @@ class KMCRunner():
         self._get_box(qd_lattice, polaron_start_site)
 
         # (1.1) NOTE : this is for testing only right now
-        polaron_start_site_idx = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.qd_locations)
+        polaron_start_site_idx = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.polaron_locs)
 
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
-        print('start pol', polaron_start_site_idx, center_global)
+        print('start pol comp.', polaron_start_site_idx, center_global)
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
