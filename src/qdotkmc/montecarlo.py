@@ -68,7 +68,7 @@ class KMCRunner():
         print('energies', w)
 
         # (2) get rates starting from each polaron starting index and analyze by criterion
-        rates_criterion_per_center = []
+        rates_criterion_per_center, rates_criterion = [], None
         for start_idx in start_sites:
 
             rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx)
@@ -79,11 +79,12 @@ class KMCRunner():
                 sq_displacments = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
                 lamda = (rates * sq_displacments).sum()
                 rates_criterion_per_center.append(lamda)
+                rates_criterion = (w * lamda).sum()
             else:
                 raise ValueError("please specify valid convergence criterion for rates!")
 
         
-        return np.asarray(rates_criterion_per_center)
+        return np.asarray(rates_criterion_per_center), rates_criterion
 
 
 
