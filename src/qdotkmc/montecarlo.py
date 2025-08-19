@@ -166,23 +166,19 @@ class KMCRunner():
 
 
     def select_sites_and_polarons_enrichment(
-        self,
-        qd_lattice,
-        center_global: int,
-        *,
-        epsilon_site: float = 1e-2,   # site-mass leakage for S_i (smaller -> more sites)
-        halo: int = 0,                # optional J-graph halo radius (in "hops"); 0 = off
-        tau_enrich: float = 1.0,          # keep j if E_ij = C_ij / phi_i >= tau_enrich
-        omega_max: float = np.inf,       # energy pre-screen: keep |E_j - E_i| <= omega_max; None = no screen
-        j_thresh: float = 1e-2,       # edge threshold used by the halo expansion
-        verbose: bool = False,
-        ):
+            self,
+            qd_lattice,
+            center_global: int,
+            *,
+            epsilon_site: float = 1e-2,   # site-mass leakage for S_i (smaller -> more sites)
+            tau_enrich: float = 1.0,      # keep j if E_ij = C_ij / phi_i >= tau_enrich
+            verbose: bool = False,
+            ):
         """
         Select (site_g, pol_g) around `center_global` using:
-        - S_i: top-mass sites capturing >= 1 - epsilon_site of |psi_i|^2, plus optional J-halo
-        - Energy pre-screen: keep destinations with |E_j - E_i| <= omega_max (if provided)
+        - S_i: top-mass sites capturing >= 1 - epsilon_site of |psi_i|^2
         - Enrichment: keep j with E_ij = C_ij / phi_i >= tau_enrich, where
-                C_ij = sum_{s in S_i^+} |U_{s j}|^2,  phi_i = |S_i^+| / N_sites
+                C_ij = sum_{s in S_i} |U_{s j}|^2,  phi_i = |S_i| / N_sites
         - pol_g is returned with the center i as the FIRST entry (needed by make_redfield_box)
         """
         ham = qd_lattice.full_ham
@@ -190,75 +186,56 @@ class KMCRunner():
         N_sites, N_pols = U.shape
         i = int(center_global)
 
-        # ---- (1) Freeze site set S_i by cumulative mass ----
+        # ---- (1) Freeze site set S_i by cumulative mass (no halo) ----
         wi = np.abs(U[:, i])**2            # |psi_i|^2 over sites
         order = np.argsort(wi)[::-1]
         csum  = np.cumsum(wi[order])
         k = int(np.searchsorted(csum, 1.0 - float(epsilon_site), side="left")) + 1
         site_g = np.sort(order[:k]).astype(np.intp)
 
-        # (optional) diagnostics
         if verbose:
             IPR_i = float(np.sum(wi**2))
             PR_i  = 1.0 / max(IPR_i, 1e-300)
             captured = float(wi[order[:k]].sum())
             print(f"[select] i={i} |S_i|={site_g.size} mass≈{captured:.4f} PR≈{PR_i:.1f}")
 
-        # ---- (1b) Small J-graph halo (optional but recommended) ----
-        if halo and hasattr(qd_lattice, "site_neighbors_for_radius"):
-            site_g = np.unique(
-                qd_lattice.site_neighbors_for_radius(
-                    site_g, int(halo), include_self=True, j_thresh=float(j_thresh)
-                )
-            ).astype(np.intp)
-
-        S_plus = site_g
-        if S_plus.size == 0:
+        if site_g.size == 0:
             # Degenerate: still return pol_g with center first so kernel can proceed
-            return S_plus, np.array([i], dtype=np.intp)
+            return site_g, np.array([i], dtype=np.intp)
 
         # Baseline fraction under uniform coverage
-        phi_i = max(S_plus.size / float(N_sites), 1.0 / float(N_sites))
+        phi_i = max(site_g.size / float(N_sites), 1.0 / float(N_sites))
 
-        # ---- (2) Energy pre-screen of destinations (cheap, physics-based) ----
-        # Start with all indices; optionally restrict to those within |ΔE| <= omega_max
-        if omega_max is not None and getattr(ham, "evals", None) is not None:
-            delta = ham.evals - ham.evals[i]
-            cand = np.where(np.abs(delta) <= float(omega_max))[0]
-        else:
-            cand = np.arange(N_pols, dtype=np.intp)
-
-        # Exclude center from *scoring*; we'll add it back as first entry in pol_g
-        cand = cand[cand != i]
-        if cand.size == 0:
-            return S_plus, np.array([i], dtype=np.intp)
-
-        # ---- (3) Coverage & enrichment on S_i^+ for screened candidates ----
-        # Use |U|^2 to avoid recomputing squares repeatedly
+        # ---- (2) Enrichment over ALL destinations (no energy/frequency filter) ----
         U2 = np.abs(U)**2
-        C = U2[np.ix_(S_plus, cand)].sum(axis=0)     # coverage on S_i^+
+        all_cand = np.arange(N_pols, dtype=np.intp)
+        all_cand = all_cand[all_cand != i]          # exclude center from scoring
+
+        if all_cand.size == 0:
+            return site_g, np.array([i], dtype=np.intp)
+
+        C = U2[np.ix_(site_g, all_cand)].sum(axis=0)   # coverage on S_i
         E_enrich = C / phi_i
 
-        # Keep enriched destinations
+        # Keep enriched destinations and sort by enrichment (desc)
         keep = (E_enrich >= float(tau_enrich))
         if not np.any(keep):
             pol_g = np.array([i], dtype=np.intp)
-            return S_plus, pol_g
+            return site_g, pol_g
 
-        # Sort survivors by enrichment (desc)
-        cand_kept = cand[keep]
+        cand_kept = all_cand[keep]
         sort_idx  = np.argsort(E_enrich[keep])[::-1]
         cand_kept = cand_kept[sort_idx].astype(np.intp)
 
-        # ---- (4) Final polaron list: center FIRST, then destinations ----
+        # ---- (3) Final polaron list: center FIRST, then destinations ----
         pol_g = np.concatenate(([i], cand_kept)).astype(np.intp)
 
-        return S_plus, pol_g
+        return site_g, pol_g
 
     
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global):
 
-        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center_global, halo = 0)
+        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center_global)
         print('site_g, pol_g (test)', len(site_g), len(pol_g))
 
         # (2) compute rates on those exact indices (no re-derivation)
