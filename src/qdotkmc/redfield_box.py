@@ -30,33 +30,8 @@ class Redfield():
 
         # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}  # key: tuple(site_g) -> J2 ndarray
-
-
-        self._L2_full = None   # cache for full |J|^2 (uses potential sparsity)
     
-    def _get_L2_full(self):
-        """
-        Return the full matrix L2 = |J|^2 with light caching.
-        - If self.ham.J_dense is scipy.sparse, returns CSR with elementwise square.
-        - If dense ndarray, returns a float64 ndarray of elementwise squares.
-        """
-        L2 = getattr(self, "_L2_full", None)
-        J  = self.ham.J_dense
-        if L2 is not None:
-            # Reuse if shape matches current J
-            if getattr(L2, "shape", None) == getattr(J, "shape", None):
-                return L2
-
-        # Build fresh
-        if hasattr(J, "tocsr"):                  # SciPy sparse
-            L2 = J.multiply(J).tocsr()
-        else:                                     # NumPy dense
-            L2 = (np.abs(J)**2).astype(np.float64, copy=False)
-
-        self._L2_full = L2
-        return L2
-
-
+    
     # bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
     def _corr_row(self, lam, center_global, pol_g):
@@ -179,9 +154,9 @@ class Redfield():
             -> This defines site_g.
 
         Notes:
-        - Uses a cached full L2 = |J|^2 (dense or sparse) via _get_L2_full().
+        - Uses a cached full L2 = |J|^2 via _get_J2_cached().
         - No bath work here; _corr_row is only used later in make_redfield_box.
-        - As theta_* ↓ 0, selection monotonically approaches the full sets.
+        - As θ_* to 0, selection monotonically approaches the full Redfield result.
 
         Parameters
         ----------
@@ -202,25 +177,22 @@ class Redfield():
             Global polaron indices with the center FIRST, followed by kept destinations.
         """
         U  = self.ham.Umat
-        Ns, Np = U.shape
+        Ns, Np = U.shape                                                    # total number of sites, polarons
         nu = int(center_global)
 
         # --- (0) Precompute site weights and |J|^2 matvec helper ---
-        W  = (np.abs(U)**2)                              # (Ns, Np)
-        w0 = W[:, nu].astype(np.float64, copy=False)     # source mass vector
-        L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))                         # dense ndarray or sparse CSR
+        W  = (np.abs(U)**2)                                                 # (Ns, Np)
+        w0 = W[:, nu].astype(np.float64, copy=False)                        # source mass vector
+        L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))           # get the full |J|^2 matrix                  
 
-        def L2_dot(x: np.ndarray) -> np.ndarray:
-            "Mat-vec with |J|^2 for dense or sparse transparently."
-            return L2.dot(x) if hasattr(L2, "dot") else (L2 @ x)
 
-        # --- (1) Destination selection by S-coverage (theta_pol) ---
+        # (1) Destination selection by S-coverage (θ_pol) 
         # S = w0^T |J|^2 W  implemented as  t0 = |J|^2 w0  then  S = W^T t0
-        t0 = L2_dot(w0)                                  # (Ns,)
-        S  = (W.T @ t0).astype(np.float64, copy=False)   # (Np,)
-        S[nu] = 0.0                                      # exclude self
+        t0 = L2 @ w0                                                        # (Ns,)
+        S  = (W.T @ t0).astype(np.float64, copy=False)                      # (Np,)
+        S[nu] = 0.0                                                         # exclude self
 
-        # Rank once; optionally cap to the top max_nuprime for speed
+        # rank once; optionally cap to the top max_nuprime for speed
         order = np.argsort(-S)
         if max_nuprime is not None:
             order = order[:int(max_nuprime)]
@@ -228,14 +200,14 @@ class Redfield():
         totS   = float(S_desc.sum())
 
         if totS <= 0.0:
-            # Degenerate: no meaningful destinations; return a compact source-only site set
+            # degenerate: no meaningful destinations; return a compact source-only site set
             site_g = self._mass_core_by_theta(w0, theta_sites)
             pol_g  = np.array([nu], dtype=np.intp)
             if verbose:
                 print(f"[select] degenerate S: sites={site_g.size}")
             return site_g, pol_g
 
-        # Keep smallest prefix reaching (1 - theta_pol) coverage
+        # keep smallest prefix reaching (1 - θ_pol) coverage
         csum_S = np.cumsum(S_desc)
         k_pol  = int(np.searchsorted(csum_S, (1.0 - float(theta_pol)) * totS, side="left")) + 1
         kept   = order[:k_pol].astype(np.intp)
@@ -243,29 +215,28 @@ class Redfield():
 
         if verbose:
             cov_pol = csum_S[k_pol - 1] / (totS + 1e-300)
-            print(f"[select] ν' kept: {len(kept)}/{Np - 1}  S-coverage≈{cov_pol:.3f}")
+            print(f"[select] ν' kept: {len(kept)}/{Np - 1}  S-coverage = {cov_pol:.3f}")
 
-        # --- (2) Site selection by exchange-score coverage (theta_sites) ---
+        # (2) Site selection by exchange-score coverage (θ_sites) ---
         # Aggregate destination mass and its |J|^2 image
-        wD = W[:, kept].sum(axis=1).astype(np.float64, copy=False)  # (Ns,)
-        tD = L2_dot(wD)                                             # (Ns,)
+        wD = W[:, kept].sum(axis=1).astype(np.float64, copy=False)          # (Ns,)
+        tD = L2 @ wD                                                        # (Ns,)
 
-        # Exchange score per site:
-        #   s_i = w0[i]*(L2 wD)[i] + wD[i]*(L2 w0)[i]
+        # exchange score per site (s_i = w0[i]*(L2 wD)[i] + wD[i]*(L2 w0)[i]) :
         s = w0 * tD + wD * t0
         s_sum = float(s.sum())
 
         if s_sum <= 0.0:
-            # Conservative fallback: union of mass cores (rare, but safe)
+            # conservative fallback: union of mass cores (rare, but safe)
             site_set = set(self._mass_core_by_theta(w0, theta_sites).tolist())
             for j in kept:
                 site_set |= set(self._mass_core_by_theta(W[:, j], theta_sites).tolist())
             site_g = np.array(sorted(site_set), dtype=np.intp)
             if verbose:
-                print(f"[select] s_sum=0 fallback; sites={site_g.size}")
+                print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
             return site_g, pol_g
 
-        # Keep smallest prefix reaching (1 - theta_sites) coverage
+        # keep smallest prefix reaching (1 - θ_sites) coverage
         order_s = np.argsort(-s)
         csum_s  = np.cumsum(s[order_s])
         k_sites = int(np.searchsorted(csum_s, (1.0 - float(theta_sites)) * s_sum, side="left")) + 1
@@ -273,7 +244,7 @@ class Redfield():
 
         if verbose:
             cov_sites = csum_s[k_sites - 1] / (s_sum + 1e-300)
-            print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage≈{cov_sites:.3f}")
+            print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage = {cov_sites:.3f}")
 
         return site_g, pol_g
 
