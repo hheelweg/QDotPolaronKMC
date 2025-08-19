@@ -93,21 +93,21 @@ class KMCRunner():
 
     def _make_kmatrix_box(self, qd_lattice, center_global, r_hop, r_ove):
 
-        # (-1) use legacy self._get_box()
+        # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
+        qd_lattice._init_box_dims(r_hop, r_ove)
+        qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop * qd_lattice.geom.qd_spacing, r_ove * qd_lattice.geom.qd_spacing
+
+        # (1) use legacy self._get_box()
         # NOTE : this can likely be deleted
         polaron_start_site = qd_lattice.polaron_locs[center_global]
         self._get_box(qd_lattice, polaron_start_site)
 
-        
-        # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
-        qd_lattice._init_box_dims(r_hop, r_ove)
-        qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop * qd_lattice.geom.qd_spacing, r_ove * qd_lattice.geom.qd_spacing
-        
-        # (1) use the global indices of polaron and site inside box
+    
+        # (2) use the global indices of polaron and site inside box
         pol_box  = qd_lattice.pol_idxs_last
         site_box = qd_lattice.site_idxs_last
 
-        # (2) refine the polaron and site indices by additional constraints on r_hop and r_ove
+        # (3) refine the polaron and site indices by additional constraints on r_hop and r_ove
         # NOTE : refine_by_radius function can maybe be moved into this module ? 
         pol_g, site_g = qd_lattice.redfield.refine_by_radius(
                     pol_idxs_global = pol_box,
@@ -117,12 +117,12 @@ class KMCRunner():
                     grid_dims=qd_lattice.geom.lattice_dimension
                     )
 
-        # (2) compute rates on those exact indices (no re-derivation)
+        # (4) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
             pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
         )
 
-        # (3) cache by global center index
+        # (5) cache by global center index
         overall_idx_start = center_global
         qd_lattice.stored_npolarons_box[overall_idx_start] = len(pol_g)
         qd_lattice.stored_polaron_sites[overall_idx_start] = np.copy(final_states)   # global indices
