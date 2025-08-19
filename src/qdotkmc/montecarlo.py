@@ -281,7 +281,7 @@ class KMCRunner():
         self._get_box(qd_lattice, polaron_start_site)
 
         # (2) start polarong (global) idx and location
-        center_global = qd_lattice.center_global
+        center_global = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.polaron_locs)
         start_pol = qd_lattice.polaron_locs[center_global]
 
         # (3) compute (or reuse) rates
@@ -292,6 +292,7 @@ class KMCRunner():
                                                                    r_hop=self.geom.r_hop * qd_lattice.geom.qd_spacing, 
                                                                    r_ove=self.geom.r_ove * qd_lattice.geom.qd_spacing)
             # (b) compute rates from theta_pol/theta_sites (NEW)
+            # NOTE : need to update arguments
             #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global)
         else:
             tot_time = 0.0

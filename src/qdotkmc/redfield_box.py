@@ -171,7 +171,7 @@ class Redfield():
         Ns, Np = U.shape                                                    # total number of sites, polarons
         nu = int(center_global)
 
-        # --- (0) Precompute site weights and |J|^2 matvec helper ---
+        # (0) Precompute site weights |J|^2
         W  = (np.abs(U)**2)                                                 # (Ns, Np)
         w0 = W[:, nu].astype(np.float64, copy=False)                        # source mass vector
         L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))           # get the full |J|^2 matrix                  
