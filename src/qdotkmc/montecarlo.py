@@ -74,16 +74,16 @@ class KMCRunner():
         for start_idx in start_sites:
 
             # NEW way to obtain rates
-            rates, final_sites, _, selection_info = self._make_kmatrix_boxNEW(  qd_lattice, start_idx,
-                                                                                theta_sites=theta_sites,
-                                                                                theta_pol=theta_pol,
-                                                                                selection_info = True
-                                                                              )
+            rates, final_sites, _, sel_info = self._make_kmatrix_boxNEW(qd_lattice, start_idx,
+                                                                        theta_sites=theta_sites,
+                                                                        theta_pol=theta_pol,
+                                                                        selection_info = True
+                                                                        )
             
             # how many polarons/sites were selected
-            print(selection_info)
-            nsites_sel += selection_info['nsites_sel']
-            npols_sel += selection_info['npols_sel']
+            print(sel_info)
+            nsites_sel += sel_info['nsites_sel']
+            npols_sel += sel_info['npols_sel']
             
             # # OLD way to obtain rates
             # rates, final_sites, _ = self._make_kmatrix_box(qd_lattice, start_idx,
@@ -293,12 +293,12 @@ class KMCRunner():
         qd_lattice.stored_rate_vectors[center_global]  = np.copy(rates)
 
         # (4) optional: export information about selected polarons/sites for computation of rates
-        selection_info = {}
+        sel_info= {}
         if selection_info:
-            selection_info['npols_sel'] = len(pol_g)
-            selection_info['nsites_sel'] = len(site_g)
+            sel_info['npols_sel'] = len(pol_g)
+            sel_info['nsites_sel'] = len(site_g)
 
-        return rates, final_states, tot_time, selection_info
+        return rates, final_states, tot_time, sel_info
 
 
     def _make_kmc_step(self, qd_lattice, clock, polaron_start_site, rnd_generator = None):
