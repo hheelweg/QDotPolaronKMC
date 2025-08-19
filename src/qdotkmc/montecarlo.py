@@ -170,7 +170,7 @@ class KMCRunner():
             qd_lattice,
             center_global: int,
             *,
-            epsilon_site: float = 1e-3,   # site-mass leakage for S_i (smaller -> more sites)
+            epsilon_site: float = 1e-2,   # site-mass leakage for S_i (smaller -> more sites)
             tau_enrich: float = 0.6,      # keep j if E_ij = C_ij / phi_i >= tau_enrich
             verbose: bool = False,
             ):
