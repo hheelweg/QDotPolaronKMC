@@ -65,7 +65,7 @@ class KMCRunner():
         # get energy (Boltzmann) weight for each start-polaron
         w = np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals[start_sites])
         w /= np.sum(w)
-        w = np.ones_like(start_sites)
+        w = np.ones_like(start_sites, dtype=np.float64)
         w /= np.sum(w)
 
         # (2) get rates starting from each polaron starting index and analyze by criterion
