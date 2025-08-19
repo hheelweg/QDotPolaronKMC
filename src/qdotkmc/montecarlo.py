@@ -246,7 +246,8 @@ class KMCRunner():
     
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global):
 
-        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center_global)
+        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center_global, halo = 0)
+        print('site_g, pol_g (test)', len(site_g), len(pol_g))
 
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
@@ -272,8 +273,8 @@ class KMCRunner():
 
         # (1.1) NOTE : this is for testing only right now
         polaron_start_site_idx = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.qd_locations)
-        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, polaron_start_site_idx, halo = 0)
-        print('site_g, pol_g (test)', len(site_g), len(pol_g))
+        #site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, polaron_start_site_idx, halo = 0)
+        #print('site_g, pol_g (test)', len(site_g), len(pol_g))
 
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
