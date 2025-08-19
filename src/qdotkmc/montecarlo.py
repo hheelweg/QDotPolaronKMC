@@ -67,20 +67,18 @@ class KMCRunner():
         for start_idx in start_sites:
 
             rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx)
-            print('type', type(final_sites))
             
             # evaluate convergence criterion on rates vector
             if criterion == "rate-displacement":
-                start_loc = qd_lattice.qd_locations[start_idx]
-
+                start_loc = qd_lattice.qd_locations[start_idx]                                                  # r(0)
+                sq_displacments = ((qd_lattice.qd_locations[start_idx] - start_loc)**2).sum(axis = 1)           # ||Δr||^2 per destination
+                lamda = (rates * sq_displacments).sum()
+                rates_criterion.append(lambda)
             else:
                 raise ValueError("please specify valid convergence criterion for rates!")
 
-            
-
-
-
-        pass
+        
+        return rates_criterion
 
 
 
