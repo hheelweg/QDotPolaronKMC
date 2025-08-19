@@ -63,7 +63,8 @@ class KMCRunner():
         start_sites = rng_conv.integers(0, qd_lattice.geom.n_sites, size=no_samples)
 
         # get energy weight for each start-polaron
-        w = qd_lattice.full_ham.evals[start_sites]
+        w = np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals[start_sites])
+        w /= np.sum(w)
         print('energies', w)
 
         # (2) get rates starting from each polaron starting index and analyze by criterion
