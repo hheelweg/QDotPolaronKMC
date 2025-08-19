@@ -71,7 +71,7 @@ class KMCRunner():
             
             # evaluate convergence criterion on rates vector
             if criterion == "rate-displacement":
-                start_loc = qd_lattice.qd_locations[start_loc]
+                start_loc = qd_lattice.qd_locations[start_idx]
 
             else:
                 raise ValueError("please specify valid convergence criterion for rates!")
