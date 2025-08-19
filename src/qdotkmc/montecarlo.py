@@ -96,7 +96,7 @@ class KMCRunner():
         # (-1) use legacy self._get_box()
         polaron_start_site = qd_lattice.polaron_locs[center_global]
         self._get_box(qd_lattice, polaron_start_site)
-        print('pol comparison', center_global, polaron_start_site)
+        print('pol comparison', center_global, qd_lattice.center_global)
         
 
         # (0) set up r_hop and r_ove
