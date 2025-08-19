@@ -9,7 +9,7 @@ from typing import Optional
 
 class Redfield():
 
-    def __init__(self, hamiltonian, polaron_locations, site_locations, kappa,# r_hop, r_ove,
+    def __init__(self, hamiltonian, polaron_locations, site_locations, kappa,
                 time_verbose = True):
 
         self.ham = hamiltonian
@@ -19,17 +19,21 @@ class Redfield():
         self.kappa=kappa
 
         # initialize hopping and overlap radii
-        self.r_hop = None #r_hop
-        self.r_ove = None # r_ove
+        self.r_hop = None 
+        self.r_ove = None 
+
+        # initialize theta_pol and theta_sites
+        self.theta_pol = None
+        self.theta_sites = None
 
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
 
         # bath-correlation cache
-        self._corr_cache = {}  # key: (lam, self.kappa, center_global) -> dict[int -> complex]
+        self._corr_cache = {}                               # key: (lam, self.kappa, center_global) -> dict[int -> complex]
 
         # avoid recomputing J2 = J * J by caching
-        self._J2_cache = {}  # key: tuple(site_g) -> J2 ndarray
+        self._J2_cache = {}                                 # key: tuple(site_g) -> J2 ndarray
     
     
     # bath half-Fourier Transforms

@@ -210,7 +210,7 @@ class QDLattice():
     def _setup_redfield(self):
 
         self.redfield = redfield_box.Redfield(
-            self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron,# self.r_hop, self.r_ove,
+            self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron,
             time_verbose=True
         )
 

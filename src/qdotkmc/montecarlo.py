@@ -71,7 +71,10 @@ class KMCRunner():
         rates_criterion_per_center, rates_criterion = [], None
         for start_idx in start_sites:
 
-            rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx)
+            rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx,
+                                                              theta_sites=0.02,
+                                                              theta_pol=0.1
+                                                              )
             
             # evaluate convergence criterion on rates vector
             if criterion == "rate-displacement":
@@ -122,6 +125,7 @@ class KMCRunner():
         qd_lattice.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
 
         return rates, final_states, tot_time
+
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
@@ -242,10 +246,18 @@ class KMCRunner():
         return site_g, pol_g
 
     
-    def _make_kmatrix_boxNEW(self, qd_lattice, center_global):
+    def _make_kmatrix_boxNEW(self, qd_lattice, center_global, theta_pol, theta_sites):
+
+        # (0) set up θ_pol and θ_sites 
+        qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_sites = theta_pol, theta_sites
 
         # (1) select sites and polarons that ''matter'' for computing the rates
-        site_g, pol_g = qd_lattice.redfield.select_sites_and_polarons(qd_lattice, center_global=center_global, theta_sites= 0.02, theta_pol = 0.1, verbose=True)
+        site_g, pol_g = qd_lattice.redfield.select_sites_and_polarons(qd_lattice, 
+                                                                      center_global=center_global, 
+                                                                      theta_sites= qd_lattice.redfield.theta_sites, 
+                                                                      theta_pol = qd_lattice.redfield.theta_pol, 
+                                                                      verbose=True
+                                                                      )
 
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
@@ -268,26 +280,25 @@ class KMCRunner():
         # (1) build box (just indices + center_global)
         self._get_box(qd_lattice, polaron_start_site)
 
-        # (1.1) NOTE : this is for testing only right now
-        # polaron_start_site_idx = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.polaron_locs)
-
-        # start polarong (global) idx and location
+        # (2) start polarong (global) idx and location
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
 
-        # (2) compute (or reuse) rates
+        # (3) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
+            # (a) compute rates from r_hop/r_ove (OLD) 
             rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, 
                                                                    center_global, 
                                                                    r_hop=self.geom.r_hop * qd_lattice.geom.qd_spacing, 
                                                                    r_ove=self.geom.r_ove * qd_lattice.geom.qd_spacing)
+            # (b) compute rates from theta_pol/theta_sites (NEW)
             #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
             rates        = qd_lattice.stored_rate_vectors[center_global]
 
-        # (3) rejection-free KMC step
+        # (4) rejection-free KMC step
         cum_rates = np.cumsum(rates)
         S = cum_rates[-1]
 
@@ -299,7 +310,7 @@ class KMCRunner():
         # update clock
         clock += -np.log(u2) / S
 
-        # (4) final polaron position
+        # (5) final polaron position
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
         return start_pol, end_pol, clock, tot_time
