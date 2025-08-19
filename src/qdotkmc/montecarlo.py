@@ -51,7 +51,7 @@ class KMCRunner():
         return ss_real.spawn(self.run.ntrajs)
     
 
-    def _rate_convergence(self, no_samples):
+    def _rate_convergence(self, no_samples, criterion=None):
 
         # (0) draw a lattice realization
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
@@ -61,15 +61,17 @@ class KMCRunner():
         ss_conv = self._ss_root.spawn(1)[0]
         rng_conv = default_rng(ss_conv)
         start_sites = rng_conv.integers(0, qd_lattice.geom.n_sites, size=no_samples)
-        print('start sites', start_sites)
 
-        # (2) get rates starting from each polaron starting index.
+        # (2) get rates starting from each polaron starting index and analyze by criterion
         rates_smpls = []
         for start_idx in start_sites:
 
-            # (2.1) get polaron/
-            rates, _, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx)
-            print(np.sum(rates), np.max(rates), np.min(rates))
+            rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx)
+            print('rates, final_sites', len(rates), len(final_sites))
+
+            
+
+
 
         pass
 
