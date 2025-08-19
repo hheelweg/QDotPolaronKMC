@@ -77,7 +77,7 @@ class KMCRunner():
             if criterion == "rate-displacement":
                 start_loc = qd_lattice.qd_locations[start_idx]                                                      # r(0)
                 sq_displacments = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
-                lamda = (rates * sq_displacments).sum()
+                lamda = (rates * sq_displacments).sum() / (2 * qd_lattice.geom.dims)
                 rates_criterion_per_center.append(lamda)
                 rates_criterion = (w * lamda).sum()
             else:
