@@ -78,7 +78,7 @@ class KMCRunner():
                 raise ValueError("please specify valid convergence criterion for rates!")
 
         
-        return rates_criterion
+        return np.asarray(rates_criterion)
 
 
 
@@ -167,7 +167,7 @@ class KMCRunner():
         *,
         epsilon_site: float = 1e-2,   # site-mass leakage for S_i (smaller -> more sites)
         halo: int = 0,                # optional J-graph halo radius (in "hops"); 0 = off
-        tau_enrich: float = 0.8,          # keep j if E_ij = C_ij / phi_i >= tau_enrich
+        tau_enrich: float = 1.0,          # keep j if E_ij = C_ij / phi_i >= tau_enrich
         omega_max: float = np.inf,       # energy pre-screen: keep |E_j - E_i| <= omega_max; None = no screen
         j_thresh: float = 1e-2,       # edge threshold used by the halo expansion
         verbose: bool = False,
