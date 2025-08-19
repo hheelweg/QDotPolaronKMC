@@ -119,58 +119,55 @@ class Redfield():
  
 
     # ---------- One-time precompute: T = |J|^2 @ |U|^2 ----------
-    def build_LW_precompute(self, *, dtype=np.float32, chunk_rows=None, verbose=True):
-        """
-        Build and cache T = |J|^2 @ |U|^2 (shape: N_sites x N_pol), stored as self._LW.
-        Use dtype=float32 to save memory. Supports optional row-chunking if RAM is tight.
+    # def build_LW_precompute(self, *, dtype=np.float32, chunk_rows=None, verbose=True):
+    #     """
+    #     Build and cache T = |J|^2 @ |U|^2 (shape: N_sites x N_pol), stored as self._LW.
+    #     """
+    #     U = self.ham.Umat
+    #     J = self.ham.J_dense  # use your dense or sparse |J|^2; sparse is ideal here
+    #     N_sites, N_pol = U.shape
+    #     W = (np.abs(U)**2).astype(dtype, copy=False)
 
-        Memory ~ N_sites * N_pol * bytes_per_dtype. For float32 that’s ~4 * N_sites * N_pol bytes.
-        """
-        U = self.ham.Umat
-        J = self.ham.J_dense  # use your dense or sparse |J|^2; sparse is ideal here
-        N_sites, N_pol = U.shape
-        W = (np.abs(U)**2).astype(dtype, copy=False)
+    #     # L = |J|^2
+    #     if hasattr(J, "tocsr"):   # sparse path
+    #         L = (J.multiply(J)).tocsr()
+    #     else:                     # dense path
+    #         L = (np.abs(J)**2).astype(dtype, copy=False)
 
-        # L = |J|^2
-        if hasattr(J, "tocsr"):   # sparse path
-            L = (J.multiply(J)).tocsr()
-        else:                     # dense path
-            L = (np.abs(J)**2).astype(dtype, copy=False)
+    #     if verbose:
+    #         print(f"[build_LW] building T = |J|^2 @ |U|^2  (Ns={N_sites}, Np={N_pol}, dtype={dtype})")
 
-        if verbose:
-            print(f"[build_LW] building T = |J|^2 @ |U|^2  (Ns={N_sites}, Np={N_pol}, dtype={dtype})")
+    #     if chunk_rows is None:
+    #         # Full multiply
+    #         if hasattr(L, "dot"):
+    #             T = L.dot(W)
+    #         else:
+    #             T = L @ W
+    #         self._LW = T.astype(dtype, copy=False)
+    #     else:
+    #         # Chunked rows of L to reduce peak memory
+    #         T = np.zeros((N_sites, N_pol), dtype=dtype)
+    #         if hasattr(L, "tocsr"):
+    #             L_csr = L
+    #         else:
+    #             L_csr = L  # dense
+    #         for a in range(0, N_sites, int(chunk_rows)):
+    #             b = min(N_sites, a + int(chunk_rows))
+    #             if hasattr(L_csr, "dot"):
+    #                 T[a:b, :] = L_csr[a:b, :].dot(W)
+    #             else:
+    #                 T[a:b, :] = L_csr[a:b, :] @ W
+    #             if verbose:
+    #                 print(f"[build_LW] rows {a}:{b} done")
+    #         self._LW = T
 
-        if chunk_rows is None:
-            # Full multiply
-            if hasattr(L, "dot"):
-                T = L.dot(W)
-            else:
-                T = L @ W
-            self._LW = T.astype(dtype, copy=False)
-        else:
-            # Chunked rows of L to reduce peak memory
-            T = np.zeros((N_sites, N_pol), dtype=dtype)
-            if hasattr(L, "tocsr"):
-                L_csr = L
-            else:
-                L_csr = L  # dense
-            for a in range(0, N_sites, int(chunk_rows)):
-                b = min(N_sites, a + int(chunk_rows))
-                if hasattr(L_csr, "dot"):
-                    T[a:b, :] = L_csr[a:b, :].dot(W)
-                else:
-                    T[a:b, :] = L_csr[a:b, :] @ W
-                if verbose:
-                    print(f"[build_LW] rows {a}:{b} done")
-            self._LW = T
-
-        if verbose:
-            mem_mb = self._LW.nbytes / (1024**2)
-            print(f"[build_LW] done. Stored T in self._LW ({mem_mb:.1f} MB)")
+    #     if verbose:
+    #         mem_mb = self._LW.nbytes / (1024**2)
+    #         print(f"[build_LW] done. Stored T in self._LW ({mem_mb:.1f} MB)")
 
         
     # ---------- helper: smallest index set capturing (1 - theta) of mass ----------
-    def _mass_core_by_theta(self, w_col, theta: float) -> np.ndarray:
+    def _mass_core_by_theta(self, w_col, theta: float):
         w = np.asarray(w_col, float).ravel()
         if w.size == 0:
             return np.empty((0,), dtype=np.intp)
@@ -181,8 +178,7 @@ class Redfield():
         return np.sort(order[:k]).astype(np.intp)
 
     
-
-    def select_sites_and_polarons_tier1(
+    def select_sites_and_polarons(
         self,
         qd_lattice,
         center_global: int,
@@ -193,22 +189,7 @@ class Redfield():
         verbose: bool = False,
         ):
         """
-        Tier-1, two-tolerance selector (replacement for select_sites_and_polarons_enrichment).
-
-        - Destinations ν' (pol_g):
-            Rank by J-aware contact score S_{nu->nu'} = w_nu^T |J|^2 w_{nu'} and
-            keep the smallest set reaching (1 - theta_pol) coverage of total S.
-            (theta_pol controls physics fidelity; larger -> fewer ν')
-
-        - Sites (site_g):
-            Build a J-mediated exchange score across sites between the source and the
-            *kept* destinations:
-                s_i = w_nu[i]*(L w_D)[i] + w_D[i]*(L w_nu)[i],
-            where w_D = sum_{ν' kept} |U|^2[:, ν'] and L = |J|^2.
-            Keep the smallest site set reaching (1 - theta_sites) coverage of sum(s).
-            (theta_sites controls cost; smaller -> more sites)
-
-        Fast path uses self._LW = L @ |U|^2 if precomputed (see build_LW_precompute).
+        Add explanations
         """
         U = self.ham.Umat
         J = self.ham.J_dense
