@@ -114,6 +114,128 @@ class Redfield():
         return pol_g, site_g
  
 
+    def _score_candidates(self, center_global, pol_pool=None, use_sites=None):
+        """
+        Return (score, W, S) for ν' in pol_pool (default: all), using:
+        W_{ν'} = sum_λ |K_λ(ω_{ν'ν})|   via _corr_row (cached)
+        S_{ν→ν'} = w_ν^T |J|^2 w_{ν'}   (contact)
+        If use_sites is provided, restrict J^2 and U to those sites (cheap).
+        """
+        U = self.ham.Umat
+        J = self.ham.J_dense
+        N_sites, N_pol = U.shape
+        nu = int(center_global)
+
+        if pol_pool is None:
+            pol_pool = np.arange(N_pol, dtype=np.intp)
+        pol_pool = np.asarray(pol_pool, dtype=np.intp)
+
+        # --- Bath weights: prefetch & cache rows for all ν' in pol_pool
+        W = np.zeros(pol_pool.size, float)
+        for lam in (-2.0, -1.0, 0.0, 1.0, 2.0):
+            row = (np.zeros(pol_pool.size, np.complex128) if lam == 0.0
+                else self._corr_row(lam, nu, pol_pool))
+            W += np.abs(row)
+
+        # --- Contact score S = w_ν^T |J|^2 w_{ν'}
+        if use_sites is None:
+            w_nu = np.abs(U[:, nu])**2
+            J2_full = (np.abs(J)**2)
+            t = J2_full @ w_nu                           # (N_sites,)
+            S_all = (np.abs(U)**2).T @ t                 # (N_pol,)
+        else:
+            idx = np.asarray(use_sites, dtype=np.intp)
+            U2s = (np.abs(U[idx, :])**2)                 # (n, N_pol)
+            w_nu = U2s[:, nu]
+            J2s = (np.abs(J[np.ix_(idx, idx)])**2)
+            t = J2s @ w_nu                               # (n,)
+            S_all = U2s.T @ t                            # (N_pol,)
+
+        # Slice to pol_pool
+        S = S_all[pol_pool]
+        score = W * S
+        # zero out self
+        where_self = np.nonzero(pol_pool == nu)[0]
+        if where_self.size:
+            score[where_self[0]] = 0.0
+        return score, W, S
+    
+    def _k_until_cov(self, vals_desc, eta):
+        v = np.asarray(vals_desc, float)
+        tot = v.sum()
+        if tot <= 0: return 0
+        k = np.searchsorted(np.cumsum(v), (1.0 - float(eta)) * tot, side="left") + 1
+        return int(min(k, v.size))
+
+    def select_by_eta_after_box(self, center_global, *, eta=0.02,
+                                pol_pool=None, site_pool=None, verbose=False):
+        """
+        Use existing (site_pool, pol_pool) as the *universe*.
+        Pick ν' and sites by (1-η)-coverage of a safe proxy, reusing _corr_row cache.
+        Returns (site_g_sel, pol_g_sel[center first]).
+        """
+        nu = int(center_global)
+        U = self.ham.Umat
+        J = self.ham.J_dense
+        N_sites, N_pol = U.shape
+
+        if pol_pool is None:
+            pol_pool = np.arange(N_pol, dtype=np.intp)
+        if site_pool is None:
+            site_pool = np.arange(N_sites, dtype=np.intp)
+
+        # Score within the provided pools; bath rows are cached here
+        score, W, S = self._score_candidates(nu, pol_pool=pol_pool, use_sites=site_pool)
+
+        order_pool = pol_pool[np.argsort(-score)]
+        k_pol = self._k_until_cov(score[np.argsort(-score)], eta)
+        kept_pol = order_pool[:k_pol]
+        pol_g_sel = np.concatenate(([nu], kept_pol)).astype(np.intp)
+
+        # Per-ν' edge weights within site_pool
+        idx = np.asarray(site_pool, dtype=np.intp)
+        U2s = (np.abs(U[idx, :])**2)
+        w_src = U2s[:, nu]
+        J2s = (np.abs(J[np.ix_(idx, idx)])**2)
+
+        endpoints = set()
+        # source "mass core" by the SAME eta (one knob)
+        w = w_src.copy()
+        order_i = np.argsort(w)[::-1]
+        ki = self._k_until_cov(w[order_i], eta)
+        src_core = idx[order_i[:ki]]
+        endpoints.update(src_core.tolist())
+
+        for nu_p in kept_pol:
+            # destination mass core by same eta
+            wdst = U2s[:, nu_p]
+            order_j = np.argsort(wdst)[::-1]
+            kj = self._k_until_cov(wdst[order_j], eta)
+            dst_core = idx[order_j[:kj]]
+
+            # rank edges on src_core × dst_core by e_ij = |J|^2 * w_i * w'_j
+            if src_core.size == 0 or dst_core.size == 0:
+                continue
+            J2_sub = J2s[np.ix_(np.isin(idx, src_core), np.isin(idx, dst_core))]
+            e = (w[np.isin(idx, src_core)][:, None]) * J2_sub * (wdst[np.isin(idx, dst_core)][None, :])
+            ef = e.ravel()
+            if ef.size == 0 or ef.sum() == 0.0:
+                continue
+            order_e = np.argsort(-ef)
+            k_e = self._k_until_cov(ef[order_e], eta)
+            keep = order_e[:k_e]
+            ii = keep // e.shape[1]
+            jj = keep %  e.shape[1]
+            endpoints.update(src_core[ii].tolist())
+            endpoints.update(dst_core[jj].tolist())
+
+        site_g_sel = np.array(sorted(endpoints), dtype=np.intp)
+
+        if verbose:
+            cov_pol = (score[np.argsort(-score)][:k_pol].sum() / (score.sum() + 1e-300))
+            print(f"[η] kept ν': {len(pol_g_sel)-1}/{len(pol_pool)-1}, coverage≈{cov_pol:.3f}, sites={site_g_sel.size}")
+        return site_g_sel, pol_g_sel
+
 
     # obtain redfield rates within box
     def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global):

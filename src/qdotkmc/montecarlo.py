@@ -170,8 +170,8 @@ class KMCRunner():
             qd_lattice,
             center_global: int,
             *,
-            epsilon_site: float = 1e-2,   # site-mass leakage for S_i (smaller -> more sites)
-            tau_enrich: float = 1.0,      # keep j if E_ij = C_ij / phi_i >= tau_enrich
+            epsilon_site: float = 1e-3,   # site-mass leakage for S_i (smaller -> more sites)
+            tau_enrich: float = 0.6,      # keep j if E_ij = C_ij / phi_i >= tau_enrich
             verbose: bool = False,
             ):
         """
@@ -235,9 +235,13 @@ class KMCRunner():
     
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global):
 
-        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center_global)
-        print('site_g, pol_g (test)', len(site_g), len(pol_g))
+        site_pool, pol_pool = self.select_sites_and_polarons_enrichment(qd_lattice, center_global)
+        print('site_g, pol_g (test)', len(site_pool), len(pol_pool))
 
+        site_g, pol_g = qd_lattice.redfield.select_by_eta_after_box(center_global, eta=0.02,
+                                             pol_pool=pol_pool, site_pool=site_pool,
+                                             verbose=True)
+        print('site_g, pol_g (ref.)', len(site_g), len(pol_g))
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
             pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
