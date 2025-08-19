@@ -163,6 +163,17 @@ def summarize_diffusivity(msds, times, dim, tail_frac=1.0):
     return D_weighted, D_weighted_stderr
 
 
+def mass_core_by_theta(w_col, theta: float):
+    w = np.asarray(w_col, float).ravel()
+    if w.size == 0:
+        return np.empty((0,), dtype=np.intp)
+    order = np.argsort(w)[::-1]
+    csum  = np.cumsum(w[order])
+    target = (1.0 - float(theta)) * csum[-1]
+    k = int(np.searchsorted(csum, target, side="left")) + 1
+    return np.sort(order[:k]).astype(np.intp)
+
+
 # NOTE : move to utils.py ?
 def get_ipr(Umat):
     # returns ipr of one column vector, or mean ipr of multiple column vectors

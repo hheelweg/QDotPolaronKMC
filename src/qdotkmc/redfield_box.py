@@ -116,7 +116,7 @@ class Redfield():
  
 
         
-    # ---------- helper: smallest index set capturing (1 - theta) of mass ----------
+    # helper: smallest index set capturing (1 - θ) of mass / cumulative sum ----------
     def _mass_core_by_theta(self, w_col, theta: float):
         w = np.asarray(w_col, float).ravel()
         if w.size == 0:
@@ -201,7 +201,7 @@ class Redfield():
 
         if totS <= 0.0:
             # degenerate: no meaningful destinations; return a compact source-only site set
-            site_g = self._mass_core_by_theta(w0, theta_sites)
+            site_g = utils._mass_core_by_theta(w0, theta_sites)
             pol_g  = np.array([nu], dtype=np.intp)
             if verbose:
                 print(f"[select] degenerate S: sites={site_g.size}")
@@ -215,7 +215,7 @@ class Redfield():
 
         if verbose:
             cov_pol = csum_S[k_pol - 1] / (totS + 1e-300)
-            print(f"[select] ν' kept: {len(kept)}/{Np - 1}  S-coverage = {cov_pol:.3f}")
+            print(f"[select] nu' kept: {len(kept)}/{Np - 1}  S-coverage = {cov_pol:.3f}")
 
         # (2) Site selection by exchange-score coverage (θ_sites) ---
         # Aggregate destination mass and its |J|^2 image
@@ -228,9 +228,9 @@ class Redfield():
 
         if s_sum <= 0.0:
             # conservative fallback: union of mass cores (rare, but safe)
-            site_set = set(self._mass_core_by_theta(w0, theta_sites).tolist())
+            site_set = set(utils._mass_core_by_theta(w0, theta_sites).tolist())
             for j in kept:
-                site_set |= set(self._mass_core_by_theta(W[:, j], theta_sites).tolist())
+                site_set |= set(utils._mass_core_by_theta(W[:, j], theta_sites).tolist())
             site_g = np.array(sorted(site_set), dtype=np.intp)
             if verbose:
                 print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
