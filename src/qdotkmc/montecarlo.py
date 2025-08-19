@@ -63,6 +63,13 @@ class KMCRunner():
         start_sites = rng_conv.integers(0, qd_lattice.geom.n_sites, size=no_samples)
         print('start sites', start_sites)
 
+        # (2) get rates starting from each polaron starting index.
+        rates_smpls = []
+        for start_idx in start_sites:
+
+            # (2.1) get polaron/
+
+
         pass
 
 
@@ -236,8 +243,9 @@ class KMCRunner():
         return S_plus, pol_g
 
     
-    def _make_kmatrix_boxNEW(self, qd_lattice, center_global, pol_g, site_g):
+    def _make_kmatrix_boxNEW(self, qd_lattice, center_global):
 
+        site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, center_global)
 
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
@@ -273,8 +281,8 @@ class KMCRunner():
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
-            rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx, pol_g, site_g)
-            #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx)
+            # rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx, pol_g, site_g)
+            rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
