@@ -191,7 +191,7 @@ class Redfield():
             center_global: int,
             *,
             theta: float = 1e-2,         # single knob: coverage tolerance
-            max_nuprime: int ,  # optional cap on #destinations
+            max_nuprime: int | None = None,  # optional cap on #destinations
             verbose: bool = False,
         ):
         """
