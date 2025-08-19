@@ -81,7 +81,6 @@ class KMCRunner():
                                                                         )
             
             # how many polarons/sites were selected
-            print(sel_info)
             nsites_sel += sel_info['nsites_sel']
             npols_sel += sel_info['npols_sel']
             
