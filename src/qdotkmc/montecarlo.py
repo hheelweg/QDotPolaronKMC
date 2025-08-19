@@ -68,8 +68,8 @@ class KMCRunner():
         for start_idx in start_sites:
 
             # (2.1) get polaron/
-            rates, final_states, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx)
-            print(rates)
+            rates, _, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx)
+            print(np.sum(rates), np.max(rates), np.min(rates))
 
         pass
 
