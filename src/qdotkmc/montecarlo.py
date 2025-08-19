@@ -62,10 +62,9 @@ class KMCRunner():
         rng_conv = default_rng(ss_conv)
         start_sites = rng_conv.integers(0, qd_lattice.geom.n_sites, size=no_samples)
 
-        # get energy weight for each start-polaron
+        # get energy (Boltzmann) weight for each start-polaron
         w = np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals[start_sites])
         w /= np.sum(w)
-        print('energies', w)
 
         # (2) get rates starting from each polaron starting index and analyze by criterion
         rates_criterion_per_center, rates_criterion = [], None
@@ -173,7 +172,7 @@ class KMCRunner():
         *,
         epsilon_site: float = 1e-2,   # site-mass leakage for S_i (smaller -> more sites)
         halo: int = 0,                # optional J-graph halo radius (in "hops"); 0 = off
-        tau_enrich: float = 1.0,          # keep j if E_ij = C_ij / phi_i >= tau_enrich
+        tau_enrich: float = 0.8,          # keep j if E_ij = C_ij / phi_i >= tau_enrich
         omega_max: float = np.inf,       # energy pre-screen: keep |E_j - E_i| <= omega_max; None = no screen
         j_thresh: float = 1e-2,       # edge threshold used by the halo expansion
         verbose: bool = False,
