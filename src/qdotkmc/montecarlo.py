@@ -92,6 +92,7 @@ class KMCRunner():
 
         # (0) set up r_hop and r_ove
         qd_lattice.redfield.r_hop, qd_lattice.redfield.r_hop = r_hop, r_ove
+        print('check1', r_hop, r_ove)
         print('check', qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove)
 
 
@@ -163,6 +164,7 @@ class KMCRunner():
         qd_lattice.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
 
         # (4) define the GLOBAL center index once
+        # NOTE : it seems like eventuall this is all we need, so we might get rid of this function alltogether ??
         qd_lattice.center_global = int(self.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
 
         # (5) optional: local position of the center inside the box (rarely needed now)
