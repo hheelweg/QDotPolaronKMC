@@ -62,31 +62,11 @@ def main():
     
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
-    # perform KMC simulation (parallel)
-    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    print('max_workers', max_workers)
-    times, msds = kmc_setup.simulate_kmc_parallel(max_workers=max_workers)
-
-    # perform KMC simulation (serial)
-    #times, msds = kmc_setup.simulate_kmc()
-
-    # export msds as .csv file for inspection
-    qdotkmc.utils.export_msds(times, msds)
-
-
-    # get noise-averaged (pooled) trajectory MSD
-    msds_mean = np.mean(msds, axis = 0)
-
-
-    diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times, ndim)
-
-    diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
+    # test rate convergence
+    kmc_setup._rate_convergence(no_samples = 100)
     
-    # -------------------------------------------------------------------------
-    # without taking into account units:
-    print('diffusivity ', diff1, diff2)
-    print('diffusivity error', sigma_D1, sigma_D2)
     
+
 
 if __name__ == '__main__':
 

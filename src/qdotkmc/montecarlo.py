@@ -49,6 +49,20 @@ class KMCRunner():
     def _spawn_trajectory_seedseq(self, rid : int):
         ss_real = SeedSequence(self._spawn_realization_seed(rid))
         return ss_real.spawn(self.run.ntrajs)
+    
+
+    def _rate_convergence(self, no_samples, *kwargs):
+
+        # (0) draw a lattice realization
+        qd_lattice = self._build_grid_realization(self.bath_cfg, rid=self.dis.seed_base)
+
+        # (1) produce no_samples starting indices from where to compute rate vectors
+        ss_conv = self._ss_root.spawn(1)[0]
+        rng_conv = default_rng(ss_conv)
+        start_sites = rng_conv.integers(0, qd_lattice.geom.n_sites, size=no_samples)
+        print('start sites', start_sites)
+
+        pass
 
 
 
