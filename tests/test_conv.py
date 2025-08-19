@@ -63,8 +63,8 @@ def main():
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
     # test rate convergence
-    kmc_setup._rate_convergence(no_samples = 100)
-    
+    kmc_setup._rate_convergence(no_samples = 100, criterion = "rate-displacement")
+
     
 
 

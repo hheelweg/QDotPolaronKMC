@@ -63,11 +63,18 @@ class KMCRunner():
         start_sites = rng_conv.integers(0, qd_lattice.geom.n_sites, size=no_samples)
 
         # (2) get rates starting from each polaron starting index and analyze by criterion
-        rates_smpls = []
+        rates_criterion = []
         for start_idx in start_sites:
 
             rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx)
-            print('rates, final_sites', len(rates), len(final_sites))
+            print('type', type(final_sites))
+            
+            # evaluate convergence criterion on rates vector
+            if criterion == "rate-displacement":
+                start_loc = qd_lattice.qd_locations[start_loc]
+
+            else:
+                raise ValueError("please specify valid convergence criterion for rates!")
 
             
 
