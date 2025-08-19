@@ -91,9 +91,9 @@ class KMCRunner():
     def _make_kmatrix_box(self, qd_lattice, center_global, r_hop, r_ove):
 
         # (0) set up r_hop and r_ove
-        qd_lattice.redfield.r_hop, qd_lattice.redfield.r_hop = r_hop, r_ove
-        print('check1', r_hop, r_ove)
-        print('check', qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove)
+        qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop, r_ove
+        #print('check1', r_hop, r_ove)
+        #print('check', qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove)
 
 
         # (1) use the global indices of polaron and site inside box
