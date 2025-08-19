@@ -246,10 +246,9 @@ class KMCRunner():
         )
 
         # (3) cache by global center index
-        overall_idx_start = center_global
-        qd_lattice.stored_npolarons_box[overall_idx_start] = len(pol_g)
-        qd_lattice.stored_polaron_sites[overall_idx_start] = np.copy(final_states)   # global indices
-        qd_lattice.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
+        qd_lattice.stored_npolarons_box[center_global] = len(pol_g)
+        qd_lattice.stored_polaron_sites[center_global] = np.copy(final_states)   
+        qd_lattice.stored_rate_vectors[center_global]  = np.copy(rates)
 
         return rates, final_states, tot_time
 
@@ -264,8 +263,6 @@ class KMCRunner():
 
         # (1.1) NOTE : this is for testing only right now
         polaron_start_site_idx = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.qd_locations)
-        #site_g, pol_g = self.select_sites_and_polarons_enrichment(qd_lattice, polaron_start_site_idx, halo = 0)
-        #print('site_g, pol_g (test)', len(site_g), len(pol_g))
 
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
@@ -274,7 +271,6 @@ class KMCRunner():
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
-            # rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx, pol_g, site_g)
             #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx)
         else:
             tot_time = 0.0
@@ -293,7 +289,7 @@ class KMCRunner():
         # update clock
         clock += -np.log(u2) / S
 
-        # (4) final polaron coordinate in GLOBAL frame
+        # (4) final polaron position
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
         return start_pol, end_pol, clock, tot_time
