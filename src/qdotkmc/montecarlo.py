@@ -159,6 +159,7 @@ class KMCRunner():
 
         # (4) define the GLOBAL center index once
         qd_lattice.center_global = int(self.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
+        print('center global', qd_lattice.center_global)
 
         # (5) optional: local position of the center inside the box (rarely needed now)
         where = np.nonzero(qd_lattice.pol_idxs_last == qd_lattice.center_global)[0]
