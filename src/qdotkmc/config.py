@@ -8,6 +8,7 @@ class GeometryConfig:
     dims : int
     N : int
     qd_spacing: float
+    # TODO : eventually move r_hop, r_ove to RunConfig
     r_hop: float
     r_ove: float
 
