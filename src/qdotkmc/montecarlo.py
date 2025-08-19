@@ -88,7 +88,11 @@ class KMCRunner():
 
 
 
-    def _make_kmatrix_box(self, qd_lattice, center_global):
+    def _make_kmatrix_box(self, qd_lattice, center_global, r_hop, r_ove):
+
+        # (0) set up r_hop and r_ove
+        qd_lattice.redfield.r_hop, qd_lattice.redfield.r_hop = r_hop, r_ove
+
 
         # (1) use the global indices of polaron and site inside box
         pol_box  = qd_lattice.pol_idxs_last
@@ -271,8 +275,8 @@ class KMCRunner():
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
-            #rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
-            rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global)
+            rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
+            #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices

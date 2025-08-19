@@ -9,7 +9,7 @@ from typing import Optional
 
 class Redfield():
 
-    def __init__(self, hamiltonian, polaron_locations, site_locations, kappa, r_hop, r_ove,
+    def __init__(self, hamiltonian, polaron_locations, site_locations, kappa,# r_hop, r_ove,
                 time_verbose = True):
 
         self.ham = hamiltonian
@@ -18,9 +18,9 @@ class Redfield():
 
         self.kappa=kappa
 
-        # hopping and overlap radii
-        self.r_hop = r_hop
-        self.r_ove = r_ove
+        # initialize hopping and overlap radii
+        self.r_hop = None #r_hop
+        self.r_ove = None # r_ove
 
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
