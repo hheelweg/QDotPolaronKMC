@@ -94,13 +94,14 @@ class KMCRunner():
     def _make_kmatrix_box(self, qd_lattice, center_global, r_hop, r_ove):
 
         # (-1) use legacy self._get_box()
+        # NOTE : this can likely be deleted
         polaron_start_site = qd_lattice.polaron_locs[center_global]
         self._get_box(qd_lattice, polaron_start_site)
-        print('pol comparison', center_global, qd_lattice.center_global)
-        
 
-        # (0) set up r_hop and r_ove
-        qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop, r_ove
+        
+        # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
+        qd_lattice._init_box_dims(r_hop, r_ove)
+        qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop * qd_lattice.geom.qd_spacing, r_ove * qd_lattice.geom.qd_spacing
         
         # (1) use the global indices of polaron and site inside box
         pol_box  = qd_lattice.pol_idxs_last
@@ -132,7 +133,7 @@ class KMCRunner():
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
-    # NOTE : this function does obtain a box around center
+    # NOTE : this can likely be deleted
     def _get_box(self, qd_lattice, center, periodic=True):
 
         # (1) box size (unchanged)
@@ -280,20 +281,17 @@ class KMCRunner():
         # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
 
-        # (1) build box (just indices + center_global)
-        # self._get_box(qd_lattice, polaron_start_site)
-
-        # (2) start polarong (global) idx and location
+        # (1) start polarong (global) idx and location 
         center_global = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.polaron_locs)
         start_pol = qd_lattice.polaron_locs[center_global]
 
-        # (3) compute (or reuse) rates
+        # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # (a) compute rates from r_hop/r_ove (OLD) 
             rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, 
                                                                    center_global, 
-                                                                   r_hop=self.geom.r_hop * qd_lattice.geom.qd_spacing, 
-                                                                   r_ove=self.geom.r_ove * qd_lattice.geom.qd_spacing)
+                                                                   r_hop=self.geom.r_hop, 
+                                                                   r_ove=self.geom.r_ove)
             # (b) compute rates from theta_pol/theta_sites (NEW)
             # NOTE : need to update arguments
             #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global)
@@ -302,7 +300,7 @@ class KMCRunner():
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
             rates        = qd_lattice.stored_rate_vectors[center_global]
 
-        # (4) rejection-free KMC step
+        # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)
         S = cum_rates[-1]
 
@@ -314,7 +312,7 @@ class KMCRunner():
         # update clock
         clock += -np.log(u2) / S
 
-        # (5) final polaron position
+        # (4) final polaron position
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
         return start_pol, end_pol, clock, tot_time
