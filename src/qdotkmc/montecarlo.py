@@ -51,7 +51,7 @@ class KMCRunner():
         return ss_real.spawn(self.run.ntrajs)
     
 
-    def _rate_convergence(self, no_samples, criterion=None):
+    def _rate_score(self, no_samples, criterion=None):
 
         # (0) draw a lattice realization
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
@@ -94,7 +94,7 @@ class KMCRunner():
                 raise ValueError("please specify valid convergence criterion for rates!")
 
         
-        return np.asarray(rates_criterion_per_center), rates_criterion
+        return rates_criterion
 
 
 
