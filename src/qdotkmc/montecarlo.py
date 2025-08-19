@@ -238,7 +238,7 @@ class KMCRunner():
         site_pool, pol_pool = self.select_sites_and_polarons_enrichment(qd_lattice, center_global)
         print('site_g, pol_g (test)', len(site_pool), len(pol_pool))
 
-        site_g, pol_g = qd_lattice.redfield.select_by_eta_after_box(center_global, eta=0.02,
+        site_g, pol_g = qd_lattice.redfield.select_by_eta_after_box(center_global, eta=0.1,
                                              pol_pool=pol_pool, site_pool=site_pool,
                                              verbose=True)
         print('site_g, pol_g (ref.)', len(site_g), len(pol_g))
