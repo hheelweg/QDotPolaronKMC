@@ -68,7 +68,7 @@ class KMCRunner():
         for start_idx in start_sites:
 
             # (2.1) get polaron/
-
+            continue
 
         pass
 
