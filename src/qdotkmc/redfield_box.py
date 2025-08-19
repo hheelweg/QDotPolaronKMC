@@ -115,19 +115,7 @@ class Redfield():
         return pol_g, site_g
  
 
-        
-    # helper: smallest index set capturing (1 - θ) of mass / cumulative sum ----------
-    def _mass_core_by_theta(self, w_col, theta: float):
-        w = np.asarray(w_col, float).ravel()
-        if w.size == 0:
-            return np.empty((0,), dtype=np.intp)
-        order = np.argsort(w)[::-1]
-        csum  = np.cumsum(w[order])
-        target = (1.0 - float(theta)) * csum[-1]
-        k = int(np.searchsorted(csum, target, side="left")) + 1
-        return np.sort(order[:k]).astype(np.intp)
-
-    
+    # selection of sites, polarons
     def select_sites_and_polarons(
                                     self,
                                     qd_lattice,

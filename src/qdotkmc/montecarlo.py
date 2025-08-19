@@ -66,9 +66,6 @@ class KMCRunner():
         w = np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals[start_sites])
         Z = np.sum(np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals))
         w /= Z
-        # uniform weighting of all start polaron sites
-        # w = np.ones_like(start_sites, dtype=np.float64)
-        # w /= np.sum(w)
 
         # (2) get rates starting from each polaron starting index and analyze by criterion
         rates_criterion_per_center, rates_criterion = [], None
@@ -169,6 +166,7 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
+    # NOTE : can delete this because we don't proceed like this anymore
     def select_sites_and_polarons_enrichment(
             self,
             qd_lattice,
@@ -239,11 +237,9 @@ class KMCRunner():
     
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global):
 
-        # site_pool, pol_pool = self.select_sites_and_polarons_enrichment(qd_lattice, center_global)
-        # print('site_g, pol_g (test)', len(site_pool), len(pol_pool))
-
+        # (1) select sites and polarons that ''matter'' for computing the rates
         site_g, pol_g = qd_lattice.redfield.select_sites_and_polarons(qd_lattice, center_global=center_global, theta_sites= 0.02, theta_pol = 0.1, verbose=True)
-        print('site_g, pol_g (ref.)', len(site_g), len(pol_g))
+
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
             pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
@@ -273,13 +269,13 @@ class KMCRunner():
 
         center_global = qd_lattice.center_global
         start_pol = qd_lattice.polaron_locs[center_global]
-        # print('start pol', polaron_start_site_idx, center_global)
+        print('start pol', polaron_start_site_idx, center_global)
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
-            # rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
+            rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
             # rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx, pol_g, site_g)
-            rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx)
+            #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, polaron_start_site_idx)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
@@ -311,8 +307,6 @@ class KMCRunner():
 
         # get random seef from realization id (rid)
         rnd_seed = self._spawn_realization_seed(rid)
-        # NOTE : just for debugging
-        print('seed realization', rnd_seed)
         
         # initialize instance of QDLattice class
         # NOTE : change to rnd_seed = self.dis.seed_base for default seed

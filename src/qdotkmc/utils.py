@@ -163,6 +163,8 @@ def summarize_diffusivity(msds, times, dim, tail_frac=1.0):
     return D_weighted, D_weighted_stderr
 
 
+# smallest index set capturing (1 - θ) of mass / cumulative sum
+# NOTE : needed for selection of sites/polarons
 def mass_core_by_theta(w_col, theta: float):
     w = np.asarray(w_col, float).ravel()
     if w.size == 0:

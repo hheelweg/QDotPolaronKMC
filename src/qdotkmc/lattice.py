@@ -26,7 +26,6 @@ class QDLattice():
         # initialize lattice
         self._make_lattice()
 
-
         # caches for neighbors
         self._nbr1_cache = {}   # per-site 1-hop neighbors
         self._nbrR_cache = {}   # (tuple(sorted(seed)), radius, thresh) -> np.ndarray[int]
