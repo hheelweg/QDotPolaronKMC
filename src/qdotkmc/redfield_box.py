@@ -122,11 +122,10 @@ class Redfield():
     # selection of sites, polarons
     def select_sites_and_polarons(
                                     self,
-                                    qd_lattice,
                                     center_global: int,
                                     *,
-                                    theta_sites: float = 0.02,          # tighter -> more sites kept (higher cost, higher fidelity)
-                                    theta_pol:   float = 0.15,          # tighter -> more ν' kept (linear cost, physics coverage)
+                                    theta_sites: float,                 # tighter -> more sites kept (higher cost, higher fidelity)
+                                    theta_pol:   float,                 # tighter -> more ν' kept (linear cost, physics coverage)
                                     max_nuprime: Optional[int] = None,  # optional hard cap on # of ν' considered (after ranking)
                                     verbose: bool = False,
                                 ):

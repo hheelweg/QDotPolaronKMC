@@ -71,7 +71,7 @@ class KMCRunner():
         rates_criterion_per_center, rates_criterion = [], None
         for start_idx in start_sites:
 
-            rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx,
+            rates, final_sites, _ = self._make_kmatrix_boxNEW(start_idx,
                                                               theta_sites=0.02,
                                                               theta_pol=0.1
                                                               )
