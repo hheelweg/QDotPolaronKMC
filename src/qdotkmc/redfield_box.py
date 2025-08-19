@@ -22,7 +22,7 @@ class Redfield():
         self.r_hop = None 
         self.r_ove = None 
 
-        # initialize theta_pol and theta_sites
+        # initialize θ_pol and θ_sites
         self.theta_pol = None
         self.theta_sites = None
 
@@ -66,7 +66,7 @@ class Redfield():
         return J2
 
     
-    # NOTE : might move this to montecarlo.py since this is not effectively being used here
+    # NOTE : this is the box-based refinement of polarons/sites from candidates within box
     def refine_by_radius(self, *,
                      pol_idxs_global, site_idxs_global, center_global,
                      periodic=False, grid_dims=None,
@@ -118,7 +118,6 @@ class Redfield():
 
         return pol_g, site_g
  
-
     # selection of sites, polarons
     def select_sites_and_polarons(
                                     self,

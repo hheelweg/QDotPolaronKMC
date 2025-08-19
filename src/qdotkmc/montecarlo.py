@@ -76,6 +76,11 @@ class KMCRunner():
                                                               theta_pol=0.1
                                                               )
             
+            rates, final_sites, _ = self._make_kmatrix_box(qd_lattice, start_idx,
+                                                           r_hop=self.geom.r_hop,
+                                                           r_ove=self.geom.r_ove
+                                                           )
+            
             # evaluate convergence criterion on rates vector
             if criterion == "rate-displacement":
                 start_loc = qd_lattice.qd_locations[start_idx]                                                      # r(0)
@@ -102,7 +107,6 @@ class KMCRunner():
         polaron_start_site = qd_lattice.polaron_locs[center_global]
         self._get_box(qd_lattice, polaron_start_site)
 
-    
         # (2) use the global indices of polaron and site inside box
         pol_box  = qd_lattice.pol_idxs_last
         site_box = qd_lattice.site_idxs_last
