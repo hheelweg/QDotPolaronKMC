@@ -65,6 +65,8 @@ class KMCRunner():
         # get energy (Boltzmann) weight for each start-polaron
         w = np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals[start_sites])
         w /= np.sum(w)
+        w = np.ones_like(start_sites)
+        w /= np.sum(w)
 
         # (2) get rates starting from each polaron starting index and analyze by criterion
         rates_criterion_per_center, rates_criterion = [], None
@@ -238,7 +240,7 @@ class KMCRunner():
         # site_pool, pol_pool = self.select_sites_and_polarons_enrichment(qd_lattice, center_global)
         # print('site_g, pol_g (test)', len(site_pool), len(pol_pool))
 
-        site_g, pol_g = qd_lattice.redfield.select_sites_and_polarons_tier1(qd_lattice, center_global=center_global, theta= 0.01, verbose=True)
+        site_g, pol_g = qd_lattice.redfield.select_sites_and_polarons_tier1(qd_lattice, center_global=center_global, theta= 0.1, verbose=True)
         print('site_g, pol_g (ref.)', len(site_g), len(pol_g))
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
