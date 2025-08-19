@@ -51,7 +51,8 @@ class KMCRunner():
         return ss_real.spawn(self.run.ntrajs)
     
 
-    def _rate_score(self, no_samples, criterion=None):
+    # TODO : write input parameters so that we can also use this for r_hop/r_ove
+    def _rate_score(self, theta_pol, theta_sites, no_samples, criterion=None):
 
         # (0) draw a lattice realization
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
@@ -73,8 +74,8 @@ class KMCRunner():
 
             # NEW way to obtain rates
             rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx,
-                                                              theta_sites=0.02,
-                                                              theta_pol=0.1
+                                                              theta_sites=theta_sites,
+                                                              theta_pol=theta_pol
                                                               )
             
             # # OLD way to obtain rates
