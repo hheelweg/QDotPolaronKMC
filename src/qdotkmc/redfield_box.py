@@ -208,7 +208,7 @@ class Redfield():
         # --- (0) Precompute site weights and |J|^2 matvec helper ---
         W  = (np.abs(U)**2)                              # (Ns, Np)
         w0 = W[:, nu].astype(np.float64, copy=False)     # source mass vector
-        L2 = self._get_J2_cached(self.ham.J_dense, list(range(Ns)))                         # dense ndarray or sparse CSR
+        L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))                         # dense ndarray or sparse CSR
 
         def L2_dot(x: np.ndarray) -> np.ndarray:
             "Mat-vec with |J|^2 for dense or sparse transparently."
