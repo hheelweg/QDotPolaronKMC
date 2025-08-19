@@ -21,7 +21,7 @@ class QDLattice():
         self.rng = np.random.default_rng(self.seed_realization)
 
         # initialize the box dimensions we consider for the KMC simulation
-        self._init_box_dims(self.geom.r_hop, self.geom.r_ove)
+        # self._init_box_dims(self.geom.r_hop, self.geom.r_ove)
 
         # initialize lattice
         self._make_lattice()
