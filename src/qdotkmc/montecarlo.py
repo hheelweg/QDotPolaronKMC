@@ -71,15 +71,17 @@ class KMCRunner():
         rates_criterion_per_center, rates_criterion = [], None
         for start_idx in start_sites:
 
-            # rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx,
-            #                                                   theta_sites=0.02,
-            #                                                   theta_pol=0.1
-            #                                                   )
+            # NEW way to obtain rates
+            rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx,
+                                                              theta_sites=0.02,
+                                                              theta_pol=0.1
+                                                              )
             
-            rates, final_sites, _ = self._make_kmatrix_box(qd_lattice, start_idx,
-                                                           r_hop=self.geom.r_hop,
-                                                           r_ove=self.geom.r_ove
-                                                           )
+            # # OLD way to obtain rates
+            # rates, final_sites, _ = self._make_kmatrix_box(qd_lattice, start_idx,
+            #                                                r_hop=self.geom.r_hop,
+            #                                                r_ove=self.geom.r_ove
+            #                                                )
             
             # evaluate convergence criterion on rates vector
             if criterion == "rate-displacement":
