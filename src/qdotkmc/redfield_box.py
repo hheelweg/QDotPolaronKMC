@@ -32,7 +32,29 @@ class Redfield():
         self._J2_cache = {}  # key: tuple(site_g) -> J2 ndarray
 
 
-        self._LW = None  # will store T = |J|^2 @ |U|^2 (float32)
+        self._L2_full = None   # cache for full |J|^2 (uses potential sparsity)
+    
+    def _get_L2_full(self):
+        """
+        Return the full matrix L2 = |J|^2 with light caching.
+        - If self.ham.J_dense is scipy.sparse, returns CSR with elementwise square.
+        - If dense ndarray, returns a float64 ndarray of elementwise squares.
+        """
+        L2 = getattr(self, "_L2_full", None)
+        J  = self.ham.J_dense
+        if L2 is not None:
+            # Reuse if shape matches current J
+            if getattr(L2, "shape", None) == getattr(J, "shape", None):
+                return L2
+
+        # Build fresh
+        if hasattr(J, "tocsr"):                  # SciPy sparse
+            L2 = J.multiply(J).tocsr()
+        else:                                     # NumPy dense
+            L2 = (np.abs(J)**2).astype(np.float64, copy=False)
+
+        self._L2_full = L2
+        return L2
 
 
     # bath half-Fourier Transforms
@@ -118,53 +140,6 @@ class Redfield():
         return pol_g, site_g
  
 
-    # ---------- One-time precompute: T = |J|^2 @ |U|^2 ----------
-    # def build_LW_precompute(self, *, dtype=np.float32, chunk_rows=None, verbose=True):
-    #     """
-    #     Build and cache T = |J|^2 @ |U|^2 (shape: N_sites x N_pol), stored as self._LW.
-    #     """
-    #     U = self.ham.Umat
-    #     J = self.ham.J_dense  # use your dense or sparse |J|^2; sparse is ideal here
-    #     N_sites, N_pol = U.shape
-    #     W = (np.abs(U)**2).astype(dtype, copy=False)
-
-    #     # L = |J|^2
-    #     if hasattr(J, "tocsr"):   # sparse path
-    #         L = (J.multiply(J)).tocsr()
-    #     else:                     # dense path
-    #         L = (np.abs(J)**2).astype(dtype, copy=False)
-
-    #     if verbose:
-    #         print(f"[build_LW] building T = |J|^2 @ |U|^2  (Ns={N_sites}, Np={N_pol}, dtype={dtype})")
-
-    #     if chunk_rows is None:
-    #         # Full multiply
-    #         if hasattr(L, "dot"):
-    #             T = L.dot(W)
-    #         else:
-    #             T = L @ W
-    #         self._LW = T.astype(dtype, copy=False)
-    #     else:
-    #         # Chunked rows of L to reduce peak memory
-    #         T = np.zeros((N_sites, N_pol), dtype=dtype)
-    #         if hasattr(L, "tocsr"):
-    #             L_csr = L
-    #         else:
-    #             L_csr = L  # dense
-    #         for a in range(0, N_sites, int(chunk_rows)):
-    #             b = min(N_sites, a + int(chunk_rows))
-    #             if hasattr(L_csr, "dot"):
-    #                 T[a:b, :] = L_csr[a:b, :].dot(W)
-    #             else:
-    #                 T[a:b, :] = L_csr[a:b, :] @ W
-    #             if verbose:
-    #                 print(f"[build_LW] rows {a}:{b} done")
-    #         self._LW = T
-
-    #     if verbose:
-    #         mem_mb = self._LW.nbytes / (1024**2)
-    #         print(f"[build_LW] done. Stored T in self._LW ({mem_mb:.1f} MB)")
-
         
     # ---------- helper: smallest index set capturing (1 - theta) of mass ----------
     def _mass_core_by_theta(self, w_col, theta: float):
@@ -179,101 +154,126 @@ class Redfield():
 
     
     def select_sites_and_polarons(
-        self,
-        qd_lattice,
-        center_global: int,
-        *,
-        theta_sites: float = 0.02,          # stricter: drives cost (n)
-        theta_pol:   float = 0.15,          # looser: avoids over-pruning physics (P)
-        max_nuprime: Optional[int] = None,  # optional hard cap on # of ν'
-        verbose: bool = False,
-        ):
+                                    self,
+                                    qd_lattice,
+                                    center_global: int,
+                                    *,
+                                    theta_sites: float = 0.02,          # tighter -> more sites kept (higher cost, higher fidelity)
+                                    theta_pol:   float = 0.15,          # tighter -> more ν' kept (linear cost, physics coverage)
+                                    max_nuprime: Optional[int] = None,  # optional hard cap on # of ν' considered (after ranking)
+                                    verbose: bool = False,
+                                ):
         """
-        Add explanations
+        Physics-aware, two-parameter selector for a single center polaron ν.
+
+        What it does (in order):
+        1) Rank destination polarons ν' by the J-aware contact score
+                S_{ν→ν'} = w_ν^T |J|^2 w_{ν'} ,  with  w_α[m] = |U_{mα}|^2 .
+            Keep the smallest set whose cumulative S reaches (1 - theta_pol) of total S.
+            -> This defines pol_g = [ν] + kept ν'.
+
+        2) Build a site-importance (exchange) score relative to the kept destinations:
+                s_i = w_ν[i] * (|J|^2 w_D)[i] + w_D[i] * (|J|^2 w_ν)[i],
+            where w_D = sum_{ν' in kept} w_{ν'}.
+            Keep the smallest site set reaching (1 - theta_sites) of sum(s).
+            -> This defines site_g.
+
+        Notes:
+        - Uses a cached full L2 = |J|^2 (dense or sparse) via _get_L2_full().
+        - No bath work here; _corr_row is only used later in make_redfield_box.
+        - As theta_* ↓ 0, selection monotonically approaches the full sets.
+
+        Parameters
+        ----------
+        theta_sites : float
+            Coverage tolerance for sites. Smaller values keep MORE sites (higher cost, higher fidelity).
+        theta_pol : float
+            Coverage tolerance for destination polarons. Smaller values keep MORE ν' (linear cost).
+        max_nuprime : Optional[int]
+            Optional hard cap on the number of ν' considered after ranking by S (useful for speed).
+        verbose : bool
+            Print small diagnostics.
+
+        Returns
+        -------
+        site_g : np.ndarray[int]
+            Global site indices selected by exchange-score coverage.
+        pol_g : np.ndarray[int]
+            Global polaron indices with the center FIRST, followed by kept destinations.
         """
-        U = self.ham.Umat
-        J = self.ham.J_dense
+        U  = self.ham.Umat
         Ns, Np = U.shape
         nu = int(center_global)
 
-        # Site weights
-        W  = (np.abs(U)**2)                       # (Ns, Np)
-        w0 = W[:, nu].astype(np.float64, copy=False)  # source mass
+        # --- (0) Precompute site weights and |J|^2 matvec helper ---
+        W  = (np.abs(U)**2)                              # (Ns, Np)
+        w0 = W[:, nu].astype(np.float64, copy=False)     # source mass vector
+        L2 = self._get_L2_full()                         # dense ndarray or sparse CSR
 
-        # -------- Destinations: S_{nu->:} coverage with theta_pol --------
-        # S = w0^T L W  but implemented as (L W)^T w0 = self._LW.T @ w0
-        if getattr(self, "_LW", None) is not None:
-            S = (self._LW.T @ w0).astype(np.float64, copy=False)  # (Np,)
-            t0 = self._LW[:, nu].astype(np.float64, copy=False)   # L w0 for later
-        else:
-            # fallback: t0 = L w0 ; S = W^T t0
-            if hasattr(J, "tocsr"):
-                L = (J.multiply(J)).tocsr()
-                t0 = L.dot(w0)
-            else:
-                L = (np.abs(J)**2)
-                t0 = L @ w0
-            S = (W.T @ t0).astype(np.float64, copy=False)
+        def L2_dot(x: np.ndarray) -> np.ndarray:
+            "Mat-vec with |J|^2 for dense or sparse transparently."
+            return L2.dot(x) if hasattr(L2, "dot") else (L2 @ x)
 
-        S[nu] = 0.0
+        # --- (1) Destination selection by S-coverage (theta_pol) ---
+        # S = w0^T |J|^2 W  implemented as  t0 = |J|^2 w0  then  S = W^T t0
+        t0 = L2_dot(w0)                                  # (Ns,)
+        S  = (W.T @ t0).astype(np.float64, copy=False)   # (Np,)
+        S[nu] = 0.0                                      # exclude self
+
+        # Rank once; optionally cap to the top max_nuprime for speed
         order = np.argsort(-S)
         if max_nuprime is not None:
-            order = order[:max_nuprime]
-
+            order = order[:int(max_nuprime)]
         S_desc = S[order]
-        totS = float(S_desc.sum())
+        totS   = float(S_desc.sum())
 
         if totS <= 0.0:
-            # Degenerate: no meaningful destinations
+            # Degenerate: no meaningful destinations; return a compact source-only site set
             site_g = self._mass_core_by_theta(w0, theta_sites)
             pol_g  = np.array([nu], dtype=np.intp)
             if verbose:
-                print(f"[tier1-2θ] degenerate: S_sum=0; sites={site_g.size}")
+                print(f"[select] degenerate S: sites={site_g.size}")
             return site_g, pol_g
 
-        csum = np.cumsum(S_desc)
-        k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol)) * totS, side="left")) + 1
-        kept = order[:k_pol].astype(np.intp)
-        pol_g = np.concatenate(([nu], kept)).astype(np.intp)
+        # Keep smallest prefix reaching (1 - theta_pol) coverage
+        csum_S = np.cumsum(S_desc)
+        k_pol  = int(np.searchsorted(csum_S, (1.0 - float(theta_pol)) * totS, side="left")) + 1
+        kept   = order[:k_pol].astype(np.intp)
+        pol_g  = np.concatenate(([nu], kept)).astype(np.intp)
 
         if verbose:
-            cov_pol = csum[k_pol-1] / (totS + 1e-300)
-            print(f"[tier1-2θ] kept ν': {len(kept)}/{Np-1}, S-coverage≈{cov_pol:.3f}")
+            cov_pol = csum_S[k_pol - 1] / (totS + 1e-300)
+            print(f"[select] ν' kept: {len(kept)}/{Np - 1}  S-coverage≈{cov_pol:.3f}")
 
-        # -------- Sites: exchange score coverage with theta_sites --------
-        # w_D = sum of |U|^2 over kept ν'
-        wD = W[:, kept].sum(axis=1).astype(np.float64, copy=False)
+        # --- (2) Site selection by exchange-score coverage (theta_sites) ---
+        # Aggregate destination mass and its |J|^2 image
+        wD = W[:, kept].sum(axis=1).astype(np.float64, copy=False)  # (Ns,)
+        tD = L2_dot(wD)                                             # (Ns,)
 
-        # tD = L wD ; we already have t0 = L w0
-        if getattr(self, "_LW", None) is not None:
-            tD = self._LW[:, kept].sum(axis=1).astype(np.float64, copy=False)
-        else:
-            if not 'L' in locals():
-                # build L if not sparse path above
-                L = (J.multiply(J)).tocsr() if hasattr(J, "tocsr") else (np.abs(J)**2)
-            tD = L.dot(wD) if hasattr(L, "dot") else (L @ wD)
-
-        # Exchange score per site and coverage
+        # Exchange score per site:
+        #   s_i = w0[i]*(L2 wD)[i] + wD[i]*(L2 w0)[i]
         s = w0 * tD + wD * t0
         s_sum = float(s.sum())
+
         if s_sum <= 0.0:
-            # Conservative fallback: union of mass cores
+            # Conservative fallback: union of mass cores (rare, but safe)
             site_set = set(self._mass_core_by_theta(w0, theta_sites).tolist())
             for j in kept:
                 site_set |= set(self._mass_core_by_theta(W[:, j], theta_sites).tolist())
             site_g = np.array(sorted(site_set), dtype=np.intp)
             if verbose:
-                print(f"[tier1-2θ] s_sum=0 fallback; sites={site_g.size}")
+                print(f"[select] s_sum=0 fallback; sites={site_g.size}")
             return site_g, pol_g
 
+        # Keep smallest prefix reaching (1 - theta_sites) coverage
         order_s = np.argsort(-s)
         csum_s  = np.cumsum(s[order_s])
         k_sites = int(np.searchsorted(csum_s, (1.0 - float(theta_sites)) * s_sum, side="left")) + 1
-        site_g = np.sort(order_s[:k_sites]).astype(np.intp)
+        site_g  = np.sort(order_s[:k_sites]).astype(np.intp)
 
         if verbose:
-            cov_sites = csum_s[k_sites-1] / (s_sum + 1e-300)
-            print(f"[tier1-2θ] site coverage≈{cov_sites:.3f}, sites={site_g.size}")
+            cov_sites = csum_s[k_sites - 1] / (s_sum + 1e-300)
+            print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage≈{cov_sites:.3f}")
 
         return site_g, pol_g
 
