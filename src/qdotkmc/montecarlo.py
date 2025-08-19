@@ -93,12 +93,15 @@ class KMCRunner():
 
     def _make_kmatrix_box(self, qd_lattice, center_global, r_hop, r_ove):
 
+        # (-1) use legacy self._get_box()
+        polaron_start_site = qd_lattice.polaron_locs[center_global]
+        self._get_box(qd_lattice, polaron_start_site)
+        print('pol comparison', center_global, polaron_start_site)
+        
+
         # (0) set up r_hop and r_ove
         qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop, r_ove
-        #print('check1', r_hop, r_ove)
-        #print('check', qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove)
-
-
+        
         # (1) use the global indices of polaron and site inside box
         pol_box  = qd_lattice.pol_idxs_last
         site_box = qd_lattice.site_idxs_last
@@ -278,7 +281,7 @@ class KMCRunner():
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
 
         # (1) build box (just indices + center_global)
-        self._get_box(qd_lattice, polaron_start_site)
+        # self._get_box(qd_lattice, polaron_start_site)
 
         # (2) start polarong (global) idx and location
         center_global = self.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.polaron_locs)
