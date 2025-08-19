@@ -52,7 +52,7 @@ class KMCRunner():
     
 
     # TODO : write input parameters so that we can also use this for r_hop/r_ove
-    def _rate_score(self, theta_pol, theta_sites, no_samples, criterion=None):
+    def _rate_score(self, theta_pol, theta_sites, no_samples, criterion=None, score_info=False):
 
         # (0) draw a lattice realization
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
@@ -69,14 +69,20 @@ class KMCRunner():
         w /= Z
 
         # (2) get rates starting from each polaron starting index and analyze by criterion
-        rates_criterion_per_center, rates_criterion = [], None
+        rates_criterion = None
+        nsites_sel, npols_sel = 0, 0
         for start_idx in start_sites:
 
             # NEW way to obtain rates
-            rates, final_sites, _ = self._make_kmatrix_boxNEW(qd_lattice, start_idx,
-                                                              theta_sites=theta_sites,
-                                                              theta_pol=theta_pol
-                                                              )
+            rates, final_sites, _, selection_info = self._make_kmatrix_boxNEW(  qd_lattice, start_idx,
+                                                                                theta_sites=theta_sites,
+                                                                                theta_pol=theta_pol,
+                                                                                selection_info = True
+                                                                              )
+            
+            # how many polarons/sites were selected
+            nsites_sel += selection_info['nsites_sel']
+            npols_sel += selection_info['npols_sel']
             
             # # OLD way to obtain rates
             # rates, final_sites, _ = self._make_kmatrix_box(qd_lattice, start_idx,
@@ -89,13 +95,18 @@ class KMCRunner():
                 start_loc = qd_lattice.qd_locations[start_idx]                                                      # r(0)
                 sq_displacments = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
                 lamda = (rates * sq_displacments).sum() / (2 * qd_lattice.geom.dims)
-                rates_criterion_per_center.append(lamda)
                 rates_criterion = (w * lamda).sum()
             else:
                 raise ValueError("please specify valid convergence criterion for rates!")
+            
 
-        
-        return rates_criterion
+        # optional : store additional information
+        info = {}
+        if score_info:
+            info['ave_sites'] = nsites_sel / no_samples
+            info['ave_pols'] = npols_sel / no_samples
+
+        return rates_criterion, info
 
 
 
@@ -257,7 +268,7 @@ class KMCRunner():
         return site_g, pol_g
 
     
-    def _make_kmatrix_boxNEW(self, qd_lattice, center_global, theta_pol, theta_sites):
+    def _make_kmatrix_boxNEW(self, qd_lattice, center_global, theta_pol, theta_sites, selection_info = False):
 
         # (0) set up θ_pol and θ_sites 
         qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_sites = theta_pol, theta_sites
@@ -280,7 +291,13 @@ class KMCRunner():
         qd_lattice.stored_polaron_sites[center_global] = np.copy(final_states)   
         qd_lattice.stored_rate_vectors[center_global]  = np.copy(rates)
 
-        return rates, final_states, tot_time
+        # (4) optional: export information about selected polarons/sites for computation of rates
+        selection_info = {}
+        if selection_info:
+            selection_info['npols_sel'] = len(pol_g)
+            selection_info['nsites_sel'] = len(site_g)
+
+        return rates, final_states, tot_time, selection_info
 
 
     def _make_kmc_step(self, qd_lattice, clock, polaron_start_site, rnd_generator = None):
@@ -301,7 +318,7 @@ class KMCRunner():
                                                                    r_ove=self.geom.r_ove)
             # (b) compute rates from theta_pol/theta_sites (NEW)
             # NOTE : need to update arguments
-            #rates, final_states, tot_time = self._make_kmatrix_boxNEW(qd_lattice, center_global)
+            #rates, final_states, tot_time, _ = self._make_kmatrix_boxNEW(qd_lattice, center_global)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
