@@ -135,7 +135,7 @@ class ConvergenceAnalysis(KMCRunner):
 
                 # (1) let worker obtain rates etc.
                 start_idx, rates, final_sites, sel_info = fut.result()
-                print('cum rates', np.sum(rates))
+                print('cum rates', start_idx, np.sum(rates))
 
                 # (2) post-processing of information from _rate_worker to obtain scores etc.
                 # (2.1) how many polarons/sites were selected 
