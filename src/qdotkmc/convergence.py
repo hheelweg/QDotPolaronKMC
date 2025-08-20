@@ -12,7 +12,8 @@ from .montecarlo import KMCRunner
 # global variable to allow parallel workers to use the same QDLattice for convergence tests
 _QDLAT_GLOBAL = None
 
-# top-level worker for computing the rates from a single lattice site
+# top-level worker for computing the rate scores from a single lattice site
+# TODO: do we want to recompute this 
 def _rate_score_worker(args):
     (start_idx, theta_pol, theta_sites, criterion, weight) = args
     # Compute rates for this start index
@@ -143,10 +144,9 @@ class ConvergenceAnalysis(KMCRunner):
             futs = [ex.submit(_rate_score_worker, job) for job in jobs]
             for fut in as_completed(futs):
 
-                # (1) let worker obtain rates etc.
+                # let worker obtain weighted convergence criterion
                 weighted_criterion, nsite_sel, npol_sel = fut.result()
 
-                # (2) add 
                 nsites_sel += nsite_sel
                 npols_sel += npol_sel
                 rates_criterion += weighted_criterion
