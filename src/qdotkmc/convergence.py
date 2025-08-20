@@ -18,7 +18,9 @@ def _rate_worker(args):
     (start_idx, theta_pol, theta_sites) = args
     qd_lattice = _QDLAT_GLOBAL
     # Compute rates for this start index
-    rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(qd_lattice, start_idx, theta_sites, theta_pol)
+    rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(qd_lattice, start_idx,
+                                                                     theta_sites, theta_pol,
+                                                                     selection_info = True)
     return start_idx, rates, final_sites, sel_info
 
 
