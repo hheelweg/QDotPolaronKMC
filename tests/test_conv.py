@@ -59,25 +59,16 @@ def main():
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200)
 
-    
-    kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
 
-    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run)
+    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=100)
     
     # test rate convergence
     theta_sites = 0.02
     theta_pol = 0.1
     # (1) build environment to compute rate convergence
-    #qd_lattice, start_sites, weights = kmc_setup._build_rate_convergenc_env(no_samples = 100)
-
-    qd_lattice, start_sites, weights = convergence_setup._build_rate_convergenc_env(no_samples = 100)
+    # qd_lattice, start_sites, weights = convergence_setup._build_rate_convergenc_env()
     # (2) evaluate convergence score
-    # criterion_coll, score_info = kmc_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites,
-    #                                                    qd_lattice=qd_lattice, start_sites=start_sites, weights=weights,
-    #                                                    criterion = "rate-displacement", score_info=True)
-    
     criterion_coll, score_info = convergence_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites,
-                                                       qd_lattice=qd_lattice, start_sites=start_sites, weights=weights,
                                                        criterion = "rate-displacement", score_info=True)
     
 
