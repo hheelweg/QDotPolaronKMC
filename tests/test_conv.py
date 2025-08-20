@@ -78,7 +78,7 @@ def main():
     print('max_workers', max_workers)
     criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites,
                                                              criterion='rate-displacement', score_info=True,
-                                                             max_workers=max_workers)
+                                                             max_workers=1)
 
 
     print('criterion', criterion)
