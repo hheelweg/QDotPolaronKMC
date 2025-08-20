@@ -179,6 +179,7 @@ class ConvergenceAnalysis(KMCRunner):
                             delta: float           = 0.015,
                             max_steps: int         = 8,
                             criterion: str         = "rate-displacement",
+                            verbose                = True
                         ):
         tp = float(theta_pol_start)
 
@@ -197,6 +198,9 @@ class ConvergenceAnalysis(KMCRunner):
 
             # accept move
             tp, lam_from = tp_next, lam_to
+
+            if verbose:
+                print(f"[pol]  tp→{tp:.4f}  per-oct gain={gain*100:.2f}%/oct")
 
             # stop when additional tightening barely helps
             if gain < float(delta) or tp <= float(theta_pol_min) + 1e-12:
