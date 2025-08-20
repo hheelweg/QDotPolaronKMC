@@ -9,16 +9,14 @@ from . import const
 from .hamiltonian_box import SpecDens
 from .montecarlo import KMCRunner
 
-# global variable to allow parallel workers to use the same bath setup and QDLattice for convergence tests
-#_BATH_GLOBAL = None
+# global variable to allow parallel workers to use the same QDLattice for convergence tests
 _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rates from a single lattice site
 def _rate_worker(args):
     (start_idx, theta_pol, theta_sites) = args
-    qd_lattice = _QDLAT_GLOBAL
     # Compute rates for this start index
-    rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(qd_lattice, start_idx,
+    rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(_QDLAT_GLOBAL, start_idx,
                                                                      theta_sites, theta_pol,
                                                                      selection_info = True)
     return start_idx, rates, final_sites, sel_info
@@ -113,9 +111,8 @@ class ConvergenceAnalysis(KMCRunner):
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
         os.environ.setdefault("MKL_CBWR", "COMPATIBLE")
 
-        # Expose bath and QDLattice to workers via module-global, then FORK the pool
-        global _BATH_GLOBAL, _QDLAT_GLOBAL
-        #_BATH_GLOBAL = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
+        # Expose QDLattice to workers via module-global, then FORK the pool
+        global _QDLAT_GLOBAL
         _QDLAT_GLOBAL = self.qd_lattice
 
         # Use fork context so children inherit memory instead of pickling args
@@ -134,9 +131,9 @@ class ConvergenceAnalysis(KMCRunner):
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_rate_worker, job) for job in jobs]
             for fut in as_completed(futs):
+
                 # (1) let worker obtain rates etc.
                 start_idx, rates, final_sites, sel_info = fut.result()
-                print('start_idx', start_idx)
 
                 # (2) post-processing of information from _rate_worker to obtain scores etc.
                 # (2.1) how many polarons/sites were selected 
