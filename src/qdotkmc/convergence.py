@@ -161,145 +161,125 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-        
+    @staticmethod
+    def _per_oct_gain(lam_from: float, lam_to: float, span_factor: float) -> float:
+        rel = (lam_to - lam_from) / (abs(lam_from) + 1e-300)
+        octaves = np.log(1.0 / max(span_factor, 1e-12)) / np.log(2.0)
+        return rel / max(octaves, 1e-12)
 
-    def _tune_theta_pol_simple(
-                                self,
-                                *,
-                                theta_sites: float,
-                                theta_pol_start: float = 0.30,
-                                theta_pol_min: float = 0.02,
-                                shrink: float = 0.7,              # fixed geometric shrink per step
-                                delta_pol: float = 0.015,         # stop when per-octave ΔΛ/Λ < delta_pol
-                                max_steps: int = 10,
-                                criterion: str = "rate-displacement",
-                              ):
-        """
-        Shrink theta_pol by a fixed factor until Λ stops changing materially
-        (measured as per-octave relative gain). Uses ONLY self._rate_score(...).
-        Returns dict with theta_pol, Lambda, cost proxy, and avg sizes.
-        """
-        def eval_score(tp: float):
-            lam, info = self._rate_score_parallel(tp, theta_sites,
-                                         criterion=criterion, score_info=True, max_workers=8)
-            # cheap cost proxy: dense-J ~ n^2 * P
-            n = float(info.get('ave_sites', 1.0)) or 1.0
-            P = float(info.get('ave_pols',  1.0)) or 1.0
-            cost = n*n * P
-            return float(lam), info, float(cost)
 
+    # --- inner: tune theta_pol at fixed theta_sites using fixed-span rule ---
+    def _tune_theta_pol_span(
+                            self,
+                            theta_sites: float,
+                            *,
+                            theta_pol_start: float = 0.30,
+                            theta_pol_min: float   = 0.02,
+                            rho: float             = 0.7,
+                            delta: float           = 0.015,
+                            max_steps: int         = 8,
+                            criterion: str         = "rate-displacement",
+                        ):
         tp = float(theta_pol_start)
-        lam_prev, info_prev, cost_prev = eval_score(tp)
+
+        # evaluate Lambda at current theta_pol
+        lam_from, _info = self._rate_score(tp, theta_sites, criterion=criterion, score_info=True)
 
         for _ in range(int(max_steps)):
-            tp_next = max(float(theta_pol_min), float(shrink) * tp)
-            if tp_next >= tp - 1e-15:  # no progress possible
+            tp_next = max(float(theta_pol_min), rho * tp)
+            if tp_next >= tp - 1e-15:
                 break
 
-            lam_next, info_next, cost_next = eval_score(tp_next)
+            lam_to, _ = self._rate_score_parallel(tp_next, theta_sites, criterion=criterion, score_info=False, max_workers=8)
 
-            # per-octave relative gain (step-size robust)
-            rel_gain = (lam_next - lam_prev) / (abs(lam_prev) + 1e-300)
-            span_oct = np.log(max(1e-12, tp / tp_next)) / np.log(2.0)
-            per_oct_gain = rel_gain / max(span_oct, 1e-12)
+            # per-octave gain over a fixed span tp -> rho*tp
+            gain = self._per_oct_gain(lam_from, lam_to, rho)
 
-            # accept step
-            tp, lam_prev, info_prev, cost_prev = tp_next, lam_next, info_next, cost_next
+            # accept move
+            tp, lam_from = tp_next, lam_to
 
-            if per_oct_gain < float(delta_pol) or tp <= float(theta_pol_min) + 1e-12:
+            # stop when additional tightening barely helps
+            if gain < float(delta) or tp <= float(theta_pol_min) + 1e-12:
                 break
 
-        return {
-            "theta_pol": tp,
-            "Lambda": lam_prev,
-            "cost": cost_prev,
-            "avg_sites": float(info_prev.get('ave_sites', np.nan)),
-            "avg_pols": float(info_prev.get('ave_pols',  np.nan)),
-        }
-    
+        return tp, float(lam_from)
 
-    def auto_tune_thetas_simple(
-                                self,
-                                *,
-                                theta_sites_grid=(0.10, 0.07, 0.05, 0.035, 0.025),
-                                theta_pol_start: float = 0.30,
-                                theta_pol_min: float = 0.02,
-                                shrink_pol: float = 0.7,
-                                delta_pol: float = 0.015,          # per-octave ΔΛ/Λ stop for pol tuning
-                                delta_octave: float = 0.015,       # knee threshold along sites (per-octave slope)
-                                criterion: str = "rate-displacement",
-                                analytics: bool = True,
+    # --- outer: bisection in log(theta_sites) using fixed-span rule; returns chosen thetas + Lambda ---
+    def auto_tune_thetas_bisection(
+                                    self,
+                                    *,
+                                    theta_sites_lo: float = 0.10,   # loose (larger) starting value
+                                    theta_sites_hi: float = 0.02,   # tight (smaller) floor
+                                    theta_pol_start: float = 0.30,
+                                    theta_pol_min:   float = 0.02,
+                                    rho: float             = 0.7,   # fixed span to test gains
+                                    delta: float           = 0.015, # “plateau” target per-octave gain (≈1–2%)
+                                    max_outer: int         = 12,
+                                    criterion: str         = "rate-displacement",
                                 ):
-        """
-        1) For each theta_sites on a small geometric grid, shrink theta_pol until Λ saturates.
-        2) Compute per-octave slopes of Λ between neighbors and pick the first
-           theta_sites where slope < delta_octave ("flat" region).
-        Returns chosen (theta_sites, theta_pol), Λ, cost proxy, and a small diagnostics dict.
-        """
-        # (1) evaluate Λ for each theta_sites with minimal pol tuning
-        rows = []
-        for ts in map(float, theta_sites_grid):
-            res = self._tune_theta_pol_simple(
-                theta_sites=ts,
-                theta_pol_start=float(theta_pol_start),
-                theta_pol_min=float(theta_pol_min),
-                shrink=float(shrink_pol),
-                delta_pol=float(delta_pol),
+        # ensure valid ordering
+        lo = float(max(theta_sites_lo, theta_sites_hi))
+        hi = float(min(theta_sites_lo, theta_sites_hi))
+        if not (lo > hi):
+            raise ValueError("Require theta_sites_lo > theta_sites_hi (looser > tighter).")
+
+        # define a function: for a given theta_sites, tune theta_pol and return Lambda
+        def eval_L(ts: float) -> tuple[float, float]:
+            tp_star, lam = self._tune_theta_pol_span(
+                ts,
+                theta_pol_start=theta_pol_start,
+                theta_pol_min=theta_pol_min,
+                rho=rho,
+                delta=delta,
                 criterion=criterion,
             )
-            rows.append({"theta_sites": ts, **res})
+            return lam, tp_star
 
-        # (2) per-octave slopes between neighbors; pick first slope < delta_octave
-        th = np.array([r["theta_sites"] for r in rows], float)
-        La = np.array([r["Lambda"]      for r in rows], float)
-        Co = np.array([r["cost"]        for r in rows], float)
+        # helper: compute per-octave gain for sites by comparing ts and rho*ts (clamped at hi)
+        def sites_gain(ts: float) -> tuple[float, float, float]:
+            ts_tight = max(hi, rho * ts)
+            lam_lo, _ = eval_L(ts)
+            lam_hi, _ = eval_L(ts_tight)
+            g = self._per_oct_gain(lam_lo, lam_hi, max(ts_tight / ts, 1e-12))
+            return g, lam_lo, lam_hi
 
-        assert np.all(th[:-1] > th[1:]), "theta_sites_grid must be strictly decreasing"
+        # evaluate at ends (edge-case handling)
+        g_lo, lam_lo, _ = sites_gain(lo)   # loose point gain toward tighter
+        g_hi, _, lam_hi = sites_gain(hi)   # tight point gain toward even tighter (may be zero-span)
 
-        slopes = []
-        for i in range(len(th) - 1):
-            dLa = La[i+1] - La[i]
-            span_oct = np.log(th[i] / th[i+1]) / np.log(2.0)
-            slopes.append((dLa / max(abs(La[i]), 1e-300)) / max(span_oct, 1e-12))
-        slopes = np.array(slopes)
+        # if even the tight end is still “steep”, return the tightest (best we can do)
+        if g_hi > float(delta):
+            tp_star, lam_star = self._tune_theta_pol_span(hi,
+                                theta_pol_start=theta_pol_start,
+                                theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+            return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star))
 
-        if np.any(slopes < float(delta_octave)):
-            idx = int(np.argmax(slopes < float(delta_octave)))  # first time we flatten
-        else:
-            idx = len(th) - 2  # never flattened; pick tightest bracket
+        # if the loose end is already “flat”, keep the largest (cheapest) feasible theta_sites
+        if g_lo <= float(delta):
+            tp_star, lam_star = self._tune_theta_pol_span(lo,
+                                theta_pol_start=theta_pol_start,
+                                theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+            return dict(theta_sites=lo, theta_pol=tp_star, lambda_final=float(lam_star))
 
-        # Choose the cheaper of the two endpoints if Λ is ~equal (within 1%)
-        i_best = idx if La[idx] >= La[idx+1] else idx+1
-        j_other = idx+1 if i_best == idx else idx
-        if abs(La[i_best] - La[j_other]) / (abs(La[i_best]) + 1e-300) <= 0.01:
-            i_best = idx+1 if Co[idx+1] < Co[idx] else idx
+        # otherwise, bisection on log theta_sites to find largest theta with gain <= delta
+        for _ in range(int(max_outer)):
+            mid = float(np.sqrt(lo * hi))  # geometric midpoint (bisection in log-space)
+            g_mid, _, _ = sites_gain(mid)
 
-        best = rows[i_best]
+            if g_mid > float(delta):
+                # still steep at mid → move tighter
+                lo = mid
+            else:
+                # flat enough at mid → keep it as new “hi” (feasible)
+                hi = mid
 
-        out = dict(
-            theta_sites=float(best["theta_sites"]),
-            theta_pol=float(best["theta_pol"]),
-            lambda_final=float(best["Lambda"]),
-            cost_final=float(best["cost"]),
-        )
+            if lo / hi <= 1.10:  # bracket within ~10% is enough
+                break
 
-        if analytics:
-            out["diagnostics"] = dict(
-                stageA_curve=[dict(theta_sites=float(r["theta_sites"]),
-                                   theta_pol=float(r["theta_pol"]),
-                                   Lambda=float(r["Lambda"]),
-                                   cost=float(r["cost"]),
-                                   avg_sites=float(r["avg_sites"]),
-                                   avg_pols=float(r["avg_pols"]))
-                              for r in rows],
-                slopes=slopes.tolist(),
-                grid=list(map(float, theta_sites_grid)),
-                settings=dict(
-                    delta_pol=float(delta_pol),
-                    delta_octave=float(delta_octave),
-                    theta_pol_start=float(theta_pol_start),
-                    theta_pol_min=float(theta_pol_min),
-                    shrink_pol=float(shrink_pol),
-                ),
-            )
-        return out
+        # finalize at hi (largest theta_sites in bracket with gain <= delta)
+        tp_star, lam_star = self._tune_theta_pol_span(hi,
+                            theta_pol_start=theta_pol_start,
+                            theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+        return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star))
+
+    

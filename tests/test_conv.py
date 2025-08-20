@@ -59,7 +59,7 @@ def main():
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200)
 
 
-    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=200)
+    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=50)
     
     # test rate convergence
     theta_sites = 0.05
@@ -85,15 +85,15 @@ def main():
     # print('score info', info)
 
     # perfrom convergence algorithm
-    result = convergence_setup.auto_tune_thetas_simple(
-                                        theta_sites_grid=(0.08, 0.055, 0.038, 0.020, 0.010),
-                                        theta_pol_start=0.30,
-                                        theta_pol_min=0.02,
-                                        shrink_pol=0.7,
-                                        delta_pol=0.015,
-                                        delta_octave=0.015,
-                                        )
-    print(result["theta_sites"], result["theta_pol"], result["lambda_final"], result["cost_final"])
+    result = convergence_setup.auto_tune_thetas_bisection(
+                                                            theta_sites_lo=0.10,  # loose start
+                                                            theta_sites_hi=0.02,  # tight floor
+                                                            theta_pol_start=0.30,
+                                                            theta_pol_min=0.02,
+                                                            rho=0.7,
+                                                            delta=0.015,
+                                                        )
+    print(result)
     
     
 
