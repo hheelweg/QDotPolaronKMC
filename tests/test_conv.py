@@ -49,8 +49,7 @@ def main():
 
 
     # create instance of MC class to run KMC simulation
-    print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
-                                J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
+    
     
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N, qd_spacing = spacing, r_hop = r_hop, r_ove = r_ove)
@@ -60,11 +59,14 @@ def main():
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200)
 
 
-    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=10)
+    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=20)
     
     # test rate convergence
-    theta_sites = 0.0001
-    theta_pol = 0.01
+    theta_sites = 0.02
+    theta_pol = 0.1
+
+    print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
+                                J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, theta_sites, theta_pol)
 
     criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites, criterion='rate-displacement', score_info=True)
 
