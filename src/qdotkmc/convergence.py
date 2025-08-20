@@ -64,8 +64,9 @@ class ConvergenceAnalysis(KMCRunner):
 
         # get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
+        lambdas = np.zeros_like(self.start_sites, dtype=np.float32)
         nsites_sel, npols_sel = 0, 0
-        for start_idx in self.start_sites:
+        for i, start_idx in enumerate(self.start_sites):
 
             # NEW way to obtain rates from theta_pol/theta_sites
             rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(self.qd_lattice, start_idx,
@@ -83,10 +84,11 @@ class ConvergenceAnalysis(KMCRunner):
                 start_loc = self.qd_lattice.qd_locations[start_idx]                                                      # r(0)
                 sq_displacments = ((self.qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
                 lamda = (rates * sq_displacments).sum() / (2 * self.qd_lattice.geom.dims)
-                rates_criterion = (self.weights * lamda).sum()
+                lambdas[i] = lamda
             else:
                 raise ValueError("please specify valid convergence criterion for rates!")
-            
+        
+        rates_criterion = (self.weights * lambdas).sum()
 
         # optional : store additional information
         info = {}
