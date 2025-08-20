@@ -235,6 +235,7 @@ class QDLattice():
 
 
     # NOTE : currently only implemented for cubic-exp spectral density
+    # TODO : check this function and compar to paper as well
     # have this feed in a general spectral density type moving forward
     def get_kappa_polaron(self, spectrum = None, freq_max = 1):
 
