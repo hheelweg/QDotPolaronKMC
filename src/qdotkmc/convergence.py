@@ -13,7 +13,7 @@ from .montecarlo import KMCRunner
 _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rate scores from a single lattice site
-# TODO: do we want to recompute this 
+# TODO: do we want to re-write this in terms of _rate_worker instead of _rate_score_worker?
 def _rate_score_worker(args):
     (start_idx, theta_pol, theta_sites, criterion, weight) = args
     # Compute rates for this start index
