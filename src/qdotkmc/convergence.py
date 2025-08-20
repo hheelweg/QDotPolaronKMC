@@ -1,9 +1,38 @@
 import numpy as np
-from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import default_rng
-from . import const
+import os
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
+from . import const, montecarlo
 from .hamiltonian_box import SpecDens
 from .montecarlo import KMCRunner
+
+# global variable to allow parallel workers to use the same bath setup and QDLattice for convergence tests
+_BATH_GLOBAL = None
+_QDLAT_GLOBAL = None
+
+
+# def _rate_score_worker(args):
+#     """
+#     Top-level, picklable worker.
+#     Returns: (start_idx, lam_or_metric, nsites_sel, npols_sel)
+#     """
+#     (start_idx, theta_pol, theta_sites, criterion, dims) = args
+#     qd_lattice = _QDLAT_GLOBAL
+
+#     # Compute rates for this start index
+#     rates, final_sites, _, sel_info = _MKBOX_CALL(qd_lattice, start_idx, theta_sites, theta_pol)
+
+#     if criterion == "rate-displacement":
+#         start_loc = qd_lattice.qd_locations[start_idx]                           # r(0)
+#         sq_displacements = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis=1)
+#         lam = (rates * sq_displacements).sum() / (2 * dims)              # scalar metric
+#         return (start_idx, float(lam), int(sel_info['nsites_sel']), int(sel_info['npols_sel']))
+#     else:
+#         raise ValueError("please specify valid convergence criterion for rates!")
+
 
 
 class ConvergenceAnalysis(KMCRunner):
@@ -51,7 +80,7 @@ class ConvergenceAnalysis(KMCRunner):
         for start_idx in self.start_sites:
 
             # NEW way to obtain rates from theta_pol/theta_sites
-            rates, final_sites, _, sel_info = self._make_kmatrix_boxNEW(self.qd_lattice, start_idx,
+            rates, final_sites, _, sel_info = montecarlo._make_kmatrix_boxNEW(self.qd_lattice, start_idx,
                                                                         theta_sites=theta_sites,
                                                                         theta_pol=theta_pol,
                                                                         selection_info = True

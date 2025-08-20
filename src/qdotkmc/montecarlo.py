@@ -491,65 +491,41 @@ class KMCRunner():
         return np.argmin(dists_squared)
     
 
-    # ---------------------------------------------------------------------------------------------------------
-    # HH : for some arrays of r_hop and r_ove, comopute the rates and check
-    # for convergence (you are more than invited to play around with this!)
-    def get_rate_convergence(self, r_hops, r_oves):
-        # determine convergence of rates
-        rateConvergence = np.zeros((len(r_hops), len(r_oves)))
-        boxLengths = np.zeros((len(r_hops), len(r_oves)))
-        # more microscopoic rate convergence information
-        rateMeanFinal = np.zeros((len(r_hops), len(r_oves), self.dims))
-        rateThreeBiggest = np.zeros((len(r_hops), len(r_oves), 3))
-        rateCumThree = np.zeros((len(r_hops), len(r_oves)))
 
-        # consider outgoing rates from the most central site:
-        start_site = np.array([int(self.sidelength // 2) * self.qd_spacing, int(self.sidelength // 2) * self.qd_spacing])
+def _make_kmatrix_boxNEW(qd_lattice, center_global, theta_pol, theta_sites, selection_info = False):
 
-        # loop over all combinations of r_ove and r_hop 
-        for i, r_hop in enumerate(r_hops):
-            for j, r_ove in enumerate(r_oves):
+    assert isinstance(qd_lattice, lattice.QDLattice), 'need to specify valid instance of QDLattice class to compute rates'
 
-                # (0) get box properties
-                self.make_box_dimensions(r_hop, r_ove)
-                boxLengths[i, j] = self.box_length
+    # (0) set up θ_pol and θ_sites 
+    qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_sites = theta_pol, theta_sites
 
-                # (1) get rates
-                # (1.1) create box
-                self.get_box(start_site)
-                # (1.2) get initial polaron state (polaron basis)
-                idx_start = self.get_closest_idx(start_site, self.eigstates_locs)
-                self.start_pol = self.eigstates_locs[idx_start]
-                # (1.3) obtain rates
-                self.make_kmatrix_box(idx_start)
+    # (1) select sites and polarons that ''matter'' for computing the rates
+    site_g, pol_g = qd_lattice.redfield.select_sites_and_polarons(
+                                                                    center_global=center_global, 
+                                                                    theta_sites= qd_lattice.redfield.theta_sites, 
+                                                                    theta_pol = qd_lattice.redfield.theta_pol, 
+                                                                    verbose=False
+                                                                    )
 
-                # (2) analyze those rates based on desired criteria
-                # (2.1) cumulative rates
-                cum_rates = np.sum(self.rates)
-                # (2.2) more microscopic details on the rates
-                mean_final, three_biggest, cum_three_biggest_norm  = self.analyze_rates()
+    # (2) compute rates on those exact indices (no re-derivation)
+    rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
+        pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global,
+        verbosity = False
+    )
 
-                # (3) store
-                rateConvergence[i, j] = cum_rates
-                rateMeanFinal[i, j, :] = mean_final
-                #rateThreeBiggest[i, j, :] = three_biggest
-                #rateCumThree[i, j] = cum_three_biggest_norm
+    # (3) cache by global center index
+    qd_lattice.stored_npolarons_box[center_global] = len(pol_g)
+    qd_lattice.stored_polaron_sites[center_global] = np.copy(final_states)   
+    qd_lattice.stored_rate_vectors[center_global]  = np.copy(rates)
 
-        return rateConvergence, boxLengths, rateMeanFinal, rateThreeBiggest, rateCumThree
-    
-    # HH : this gives some more microscopic insights into self.rates
-    def analyze_rates(self):
-        # normalize rates array
-        rates_norm = self.rates / np.sum(self.rates)
-        # find three biggest entries and also the percentage of rates
-        # (1) get mean final state difference from original state
-        locs = self.eigstates_locs[self.final_states]
-        mean_final = np.matmul(locs.T, rates_norm) - self.start_pol
-        # (2) get three biggest (normalized) rates
-        rates_norm.sort()
-        three_biggest = rates_norm[-3:][::-1]
-        cum_three_biggest_norm = np.sum(three_biggest)
-        return mean_final, three_biggest, cum_three_biggest_norm   
+    # (4) optional: export information about selected polarons/sites for computation of rates
+    sel_info= {}
+    if selection_info:
+        sel_info['npols_sel'] = len(pol_g)
+        sel_info['nsites_sel'] = len(site_g)
+
+    return rates, final_states, tot_time, sel_info
+
     
 
     
