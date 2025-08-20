@@ -52,6 +52,7 @@ class KMCRunner():
     
     
     # rate computation based on r_hop/r_ove
+    # TODO : can we make this @staticmethod?
     def _make_kmatrix_box(self, qd_lattice, center_global, r_hop, r_ove):
 
         # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
@@ -492,40 +493,6 @@ class KMCRunner():
         return np.argmin(dists_squared)
     
 
-
-def _make_kmatrix_boxNEW(qd_lattice, center_global, theta_pol, theta_sites, selection_info = False):
-
-    assert isinstance(qd_lattice, lattice.QDLattice), 'need to specify valid instance of QDLattice class to compute rates'
-
-    # (0) set up θ_pol and θ_sites 
-    qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_sites = theta_pol, theta_sites
-
-    # (1) select sites and polarons that ''matter'' for computing the rates
-    site_g, pol_g = qd_lattice.redfield.select_sites_and_polarons(
-                                                                    center_global=center_global, 
-                                                                    theta_sites= qd_lattice.redfield.theta_sites, 
-                                                                    theta_pol = qd_lattice.redfield.theta_pol, 
-                                                                    verbose=False
-                                                                    )
-
-    # (2) compute rates on those exact indices (no re-derivation)
-    rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
-        pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global,
-        verbosity = False
-    )
-
-    # (3) cache by global center index
-    qd_lattice.stored_npolarons_box[center_global] = len(pol_g)
-    qd_lattice.stored_polaron_sites[center_global] = np.copy(final_states)   
-    qd_lattice.stored_rate_vectors[center_global]  = np.copy(rates)
-
-    # (4) optional: export information about selected polarons/sites for computation of rates
-    sel_info= {}
-    if selection_info:
-        sel_info['npols_sel'] = len(pol_g)
-        sel_info['nsites_sel'] = len(site_g)
-
-    return rates, final_states, tot_time, sel_info
 
     
 
