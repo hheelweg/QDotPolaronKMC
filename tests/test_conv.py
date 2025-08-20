@@ -59,14 +59,14 @@ def main():
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200)
 
 
-    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=200)
+    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=50)
     
     # test rate convergence
-    theta_sites = 0.05
-    theta_pol = 0.5
+    theta_sites = 0.02
+    theta_pol = 0.01
 
-    # print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
-    #                             J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, theta_sites, theta_pol)
+    print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
+                                J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, theta_sites, theta_pol)
 
     # # serial execution of _rate_score
     # criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites,

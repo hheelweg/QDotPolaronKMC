@@ -19,7 +19,7 @@ def _rate_score_worker(args):
     # Compute rates for this start index
     qd_lattice = _QDLAT_GLOBAL
     rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(qd_lattice, start_idx,
-                                                                     theta_sites, theta_pol,
+                                                                     theta_pol=theta_pol, theta_sites=theta_sites,
                                                                      selection_info = True)
     
     # evaluate convergence criterion on rates vector
