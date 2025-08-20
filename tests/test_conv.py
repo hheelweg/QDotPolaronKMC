@@ -63,7 +63,7 @@ def main():
     convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=10)
     
     # test rate convergence
-    theta_sites = 0.01
+    theta_sites = 0.001
     theta_pol = 0.01
 
     criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites, criterion='rate-displacement', score_info=True)
