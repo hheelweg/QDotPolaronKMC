@@ -73,14 +73,14 @@ class KMCRunner():
         nsites_sel, npols_sel = 0, 0
         for start_idx in start_sites:
 
-            # NEW way to obtain rates
+            # NEW way to obtain rates from theta_pol/theta_sites
             rates, final_sites, _, sel_info = self._make_kmatrix_boxNEW(qd_lattice, start_idx,
                                                                         theta_sites=theta_sites,
                                                                         theta_pol=theta_pol,
                                                                         selection_info = True
                                                                         )
             
-            # how many polarons/sites were selected
+            # how many polarons/sites were selected 
             nsites_sel += sel_info['nsites_sel']
             npols_sel += sel_info['npols_sel']
             

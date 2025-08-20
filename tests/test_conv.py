@@ -66,7 +66,8 @@ def main():
     theta_sites = 0.02
     theta_pol = 0.1
     criterion_coll, score_info = kmc_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites,
-                                                  no_samples = 100, criterion = "rate-displacement", score_info=True)
+                                                       no_samples = 100, 
+                                                       criterion = "rate-displacement", score_info=True)
     print('collective criterion (score)', criterion_coll)
     print('rate score info', score_info)
 
