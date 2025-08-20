@@ -62,6 +62,10 @@ class ConvergenceAnalysis(KMCRunner):
                     criterion=None, score_info=False,
                     ):
 
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        
         # get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
         nsites_sel, npols_sel = 0, 0
@@ -109,7 +113,6 @@ class ConvergenceAnalysis(KMCRunner):
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-        os.environ.setdefault("MKL_CBWR", "COMPATIBLE")
 
         # Expose QDLattice to workers via module-global, then FORK the pool
         global _QDLAT_GLOBAL
