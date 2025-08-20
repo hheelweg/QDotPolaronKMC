@@ -80,21 +80,7 @@ class KMCRunner():
                     criterion=None, score_info=False,
                     ):
 
-        # # (0) draw a lattice realization
-        # bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
-        # qd_lattice = self._build_grid_realization(bath, rid = 0)
-
-        # # (1) produce no_samples starting indices from where to compute rate vectors
-        # ss_conv = self._ss_root.spawn(1)[0]
-        # rng_conv = default_rng(ss_conv)
-        # start_sites = rng_conv.integers(0, qd_lattice.geom.n_sites, size=no_samples)
-
-        # # get energy (Boltzmann) weight for each start-polaron
-        # w = np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals[start_sites])
-        # Z = np.sum(np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals))
-        # w /= Z
-
-        # (2) get rates starting from each polaron starting index and analyze by criterion
+        # get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
         nsites_sel, npols_sel = 0, 0
         for start_idx in start_sites:
@@ -109,12 +95,6 @@ class KMCRunner():
             # how many polarons/sites were selected 
             nsites_sel += sel_info['nsites_sel']
             npols_sel += sel_info['npols_sel']
-            
-            # # OLD way to obtain rates
-            # rates, final_sites, _ = self._make_kmatrix_box(qd_lattice, start_idx,
-            #                                                r_hop=self.geom.r_hop,
-            #                                                r_ove=self.geom.r_ove
-            #                                                )
             
             # evaluate convergence criterion on rates vector
             if criterion == "rate-displacement":
