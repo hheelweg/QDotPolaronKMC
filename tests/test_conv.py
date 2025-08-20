@@ -90,7 +90,7 @@ def main():
                                                             theta_sites_hi=0.001,  # tight floor
                                                             theta_pol_start=0.30,
                                                             theta_pol_min=0.001,
-                                                            rho=0.5,
+                                                            rho=0.3,
                                                             delta=0.03,
                                                         )
     print(result)
