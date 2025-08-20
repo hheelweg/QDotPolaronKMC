@@ -68,7 +68,18 @@ def main():
     print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, theta_sites, theta_pol)
 
-    criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites, criterion='rate-displacement', score_info=True)
+    # # serial execution of _rate_score
+    # criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites,
+    #                                                 criterion='rate-displacement', score_info=True
+    #                                                 )
+
+    # parallel execution of _rate_score
+    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
+    print('max_workers', max_workers)
+    criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites,
+                                                             criterion='rate-displacement', score_info=True,
+                                                             max_workers=max_workers)
+
 
     print('criterion', criterion)
     print('score info', info)
