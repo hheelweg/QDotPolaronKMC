@@ -180,8 +180,8 @@ class ConvergenceAnalysis(KMCRunner):
         Returns dict with theta_pol, Lambda, cost proxy, and avg sizes.
         """
         def eval_score(tp: float):
-            lam, info = self._rate_score(tp, theta_sites,
-                                         criterion=criterion, score_info=True)
+            lam, info = self._rate_score_parallel(tp, theta_sites,
+                                         criterion=criterion, score_info=True, max_workers=8)
             # cheap cost proxy: dense-J ~ n^2 * P
             n = float(info.get('ave_sites', 1.0)) or 1.0
             P = float(info.get('ave_pols',  1.0)) or 1.0
