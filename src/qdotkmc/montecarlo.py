@@ -114,8 +114,7 @@ class KMCRunner():
 
         return rates_criterion, info
 
-
-
+    # rate computation based on r_hop/r_ove
     def _make_kmatrix_box(self, qd_lattice, center_global, r_hop, r_ove):
 
         # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
@@ -204,6 +203,7 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
+    # rate computation based on theta_pol/theta_tau
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global, theta_pol, theta_sites, selection_info = False):
 
         # (0) set up θ_pol and θ_sites 
@@ -214,12 +214,13 @@ class KMCRunner():
                                                                       center_global=center_global, 
                                                                       theta_sites= qd_lattice.redfield.theta_sites, 
                                                                       theta_pol = qd_lattice.redfield.theta_pol, 
-                                                                      verbose=True
+                                                                      verbose=False
                                                                       )
 
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
-            pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
+            pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global,
+            verbosity = True
         )
 
         # (3) cache by global center index
