@@ -109,8 +109,6 @@ class ConvergenceAnalysis(KMCRunner):
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-        os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")   # if you use numexpr
-        os.environ.setdefault("MKL_CBWR", "COMPATIBLE")  
 
         # Expose QDLattice to workers via module-global, then FORK the pool
         global _QDLAT_GLOBAL
@@ -135,6 +133,7 @@ class ConvergenceAnalysis(KMCRunner):
 
                 # (1) let worker obtain rates etc.
                 start_idx, rates, final_sites, sel_info = fut.result()
+                print('cum rates', np.sum(rates))
 
                 # (2) post-processing of information from _rate_worker to obtain scores etc.
                 # (2.1) how many polarons/sites were selected 
