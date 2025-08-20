@@ -59,7 +59,7 @@ def main():
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200)
 
 
-    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=50)
+    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=10)
     
     # test rate convergence
     theta_sites = 0.05
@@ -91,7 +91,7 @@ def main():
                                                             theta_pol_start=0.30,
                                                             theta_pol_min=0.02,
                                                             rho=0.7,
-                                                            delta=0.015,
+                                                            delta=0.05,
                                                         )
     print(result)
     
