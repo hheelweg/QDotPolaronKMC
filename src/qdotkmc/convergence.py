@@ -27,7 +27,7 @@ def _rate_score_worker(args):
         start_loc = qd_lattice.qd_locations[start_idx]                                                      # r(0)
         sq_displacments = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
         lamda = (rates * sq_displacments).sum() / (2 * qd_lattice.geom.dims)
-        print('lambda', lamda)
+        print('lambda', lamda * weight)
     else:
         raise ValueError("please specify valid convergence criterion for rates!")
     
