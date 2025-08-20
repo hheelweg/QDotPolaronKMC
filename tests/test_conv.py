@@ -73,27 +73,27 @@ def main():
     #                                                 criterion='rate-displacement', score_info=True
     #                                                 )
 
-    # parallel execution of _rate_score
-    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    print('max_workers', max_workers)
-    criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites,
-                                                             criterion='rate-displacement', score_info=True,
-                                                             max_workers=max_workers)
+    # # parallel execution of _rate_score
+    # max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
+    # print('max_workers', max_workers)
+    # criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites,
+    #                                                          criterion='rate-displacement', score_info=True,
+    #                                                          max_workers=max_workers)
 
 
-    print('criterion', criterion)
-    print('score info', info)
+    # print('criterion', criterion)
+    # print('score info', info)
 
     # perfrom convergence algorithm
-    # result = convergence_setup.auto_tune_thetas_simple(
-    #                                     theta_sites_grid=(0.08, 0.055, 0.038, 0.020, 0.010),
-    #                                     theta_pol_start=0.30,
-    #                                     theta_pol_min=0.02,
-    #                                     shrink_pol=0.7,
-    #                                     delta_pol=0.015,
-    #                                     delta_octave=0.015,
-    #                                     )
-    # print(result["theta_sites"], result["theta_pol"], result["lambda_final"], result["cost_final"])
+    result = convergence_setup.auto_tune_thetas_simple(
+                                        theta_sites_grid=(0.08, 0.055, 0.038, 0.020, 0.010),
+                                        theta_pol_start=0.30,
+                                        theta_pol_min=0.02,
+                                        shrink_pol=0.7,
+                                        delta_pol=0.015,
+                                        delta_octave=0.015,
+                                        )
+    print(result["theta_sites"], result["theta_pol"], result["lambda_final"], result["cost_final"])
     
     
 
