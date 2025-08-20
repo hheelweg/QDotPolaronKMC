@@ -67,7 +67,7 @@ def main():
     theta_pol = 0.1
     qd_lattice, start_sites, weights = kmc_setup._build_rate_convergenc_env(no_samples = 100)
     criterion_coll, score_info = kmc_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites,
-                                                       qd_lattice, start_sites, weights,
+                                                       qd_lattice=qd_lattice, start_sites=start_sites, weights=weights,
                                                        criterion = "rate-displacement", score_info=True)
     print('collective criterion (score)', criterion_coll)
     print('rate score info', score_info)
