@@ -65,17 +65,18 @@ def main():
     # test rate convergence
     theta_sites = 0.02
     theta_pol = 0.1
-    # (1) build environment to compute rate convergence
-    # qd_lattice, start_sites, weights = convergence_setup._build_rate_convergenc_env()
-    # (2) evaluate convergence score
-    criterion_coll, score_info = convergence_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites,
-                                                       criterion = "rate-displacement", score_info=True)
+
+    # (1) evaluate convergence score
+    result = convergence_setup.auto_tune_thetas_simple(
+                                        theta_sites_grid=(0.12, 0.08, 0.055, 0.038, 0.027),
+                                        theta_pol_start=0.30,
+                                        theta_pol_min=0.02,
+                                        shrink_pol=0.7,
+                                        delta_pol=0.015,
+                                        delta_octave=0.015,
+                                        )
+    print(result["theta_sites"], result["theta_pol"], result["lambda_final"], result["cost_final"])
     
-
-
-    print('collective criterion (score)', criterion_coll)
-    print('rate score info', score_info)
-
     
 
 
