@@ -11,7 +11,7 @@ from .hamiltonian_box import SpecDens
 # global variable to allow parallel workers to use the same bath setup
 _BATH_GLOBAL = None
 
-# --- top-level worker so it's picklable by ProcessPool ---
+# top-level worker for a single lattice realization
 def _one_lattice_worker(args):
     (geom, dis, bath_cfg, run, t_final, times_msds, rid, sim_time) = args
     runner = KMCRunner(geom, dis, bath_cfg, run)

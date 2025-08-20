@@ -68,7 +68,7 @@ def main():
     print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, theta_sites, theta_pol)
 
-    criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites, criterion='rate-displacement', score_info=True)
+    criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites, criterion='rate-displacement', score_info=True)
 
     print('criterion', criterion)
     print('score info', info)

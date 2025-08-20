@@ -13,17 +13,12 @@ from .montecarlo import KMCRunner
 _BATH_GLOBAL = None
 _QDLAT_GLOBAL = None
 
-
+# top-level worker for computing the rates from a single lattice site
 def _rate_worker(args):
-    """
-    Top-level, picklable worker.
-    Returns: (start_idx, lam_or_metric, nsites_sel, npols_sel)
-    """
     (start_idx, theta_pol, theta_sites) = args
     qd_lattice = _QDLAT_GLOBAL
     # Compute rates for this start index
     rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(qd_lattice, start_idx, theta_sites, theta_pol)
-
     return start_idx, rates, final_sites, sel_info
 
 
