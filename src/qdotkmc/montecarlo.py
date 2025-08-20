@@ -51,22 +51,48 @@ class KMCRunner():
         return ss_real.spawn(self.run.ntrajs)
     
 
-    # TODO : write input parameters so that we can also use this for r_hop/r_ove
-    def _rate_score(self, theta_pol, theta_sites, no_samples, criterion=None, score_info=False):
+    def _build_rate_convergenc_env(self, no_samples):
 
-        # (0) draw a lattice realization
+        # (0) build bath
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
-        qd_lattice = self._build_grid_realization(bath, rid = 0)
 
-        # (1) produce no_samples starting indices from where to compute rate vectors
+        # (1) draw a lattice realization
+        qd_lattice = self._build_grid_realization(bath, rid=0)
+
+        # (2) produce no_samples starting indices from where to compute rate vectors
         ss_conv = self._ss_root.spawn(1)[0]
         rng_conv = default_rng(ss_conv)
         start_sites = rng_conv.integers(0, qd_lattice.geom.n_sites, size=no_samples)
 
-        # get energy (Boltzmann) weight for each start-polaron
-        w = np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals[start_sites])
-        Z = np.sum(np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals))
-        w /= Z
+        # (3) get Boltzmann weights for each start polaron in start_sites
+        E = qd_lattice.full_ham.evals
+        beta = qd_lattice.full_ham.beta
+        w = np.exp(- beta * E[start_sites])
+        Z = np.sum(np.exp(- beta * E))
+        weights = w / Z
+
+        return qd_lattice, start_sites, weights
+
+
+    # TODO : write input parameters so that we can also use this for r_hop/r_ove
+    def _rate_score(self, theta_pol, theta_sites, 
+                    qd_lattice, start_sites, weights,
+                    criterion=None, score_info=False,
+                    ):
+
+        # # (0) draw a lattice realization
+        # bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
+        # qd_lattice = self._build_grid_realization(bath, rid = 0)
+
+        # # (1) produce no_samples starting indices from where to compute rate vectors
+        # ss_conv = self._ss_root.spawn(1)[0]
+        # rng_conv = default_rng(ss_conv)
+        # start_sites = rng_conv.integers(0, qd_lattice.geom.n_sites, size=no_samples)
+
+        # # get energy (Boltzmann) weight for each start-polaron
+        # w = np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals[start_sites])
+        # Z = np.sum(np.exp(- qd_lattice.full_ham.beta * qd_lattice.full_ham.evals))
+        # w /= Z
 
         # (2) get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
@@ -95,7 +121,7 @@ class KMCRunner():
                 start_loc = qd_lattice.qd_locations[start_idx]                                                      # r(0)
                 sq_displacments = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
                 lamda = (rates * sq_displacments).sum() / (2 * qd_lattice.geom.dims)
-                rates_criterion = (w * lamda).sum()
+                rates_criterion = (weights * lamda).sum()
             else:
                 raise ValueError("please specify valid convergence criterion for rates!")
             
@@ -103,8 +129,8 @@ class KMCRunner():
         # optional : store additional information
         info = {}
         if score_info:
-            info['ave_sites'] = nsites_sel / no_samples
-            info['ave_pols'] = npols_sel / no_samples
+            info['ave_sites'] = nsites_sel / len(start_sites)
+            info['ave_pols'] = npols_sel / len(start_sites)
 
         return rates_criterion, info
 
