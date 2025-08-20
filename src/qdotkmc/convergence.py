@@ -10,7 +10,7 @@ from .hamiltonian_box import SpecDens
 from .montecarlo import KMCRunner
 
 # global variable to allow parallel workers to use the same bath setup and QDLattice for convergence tests
-_BATH_GLOBAL = None
+#_BATH_GLOBAL = None
 _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rates from a single lattice site
@@ -79,8 +79,6 @@ class ConvergenceAnalysis(KMCRunner):
             # how many polarons/sites were selected 
             nsites_sel += sel_info['nsites_sel']
             npols_sel += sel_info['npols_sel']
-
-            print('start_idx', start_idx)
             
             # evaluate convergence criterion on rates vector
             if criterion == "rate-displacement":
@@ -113,10 +111,11 @@ class ConvergenceAnalysis(KMCRunner):
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_CBWR", "COMPATIBLE")
 
         # Expose bath and QDLattice to workers via module-global, then FORK the pool
         global _BATH_GLOBAL, _QDLAT_GLOBAL
-        _BATH_GLOBAL = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
+        #_BATH_GLOBAL = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
         _QDLAT_GLOBAL = self.qd_lattice
 
         # Use fork context so children inherit memory instead of pickling args
