@@ -126,9 +126,9 @@ class ConvergenceAnalysis(KMCRunner):
         rates_criterion = None
         nsites_sel, npols_sel = 0, 0
 
-        # Weighted sum uses the Boltzmann weights you precomputed per start index.
-        # Build a dict for O(1) lookup.
-        weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
+        # # Weighted sum uses the Boltzmann weights you precomputed per start index.
+        # # Build a dict for O(1) lookup.
+        # weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_rate_worker, job) for job in jobs]
@@ -141,8 +141,7 @@ class ConvergenceAnalysis(KMCRunner):
                 # (2.1) how many polarons/sites were selected 
                 nsites_sel += sel_info['nsites_sel']
                 npols_sel += sel_info['npols_sel']
-
-                # evaluate convergence criterion on rates vector
+                # (2.2) evaluate convergence criterion on rates vector
                 if criterion == "rate-displacement":
                     start_loc = self.qd_lattice.qd_locations[start_idx]                                                      # r(0)
                     sq_displacments = ((self.qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
