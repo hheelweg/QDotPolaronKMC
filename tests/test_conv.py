@@ -64,7 +64,7 @@ def main():
     
     # test rate convergence
     theta_sites = 0.02
-    theta_pol = 0.1
+    theta_pol = 0.01
 
     criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites, criterion='rate-displacement', score_info=True)
 
