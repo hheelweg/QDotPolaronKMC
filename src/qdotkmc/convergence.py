@@ -124,6 +124,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         rates_criterion = None
         nsites_sel, npols_sel = 0, 0
+        lambdas = np.zeros_like(self.start_sites, dtype=np.float32)
 
         # # Weighted sum uses the Boltzmann weights you precomputed per start index.
         # # Build a dict for O(1) lookup.
@@ -145,9 +146,11 @@ class ConvergenceAnalysis(KMCRunner):
                     start_loc = self.qd_lattice.qd_locations[start_idx]                                                      # r(0)
                     sq_displacments = ((self.qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
                     lamda = (rates * sq_displacments).sum() / (2 * self.qd_lattice.geom.dims)
-                    rates_criterion = (self.weights * lamda).sum()
+                    lambdas[np.where(self.start_sites == start_idx)[0]] = lamda
                 else:
                     raise ValueError("please specify valid convergence criterion for rates!")
+        
+        rates_criterion = (self.weights * lambdas).sum()
 
         # optional : store additional information
         info = {}
