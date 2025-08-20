@@ -65,6 +65,8 @@ class ConvergenceAnalysis(KMCRunner):
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
+        os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")   # if you use numexpr
+        os.environ.setdefault("MKL_CBWR", "COMPATIBLE") 
         
         # get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
