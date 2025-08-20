@@ -6,7 +6,7 @@ from .hamiltonian_box import SpecDens
 from .montecarlo import KMCRunner
 
 
-def ConvergenceAnalysis(KMCRunner):
+class ConvergenceAnalysis(KMCRunner):
 
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig):
 
