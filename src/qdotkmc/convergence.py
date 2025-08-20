@@ -13,13 +13,23 @@ from .montecarlo import KMCRunner
 _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rates from a single lattice site
-def _rate_worker(args):
-    (start_idx, theta_pol, theta_sites) = args
+def _rate_score_worker(args):
+    (start_idx, theta_pol, theta_sites, criterion, weight) = args
     # Compute rates for this start index
-    rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(_QDLAT_GLOBAL, start_idx,
+    qd_lattice = _QDLAT_GLOBAL
+    rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(qd_lattice, start_idx,
                                                                      theta_sites, theta_pol,
                                                                      selection_info = True)
-    return start_idx, rates, final_sites, sel_info
+    
+    # evaluate convergence criterion on rates vector
+    if criterion == "rate-displacement":
+        start_loc = qd_lattice.qd_locations[start_idx]                                                      # r(0)
+        sq_displacments = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
+        lamda = (rates * sq_displacments).sum() / (2 * qd_lattice.geom.dims)
+    else:
+        raise ValueError("please specify valid convergence criterion for rates!")
+    
+    return lamda * weight, sel_info['nsites_sel'], sel_info['npols_sel']
 
 
 
@@ -119,38 +129,28 @@ class ConvergenceAnalysis(KMCRunner):
         # Use fork context so children inherit memory instead of pickling args
         ctx = mp.get_context("fork")   
 
+        # Weighted sum uses the Boltzmann weights you precomputed per start index.
+        weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
+
         # dispatch configs + indices to parallelize over
-        jobs = [(int(start_idx), float(theta_pol), float(theta_sites)) for start_idx in self.start_sites]
+        jobs = [(int(start_idx), float(theta_pol), float(theta_sites), criterion, weight_by_idx[start_idx]) 
+                for start_idx in self.start_sites]
 
-        rates_criterion = None
+        rates_criterion = 0
         nsites_sel, npols_sel = 0, 0
-        lambdas = np.zeros_like(self.start_sites, dtype=np.float32)
-
-        # # Weighted sum uses the Boltzmann weights you precomputed per start index.
-        # # Build a dict for O(1) lookup.
-        # weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
-            futs = [ex.submit(_rate_worker, job) for job in jobs]
+            futs = [ex.submit(_rate_score_worker, job) for job in jobs]
             for fut in as_completed(futs):
 
                 # (1) let worker obtain rates etc.
-                start_idx, rates, final_sites, sel_info = fut.result()
+                weighted_criterion, nsite_sel, npol_sel = fut.result()
 
-                # (2) post-processing of information from _rate_worker to obtain scores etc.
-                # (2.1) how many polarons/sites were selected 
-                nsites_sel += sel_info['nsites_sel']
-                npols_sel += sel_info['npols_sel']
-                # (2.2) evaluate convergence criterion on rates vector
-                if criterion == "rate-displacement":
-                    start_loc = self.qd_lattice.qd_locations[start_idx]                                                      # r(0)
-                    sq_displacments = ((self.qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
-                    lamda = (rates * sq_displacments).sum() / (2 * self.qd_lattice.geom.dims)
-                    lambdas[np.where(self.start_sites == start_idx)[0]] = lamda
-                else:
-                    raise ValueError("please specify valid convergence criterion for rates!")
-        
-        rates_criterion = (self.weights * lambdas).sum()
+                # (2) add 
+                nsites_sel += nsite_sel
+                npols_sel += npol_sel
+                rates_criterion += weighted_criterion
+                
 
         # optional : store additional information
         info = {}
