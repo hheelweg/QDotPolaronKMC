@@ -452,7 +452,10 @@ class Redfield():
         if time_verbose:
             print('time(total)', time.time() - t_all, flush=True)
 
-        print('rates sum/shape', np.sum(rates), rates.shape)
+        # NOTE : this is just for debugging
+        if time_verbose:
+            print('rates sum/shape', np.sum(rates), rates.shape)
+
         return rates, final_site_idxs, time.time() - t_all
 
     
