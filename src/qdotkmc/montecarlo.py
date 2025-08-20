@@ -1,4 +1,8 @@
 import numpy as np
+import os
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
 from . import lattice, hamiltonian_box, const
@@ -399,9 +403,7 @@ class KMCRunner():
     # parallel KMC
     def simulate_kmc_parallel(self, max_workers = None):
         """Parallel over realizations on CPU (one process per realization)."""
-        import os
-        import multiprocessing as mp
-        from concurrent.futures import ProcessPoolExecutor, as_completed
+
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
@@ -421,7 +423,7 @@ class KMCRunner():
         # Use fork context so children inherit memory instead of pickling args
         ctx = mp.get_context("fork")
 
-        # dispatch configs (lightweight) + indices
+        # dispatch configs + indices
         jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r, sim_time) for r in range(R)]
 
         #msds = None

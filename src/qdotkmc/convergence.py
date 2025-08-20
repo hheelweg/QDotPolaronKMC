@@ -24,7 +24,7 @@ def _rate_worker(args):
     # Compute rates for this start index
     rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(qd_lattice, start_idx, theta_sites, theta_pol)
 
-    return rates, final_sites, sel_info
+    return start_idx, rates, final_sites, sel_info
 
 
 
@@ -101,6 +101,68 @@ class ConvergenceAnalysis(KMCRunner):
 
         return rates_criterion, info
 
+
+    # serial version to compute rate scores
+    def _rate_score_parallel(self, theta_pol, theta_sites, *,
+                             criterion="rate-displacement", score_info = True,
+                             max_workers=None):
+        """
+        Parallel version of _rate_score over self.start_sites.
+        Returns the same aggregate score and selection counts.
+        """
+        
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+        # Expose bath and QDLattice to workers via module-global, then FORK the pool
+        global _BATH_GLOBAL, _QDLAT_GLOBAL
+        _BATH_GLOBAL = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
+        _QDLAT_GLOBAL = self.qd_lattice
+
+        # Use fork context so children inherit memory instead of pickling args
+        ctx = mp.get_context("fork")   
+
+        # dispatch configs + indices to parallelize over
+        jobs = [(int(start_idx), float(theta_pol), float(theta_sites)) for start_idx in self.start_sites]
+
+        rates_criterion = None
+        nsites_sel, npols_sel = 0, 0
+
+        # Weighted sum uses the Boltzmann weights you precomputed per start index.
+        # Build a dict for O(1) lookup.
+        weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
+
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
+            futs = [ex.submit(_rate_worker, job) for job in jobs]
+            for fut in as_completed(futs):
+                # (1) let worker obtain rates etc.
+                start_idx, rates, final_sites, sel_info = fut.result()
+
+                # (2) post-processing of information from _rate_worker to obtain scores etc.
+                # (2.1) how many polarons/sites were selected 
+                nsites_sel += sel_info['nsites_sel']
+                npols_sel += sel_info['npols_sel']
+
+                # evaluate convergence criterion on rates vector
+                if criterion == "rate-displacement":
+                    start_loc = self.qd_lattice.qd_locations[start_idx]                                                      # r(0)
+                    sq_displacments = ((self.qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
+                    lamda = (rates * sq_displacments).sum() / (2 * self.qd_lattice.geom.dims)
+                    rates_criterion = (self.weights * lamda).sum()
+                else:
+                    raise ValueError("please specify valid convergence criterion for rates!")
+
+        # optional : store additional information
+        info = {}
+        if score_info:
+            info['ave_sites'] = nsites_sel / self.no_samples
+            info['ave_pols'] = npols_sel / self.no_samples
+
+        return rates_criterion, info
+
+
+        
 
     def _tune_theta_pol_simple(
                                 self,
