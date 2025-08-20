@@ -111,6 +111,7 @@ class ConvergenceAnalysis(KMCRunner):
 
 
     # serial version to compute rate scores
+    # TODO : write input parameters so that we can also use this for r_hop/r_ove
     def _rate_score_parallel(self, theta_pol, theta_sites, *,
                              criterion="rate-displacement", score_info = True,
                              max_workers=None):
@@ -162,7 +163,7 @@ class ConvergenceAnalysis(KMCRunner):
 
 
     @staticmethod
-    def _per_oct_gain(lam_from: float, lam_to: float, span_factor: float) -> float:
+    def _per_oct_gain(lam_from: float, lam_to: float, span_factor: float):
         rel = (lam_to - lam_from) / (abs(lam_from) + 1e-300)
         octaves = np.log(1.0 / max(span_factor, 1e-12)) / np.log(2.0)
         return rel / max(octaves, 1e-12)
@@ -222,6 +223,7 @@ class ConvergenceAnalysis(KMCRunner):
                                     criterion: str         = "rate-displacement",
                                     verbose                = True
                                 ):
+        
         # ensure valid ordering
         lo = float(max(theta_sites_lo, theta_sites_hi))
         hi = float(min(theta_sites_lo, theta_sites_hi))
@@ -288,6 +290,7 @@ class ConvergenceAnalysis(KMCRunner):
         tp_star, lam_star = self._tune_theta_pol_span(hi,
                             theta_pol_start=theta_pol_start,
                             theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+        
         return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star))
 
     
