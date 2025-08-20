@@ -80,7 +80,7 @@ class ConvergenceAnalysis(KMCRunner):
         for start_idx in self.start_sites:
 
             # NEW way to obtain rates from theta_pol/theta_sites
-            rates, final_sites, _, sel_info = montecarlo._make_kmatrix_boxNEW(self.qd_lattice, start_idx,
+            rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(self.qd_lattice, start_idx,
                                                                         theta_sites=theta_sites,
                                                                         theta_pol=theta_pol,
                                                                         selection_info = True

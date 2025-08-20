@@ -141,7 +141,8 @@ class KMCRunner():
 
 
     # rate computation based on theta_pol/theta_tau
-    def _make_kmatrix_boxNEW(self, qd_lattice, center_global, theta_pol, theta_sites, selection_info = False):
+    @staticmethod
+    def _make_kmatrix_boxNEW(qd_lattice, center_global, theta_pol, theta_sites, selection_info = False):
 
         # (0) set up θ_pol and θ_sites 
         qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_sites = theta_pol, theta_sites
