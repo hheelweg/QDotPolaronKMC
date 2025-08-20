@@ -154,7 +154,6 @@ class KMCRunner():
 
         return rates, final_states, tot_time
 
-
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
     # NOTE : this can likely be deleted
@@ -205,75 +204,6 @@ class KMCRunner():
         qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
 
-    # NOTE : can delete this because we don't proceed like this anymore
-    def select_sites_and_polarons_enrichment(
-            self,
-            qd_lattice,
-            center_global: int,
-            *,
-            epsilon_site: float = 1e-2,   # site-mass leakage for S_i (smaller -> more sites)
-            tau_enrich: float = 0.6,      # keep j if E_ij = C_ij / phi_i >= tau_enrich
-            verbose: bool = False,
-            ):
-        """
-        Select (site_g, pol_g) around `center_global` using:
-        - S_i: top-mass sites capturing >= 1 - epsilon_site of |psi_i|^2
-        - Enrichment: keep j with E_ij = C_ij / phi_i >= tau_enrich, where
-                C_ij = sum_{s in S_i} |U_{s j}|^2,  phi_i = |S_i| / N_sites
-        - pol_g is returned with the center i as the FIRST entry (needed by make_redfield_box)
-        """
-        ham = qd_lattice.full_ham
-        U = ham.Umat                       # (N_sites, N_polarons)
-        N_sites, N_pols = U.shape
-        i = int(center_global)
-
-        # ---- (1) Freeze site set S_i by cumulative mass (no halo) ----
-        wi = np.abs(U[:, i])**2            # |psi_i|^2 over sites
-        order = np.argsort(wi)[::-1]
-        csum  = np.cumsum(wi[order])
-        k = int(np.searchsorted(csum, 1.0 - float(epsilon_site), side="left")) + 1
-        site_g = np.sort(order[:k]).astype(np.intp)
-
-        if verbose:
-            IPR_i = float(np.sum(wi**2))
-            PR_i  = 1.0 / max(IPR_i, 1e-300)
-            captured = float(wi[order[:k]].sum())
-            print(f"[select] i={i} |S_i|={site_g.size} mass≈{captured:.4f} PR≈{PR_i:.1f}")
-
-        if site_g.size == 0:
-            # Degenerate: still return pol_g with center first so kernel can proceed
-            return site_g, np.array([i], dtype=np.intp)
-
-        # Baseline fraction under uniform coverage
-        phi_i = max(site_g.size / float(N_sites), 1.0 / float(N_sites))
-
-        # ---- (2) Enrichment over ALL destinations (no energy/frequency filter) ----
-        U2 = np.abs(U)**2
-        all_cand = np.arange(N_pols, dtype=np.intp)
-        all_cand = all_cand[all_cand != i]          # exclude center from scoring
-
-        if all_cand.size == 0:
-            return site_g, np.array([i], dtype=np.intp)
-
-        C = U2[np.ix_(site_g, all_cand)].sum(axis=0)   # coverage on S_i
-        E_enrich = C / phi_i
-
-        # Keep enriched destinations and sort by enrichment (desc)
-        keep = (E_enrich >= float(tau_enrich))
-        if not np.any(keep):
-            pol_g = np.array([i], dtype=np.intp)
-            return site_g, pol_g
-
-        cand_kept = all_cand[keep]
-        sort_idx  = np.argsort(E_enrich[keep])[::-1]
-        cand_kept = cand_kept[sort_idx].astype(np.intp)
-
-        # ---- (3) Final polaron list: center FIRST, then destinations ----
-        pol_g = np.concatenate(([i], cand_kept)).astype(np.intp)
-
-        return site_g, pol_g
-
-    
     def _make_kmatrix_boxNEW(self, qd_lattice, center_global, theta_pol, theta_sites, selection_info = False):
 
         # (0) set up θ_pol and θ_sites 
