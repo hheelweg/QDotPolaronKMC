@@ -79,6 +79,8 @@ class ConvergenceAnalysis(KMCRunner):
             # how many polarons/sites were selected 
             nsites_sel += sel_info['nsites_sel']
             npols_sel += sel_info['npols_sel']
+
+            print('start_idx', start_idx)
             
             # evaluate convergence criterion on rates vector
             if criterion == "rate-displacement":
