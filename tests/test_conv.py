@@ -63,7 +63,7 @@ def main():
     
     # test rate convergence
     theta_sites = 0.001
-    theta_pol = 0.1
+    theta_pol = 0.01
 
     # print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
     #                             J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, theta_sites, theta_pol)
