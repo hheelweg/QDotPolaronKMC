@@ -60,13 +60,13 @@ def main():
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200)
 
 
-    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=100)
+    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=20)
     
     # test rate convergence
     theta_sites = 0.02
     theta_pol = 0.1
 
-    # (1) evaluate convergence score
+    # perfrom convergence algorithm
     result = convergence_setup.auto_tune_thetas_simple(
                                         theta_sites_grid=(0.12, 0.08, 0.055, 0.038, 0.027),
                                         theta_pol_start=0.30,
