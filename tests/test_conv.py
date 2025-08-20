@@ -87,11 +87,11 @@ def main():
     # perfrom convergence algorithm
     result = convergence_setup.auto_tune_thetas_bisection(
                                                             theta_sites_lo=0.10,  # loose start
-                                                            theta_sites_hi=0.02,  # tight floor
+                                                            theta_sites_hi=0.01,  # tight floor
                                                             theta_pol_start=0.30,
                                                             theta_pol_min=0.02,
-                                                            rho=0.7,
-                                                            delta=0.02,
+                                                            rho=0.5,
+                                                            delta=0.015,
                                                         )
     print(result)
     

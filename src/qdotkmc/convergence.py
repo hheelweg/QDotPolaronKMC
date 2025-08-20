@@ -209,13 +209,14 @@ class ConvergenceAnalysis(KMCRunner):
                                     self,
                                     *,
                                     theta_sites_lo: float = 0.10,   # loose (larger) starting value
-                                    theta_sites_hi: float = 0.02,   # tight (smaller) floor
+                                    theta_sites_hi: float = 0.01,   # tight (smaller) floor
                                     theta_pol_start: float = 0.30,
                                     theta_pol_min:   float = 0.02,
                                     rho: float             = 0.7,   # fixed span to test gains
                                     delta: float           = 0.015, # “plateau” target per-octave gain (≈1–2%)
                                     max_outer: int         = 12,
                                     criterion: str         = "rate-displacement",
+                                    verbose                = True
                                 ):
         # ensure valid ordering
         lo = float(max(theta_sites_lo, theta_sites_hi))
@@ -272,6 +273,9 @@ class ConvergenceAnalysis(KMCRunner):
             else:
                 # flat enough at mid → keep it as new “hi” (feasible)
                 hi = mid
+            
+            if verbose:
+                print(f"[sites] lo={lo:.4f} hi={hi:.4f} mid={mid:.4f} gain(mid)={g_mid*100:.2f}%/oct")
 
             if lo / hi <= 1.10:  # bracket within ~10% is enough
                 break
