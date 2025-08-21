@@ -10,8 +10,10 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 
-# Job submission
+# job submission
 python -c "import qdotkmc,inspect; print('Using:', qdotkmc.__file__)"
 time python /home/hheelweg/QDots/QDotPolaronKMC/tests/box_main.py
 
-# USAGE : need to adjust python path and file name for execution
+# USAGE : need to adjust python path and file name for execution, also need to have activated
+# python environment with qdotkmc installed
+# NOTE : use 'time' in front of 'python ...' to have SLURM measure wall time (outputted in .log file)
