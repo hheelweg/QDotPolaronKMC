@@ -47,7 +47,7 @@ class ConvergenceAnalysis(KMCRunner):
         assert geom.n_sites >= tune_cfg.no_samples, "cannot have no_sample >= number of sites in lattice"
 
         # decide whether we run parallel or serial code to compute the rate score (convergence criterion)
-        if tune_cfg.max_workers is None or tune_cfg.max_workers == 1:
+        if self.tune_cfg.max_workers is None or self.tune_cfg.max_workers == 1:
             self._rate_score_func = self._rate_score_serial
         else:
             self._rate_score_func = self._rate_score_parallel
