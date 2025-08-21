@@ -72,7 +72,7 @@ class ConvergenceTuneConfig:
     max_steps_pol: int = 8      # max steps for θ_pol shrinkage
 
     # --- execution control
-    no_samples: int = 100
+    no_samples: int = 30
     max_workers: Optional[int] = None
     criterion: str  = "rate-displacement"
     verbose: bool   = True

@@ -36,20 +36,18 @@ def _rate_score_worker(args):
 
 class ConvergenceAnalysis(KMCRunner):
 
-    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, conv : ConvergenceTuneConfig,
-                 no_samples : int, max_workers : Optional[int] = None):
+    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, 
+                 tune_cfg : ConvergenceTuneConfig):
 
         super().__init__(geom, dis, bath_cfg, run)
         # TODO : load some more class attributes here? (e.g. convergence criterion etc.)
         # NOTE : maybe also specify which algortihm type we use radial versus overlap cutoff?
-        self.no_samples = no_samples
-        self.max_workers = max_workers
-        print('test class', conv.theta_sites_lo)
+        self.tune_cfg = tune_cfg
 
-        assert geom.n_sites >= self.no_samples, "cannot have no_sample >= number of sites in lattice"
+        assert geom.n_sites >= tune_cfg.no_samples, "cannot have no_sample >= number of sites in lattice"
 
         # decide whether we run parallel or serial code to compute the rate score (convergence criterion)
-        if self.max_workers is None or self.max_workers == 1:
+        if tune_cfg.max_workers is None or tune_cfg.max_workers == 1:
             self._rate_score_func = self._rate_score_serial
         else:
             self._rate_score_func = self._rate_score_parallel
@@ -81,7 +79,7 @@ class ConvergenceAnalysis(KMCRunner):
     
     # TODO : write input parameters so that we can also use this for r_hop/r_ove
     def _rate_score_serial(self, theta_pol, theta_sites, 
-                           criterion="rate-displacement", score_info=False,
+                           score_info=False
                            ):
 
         # get rates starting from each polaron starting index and analyze by criterion
@@ -102,7 +100,7 @@ class ConvergenceAnalysis(KMCRunner):
             npols_sel += sel_info['npols_sel']
             
             # evaluate convergence criterion on rates vector
-            if criterion == "rate-displacement":
+            if self.tune_cfg.criterion == "rate-displacement":
                 start_loc = self.qd_lattice.qd_locations[start_idx]                                                      # r(0)
                 sq_displacments = ((self.qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
                 lamda = (rates * sq_displacments).sum() / (2 * self.qd_lattice.geom.dims)
@@ -115,8 +113,8 @@ class ConvergenceAnalysis(KMCRunner):
         # optional : store additional information
         info = {}
         if score_info:
-            info['ave_sites'] = nsites_sel / self.no_samples
-            info['ave_pols'] = npols_sel / self.no_samples
+            info['ave_sites'] = nsites_sel / self.tune_cfg.no_samples
+            info['ave_pols'] = npols_sel / self.tune_cfg.no_samples
 
         return rates_criterion, info
 
