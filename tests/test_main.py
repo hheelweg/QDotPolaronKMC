@@ -47,28 +47,30 @@ def main():
     # specify the bath
     spectrum = [spec_density, reorg_nrg, w_c]
 
+    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
+    print('max_workers', max_workers)
+
 
     # create instance of MC class to run KMC simulation
     print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
-                                J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
+                                J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, max_workers)
     
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N, qd_spacing = spacing, r_hop = r_hop, r_ove = r_ove)
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
                           dipolegen=dipolegen, J_c = J_c, seed_base = seed)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
-    run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200)
+    run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200,
+                                    max_workers = max_workers)
 
     
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
     # perform KMC simulation (parallel)
-    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    print('max_workers', max_workers)
     times, msds = kmc_setup.simulate_kmc_parallel(max_workers=max_workers)
 
     # perform KMC simulation (serial)
-    #times, msds = kmc_setup.simulate_kmc()
+    #times, msds = kmc_setup.simulate_kmc_serial()
 
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)

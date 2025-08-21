@@ -35,6 +35,12 @@ class KMCRunner():
 
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
+
+        # select whether to conduct KMC serial or in parallel (over realizations of noise)
+        if self.run.max_workers is None or self.run.max_workers == 1:
+            self._simulate_kmc = self.simulate_kmc_serial()
+        else:
+            self._simulate_kmc = self.simulate_kmc_parallel()
     
     # make join time-grid
     def _make_time_grid(self):
@@ -401,7 +407,7 @@ class KMCRunner():
 
 
     # parallel KMC
-    def simulate_kmc_parallel(self, max_workers = None):
+    def simulate_kmc_parallel(self):
         """Parallel over realizations on CPU (one process per realization)."""
 
         os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -427,7 +433,7 @@ class KMCRunner():
         jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r, sim_time) for r in range(R)]
 
         #msds = None
-        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
+        with ProcessPoolExecutor(max_workers=self.run.max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
             for fut in as_completed(futs):
                 rid, msd_r, sim_time = fut.result()
@@ -441,7 +447,7 @@ class KMCRunner():
 
 
     # serial KMC
-    def simulate_kmc(self):
+    def simulate_kmc_serial(self):
 
         times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
         msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output

@@ -49,7 +49,8 @@ class RunConfig:
     ntrajs: int
     nrealizations: int
     t_final: float
-    time_grid_density: int = 100  # points per unit time for MSD time grid (NOTE : might want to modify this later)
+    time_grid_density: int = 100            # points per unit time for MSD time grid (NOTE : might want to modify this later)
+    max_workers: Optional[int] = None       # max_workers to conduct parallel work
 
 @dataclass(frozen=True)
 class ConvergenceTuneConfig:
@@ -73,7 +74,7 @@ class ConvergenceTuneConfig:
 
     # --- execution control
     no_samples: int = 30
-    max_workers: Optional[int] = None
+    max_workers: Optional[int] = None       # max_workers to conduct parallel work
     criterion: str  = "rate-displacement"
     verbose: bool   = True
 
