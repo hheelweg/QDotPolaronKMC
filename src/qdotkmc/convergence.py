@@ -14,7 +14,6 @@ from .montecarlo import KMCRunner
 _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rate scores from a single lattice site
-# TODO: do we want to re-write this in terms of _rate_worker instead of _rate_score_worker?
 def _rate_score_worker(args):
     (start_idx, theta_pol, theta_sites, criterion, weight) = args
     # Compute rates for this start index
@@ -76,7 +75,6 @@ class ConvergenceAnalysis(KMCRunner):
         self.weights = w / Z
 
     
-    # TODO : write input parameters so that we can also use this for r_hop/r_ove
     def _rate_score_serial(self, theta_pol, theta_sites, score_info=False):
 
         # get rates starting from each polaron starting index and analyze by criterion
@@ -116,7 +114,6 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    # TODO : write input parameters so that we can also use this for r_hop/r_ove
     def _rate_score_parallel(self, theta_pol, theta_sites, score_info = True):
         """
         Parallel version of _rate_score over self.start_sites.
