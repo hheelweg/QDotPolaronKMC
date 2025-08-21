@@ -33,7 +33,6 @@ def _rate_score_worker(args):
     return lamda * weight, sel_info['nsites_sel'], sel_info['npols_sel']
 
 
-
 class ConvergenceAnalysis(KMCRunner):
 
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, no_samples : int):
@@ -193,8 +192,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         return rel / max(octaves, 1e-12)
 
-
-    # inner progressive shrinkage algortihm for finding θ_pol^* for fixed θ_sites
+    # inner progressive shrinkage algorithm for finding θ_pol^* for fixed θ_sites
     def _tune_theta_pol(
                         self,
                         theta_sites: float,
