@@ -40,9 +40,9 @@ class ConvergenceAnalysis(KMCRunner):
                  tune_cfg : ConvergenceTuneConfig):
 
         super().__init__(geom, dis, bath_cfg, run)
-        # TODO : load some more class attributes here? (e.g. convergence criterion etc.)
         # NOTE : maybe also specify which algortihm type we use radial versus overlap cutoff?
         self.tune_cfg = tune_cfg
+        print('max workers no samples', self.tune_cfg.max_workers, self.tune_cfg.no_samples)
 
         assert geom.n_sites >= tune_cfg.no_samples, "cannot have no_sample >= number of sites in lattice"
 
@@ -202,18 +202,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rel / max(octaves, 1e-12)
 
     # inner progressive shrinkage algorithm for finding θ_pol^* for fixed θ_sites
-    def _tune_theta_pol(
-                        self,
-                        theta_sites: float,
-                        *,
-                        # theta_pol_start: float = 0.30,
-                        # theta_pol_min: float   = 0.02,
-                        # rho: float             = 0.7,
-                        # delta: float           = 0.015,
-                        # max_steps: int         = 8,
-                        # criterion: str         = "rate-displacement",
-                        verbose                = True
-                        ):
+    def _tune_theta_pol(self, theta_sites: float, verbose = True):
         
         '''
         Inner progressive shrinkage algorithm to find the optimal θ_pol^* for a fixed θ_sites.
@@ -279,19 +268,7 @@ class ConvergenceAnalysis(KMCRunner):
         return theta_p, float(lam_from)
 
     # main auto-tune loop to obtain θ_pol/θ_sites
-    def auto_tune_thetas(
-                        self,
-                        *,
-                        # theta_sites_lo: float  = 0.10,   # loose (larger) starting value
-                        # theta_sites_hi: float  = 0.01,   # tight (smaller) floor
-                        # theta_pol_start: float = 0.30,
-                        # theta_pol_min:   float = 0.02,
-                        # rho: float             = 0.7,   # fixed span to test gains
-                        # delta: float           = 0.015, # “plateau” target per-octave gain (≈1–2%)
-                        # max_outer: int         = 12,
-                        # criterion: str         = "rate-displacement",
-                        verbose                = True
-                        ):
+    def auto_tune_thetas(self, verbose = True):
         '''
         Automatically tune the convergence thresholds (θ_sites, θ_pol) by nested optimization.
 

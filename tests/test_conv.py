@@ -83,13 +83,7 @@ def main():
 
     # perfrom convergence algorithm
     result = convergence_setup.auto_tune_thetas()
-                                                # theta_sites_lo  = 0.20,     # loose start
-                                                # theta_sites_hi  = 0.001,    # tight floor
-                                                # theta_pol_start = 0.30,
-                                                # theta_pol_min   = 0.001,
-                                                # rho             = 0.8,
-                                                # delta           = 0.04,
-                                                # )
+                                            
     print(result)
     
     
