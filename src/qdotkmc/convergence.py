@@ -44,8 +44,8 @@ class ConvergenceAnalysis(KMCRunner):
         # NOTE : maybe also specify which algortihm type we use radial versus overlap cutoff?
         self.no_samples = no_samples
         self.max_workers = max_workers
-        print('self max workers', self.max_workers)
-        # decide whether we run parallel or serial
+
+        # decide whether we run parallel or serial code to compute the rate score (convergence criterion)
         if self.max_workers is None or self.max_workers == 1:
             self._rate_score_func = self._rate_score_serial
         else:
@@ -81,6 +81,7 @@ class ConvergenceAnalysis(KMCRunner):
                            criterion="rate-displacement", score_info=False,
                            ):
 
+        print('test serial', True)
         # get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
         lambdas = np.zeros_like(self.start_sites, dtype=np.float32)
