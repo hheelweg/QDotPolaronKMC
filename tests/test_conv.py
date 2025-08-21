@@ -80,7 +80,7 @@ def main():
     # print('score info', info)
 
     # perfrom convergence algorithm
-    result = convergence_setup.auto_tune_thetas(max_workers     = max_workers, 
+    result = convergence_setup.auto_tune_thetas(
                                                 theta_sites_lo  = 0.20,     # loose start
                                                 theta_sites_hi  = 0.001,    # tight floor
                                                 theta_pol_start = 0.30,
