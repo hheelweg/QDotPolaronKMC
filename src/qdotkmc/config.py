@@ -54,12 +54,12 @@ class RunConfig:
 @dataclass(frozen=True)
 class ConvergenceTuneConfig:
     """
-    immutable configuration for convergence tuning (θ_sites, θ_pol).
+    immutable configuration for convergence tuning of KMC hyperparameters parameters(θ_sites, θ_pol).
     bundles algorithm parameters and execution controls.
     """
     # --- site cutoff tuning
     theta_sites_lo: float = 0.10
-    theta_sites_hi: float = 0.01
+    theta_sites_hi: float = 0.02
 
     # --- polaron cutoff tuning
     theta_pol_start: float = 0.30

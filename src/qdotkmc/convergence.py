@@ -42,7 +42,6 @@ class ConvergenceAnalysis(KMCRunner):
         super().__init__(geom, dis, bath_cfg, run)
         # NOTE : maybe also specify which algortihm type we use radial versus overlap cutoff?
         self.tune_cfg = tune_cfg
-        print('max workers no samples', self.tune_cfg.max_workers, self.tune_cfg.no_samples)
 
         assert geom.n_sites >= tune_cfg.no_samples, "cannot have no_sample >= number of sites in lattice"
 
@@ -321,8 +320,8 @@ class ConvergenceAnalysis(KMCRunner):
         # we call this funcion g = G_s(θ_sites), note that every call of this function triggers the inner loop
         def sites_gain(theta_s: float):
             theta_s_tight = max(hi, self.tune_cfg.rho * theta_s)
-            lam_lo, _ = _tune_theta_pol_wrapper(theta_s)
-            lam_hi, _ = _tune_theta_pol_wrapper(theta_s_tight)
+            _, lam_lo = self._tune_theta_pol(theta_s)
+            _, lam_hi = self._tune_theta_pol(theta_s_tight)
             g = self._per_oct_gain(lam_lo, lam_hi, max(theta_s_tight / theta_s, 1e-12))
             return g, lam_lo, lam_hi
 
