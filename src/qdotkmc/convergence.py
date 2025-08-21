@@ -1,7 +1,6 @@
 import numpy as np
 from numpy.random import default_rng
 import os
-from typing import Optional
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 

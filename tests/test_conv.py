@@ -62,7 +62,7 @@ def main():
     # get maximum amount of workers if parallel execution demanded
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
 
-    tune_cfg = qdotkmc.config.ConvergenceTuneConfig(no_samples=50, max_workers=max_workers, criterion="rate-displacement",
+    tune_cfg = qdotkmc.config.ConvergenceTuneConfig(no_samples =50, max_workers=max_workers, criterion="rate-displacement",
                                                     theta_sites_lo  = 0.30,
                                                     theta_sites_hi  = 0.001,
                                                     theta_pol_start = 0.30,
@@ -85,11 +85,15 @@ def main():
     # print('criterion', criterion)
     # print('score info', info)
 
-    # automatically optimize thetas
+    #  ---------    automatically optimize thetas    ----------
+    # set verbose = False to avoid printing updates on convergence
     thetas_result = convergence_setup.auto_tune_thetas(verbose=True)
+
+    theta_sites_opt = thetas_result['theta_sites']
+    theta_pols_opt = thetas_result['theta_pols']
     
-    print(f"theta_sites (opt): {thetas_result['theta_sites']:.4f}")
-    print(f"theta_pol (opt): {thetas_result['theta_pol']:.4f}")
+    print(f"theta_sites (opt): {theta_sites_opt:.4f}")
+    print(f"theta_pol (opt): {theta_pols_opt:.4f}")
     
     
 
