@@ -60,7 +60,6 @@ def main():
 
     # get maximum amount of workers if parallel execution demanded
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    #max_workers = 1
 
     convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, 
                                                                 no_samples=20, max_workers=max_workers)
@@ -72,30 +71,24 @@ def main():
     print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, theta_sites, theta_pol)
 
-    # serial execution of _rate_score
-    criterion, info = convergence_setup._rate_score_func(theta_pol=theta_pol, theta_sites=theta_sites,
-                                                         criterion='rate-displacement', score_info=True
-                                                        )
+    # # execution of _rate_score
+    # criterion, info = convergence_setup._rate_score_func(theta_pol=theta_pol, theta_sites=theta_sites,
+    #                                                      criterion='rate-displacement', score_info=True
+    #                                                     )
+    
+    # print('criterion', criterion)
+    # print('score info', info)
 
-    # parallel execution of _rate_score
-    # criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites,
-    #                                                          criterion='rate-displacement', score_info=True,
-    #                                                          max_workers=max_workers)
-
-
-    print('criterion', criterion)
-    print('score info', info)
-
-    # # perfrom convergence algorithm
-    # result = convergence_setup.auto_tune_thetas(max_workers     = max_workers, 
-    #                                             theta_sites_lo  = 0.20,     # loose start
-    #                                             theta_sites_hi  = 0.001,    # tight floor
-    #                                             theta_pol_start = 0.30,
-    #                                             theta_pol_min   = 0.001,
-    #                                             rho             = 0.8,
-    #                                             delta           = 0.04,
-    #                                             )
-    # print(result)
+    # perfrom convergence algorithm
+    result = convergence_setup.auto_tune_thetas(max_workers     = max_workers, 
+                                                theta_sites_lo  = 0.20,     # loose start
+                                                theta_sites_hi  = 0.001,    # tight floor
+                                                theta_pol_start = 0.30,
+                                                theta_pol_min   = 0.001,
+                                                rho             = 0.8,
+                                                delta           = 0.04,
+                                                )
+    print(result)
     
     
 

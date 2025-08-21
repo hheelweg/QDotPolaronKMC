@@ -81,7 +81,6 @@ class ConvergenceAnalysis(KMCRunner):
                            criterion="rate-displacement", score_info=False,
                            ):
 
-        print('test serial', True)
         # get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
         lambdas = np.zeros_like(self.start_sites, dtype=np.float32)
@@ -252,7 +251,7 @@ class ConvergenceAnalysis(KMCRunner):
         # (0) initialize θ_pol
         theta_p = float(theta_pol_start)
         # evaluate rate-score Λ at current (initial) θ_pol
-        lam_from, _ = self._rate_score_parallel(theta_p, theta_sites, criterion=criterion, score_info=True, max_workers=max_workers)
+        lam_from, _ = self._rate_score_func(theta_p, theta_sites, criterion=criterion, score_info=True, max_workers=max_workers)
 
         for _ in range(int(max_steps)):
 
@@ -262,7 +261,7 @@ class ConvergenceAnalysis(KMCRunner):
                 break
 
             # (2) evaluate new rate score for 
-            lam_to, _ = self._rate_score_parallel(theta_p_next, theta_sites, criterion=criterion, score_info=False, max_workers=max_workers)
+            lam_to, _ = self._rate_score_func(theta_p_next, theta_sites, criterion=criterion, score_info=False, max_workers=max_workers)
 
             # (3) per-octave gain G_p over a fixed span θ_pol -> ρ * θ_pol
             gain = self._per_oct_gain(lam_from, lam_to, rho)
