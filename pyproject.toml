@@ -7,7 +7,7 @@ name = "qdotkmc"
 version = "1.0.2"
 description = "Quantum-dot polaron KMC / Redfield box utilities"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 authors = [{ name = "Henrik Heelweg", "Thomas Sheehan" }]
 dependencies = [
   "numpy",
