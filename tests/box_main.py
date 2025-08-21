@@ -93,9 +93,9 @@ def main():
 
 if __name__ == '__main__':
 
-    # needs pyinstruments but writes how much time is spent on each part of the code
+    # needs pyinstrument package; writes how much time is spent on each part of the code
     # NOTE : only for debugging and making the code faster (can be deleted later on)
-    
+
     profiler = Profiler()
     profiler.start()
 
