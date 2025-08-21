@@ -276,8 +276,8 @@ class ConvergenceAnalysis(KMCRunner):
         3. A bisection search in log(θ_sites) space finds the largest θ_sites with 
             G_s(θ_sites) ≤ δ (plateau criterion).
         4. Edge cases are handled:
-            • If even the tightest θ_sites is too steep, return θ_sites = hi.
-            • If the loosest θ_sites is already flat, return θ_sites = lo.
+            - If even the tightest θ_sites is too steep, return θ_sites = hi.
+            - If the loosest θ_sites is already flat, return θ_sites = lo.
 
         Parameters
         ----------
