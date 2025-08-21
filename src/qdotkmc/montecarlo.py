@@ -414,6 +414,8 @@ class KMCRunner():
         os.environ.setdefault("MKL_NUM_THREADS", "1")
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
+        print('use parallel')
+
         R = self.run.nrealizations
         times_msds = self._make_time_grid()
         msds = np.zeros((R, len(times_msds)))
@@ -449,6 +451,7 @@ class KMCRunner():
     # serial KMC
     def simulate_kmc_serial(self):
 
+        print('use serial')
         times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
         msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
         sim_time = 0                                                        # simulated time
