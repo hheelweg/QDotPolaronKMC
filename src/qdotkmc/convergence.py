@@ -250,7 +250,7 @@ class ConvergenceAnalysis(KMCRunner):
         # (0) initialize θ_pol
         theta_p = float(self.tune_cfg.theta_pol_start)
         # evaluate rate-score Λ at current (initial) θ_pol
-        lam_from, _ = self._rate_score_func(theta_p, theta_sites, criterion=self.tune_cfg.criterion, score_info=True)
+        lam_from, _ = self._rate_score_func(theta_p, theta_sites, score_info=True)
 
         for _ in range(int(self.tune_cfg.max_steps)):
 
@@ -260,7 +260,7 @@ class ConvergenceAnalysis(KMCRunner):
                 break
 
             # (2) evaluate new rate score for 
-            lam_to, _ = self._rate_score_func(theta_p_next, theta_sites, criterion=self.tune_cfg.criterion, score_info=False)
+            lam_to, _ = self._rate_score_func(theta_p_next, theta_sites, score_info=False)
 
             # (3) per-octave gain G_p over a fixed span θ_pol -> ρ * θ_pol
             gain = self._per_oct_gain(lam_from, lam_to, self.tune_cfg.rho)
