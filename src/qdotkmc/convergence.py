@@ -252,7 +252,7 @@ class ConvergenceAnalysis(KMCRunner):
         # evaluate rate-score Λ at current (initial) θ_pol
         lam_from, _ = self._rate_score_func(theta_p, theta_sites, score_info=True)
 
-        for _ in range(int(self.tune_cfg.max_steps)):
+        for _ in range(int(self.tune_cfg.max_steps_pol)):
 
             # (1) perform shrinkage
             theta_p_next = max(float(self.tune_cfg.theta_pol_min), self.tune_cfg.rho * theta_p)
