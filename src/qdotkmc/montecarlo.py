@@ -236,6 +236,8 @@ class KMCRunner():
 
         # get random seef from realization id (rid)
         rnd_seed = self._spawn_realization_seed(rid)
+
+        print('seed', rnd_seed)
         
         # initialize instance of QDLattice class
         # NOTE : change to rnd_seed = self.dis.seed_base for default seed
