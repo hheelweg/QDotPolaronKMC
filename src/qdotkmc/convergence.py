@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.random import default_rng
 import os
+from typing import Optional
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -35,12 +36,14 @@ def _rate_score_worker(args):
 
 class ConvergenceAnalysis(KMCRunner):
 
-    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, no_samples : int):
+    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, 
+                 no_samples : int, max_workers : Optional[int] = None):
 
         super().__init__(geom, dis, bath_cfg, run)
         # TODO : load some more class attributes here? (e.g. convergence criterion etc.)
         # NOTE : maybe also specify which algortihm type we use radial versus overlap cutoff?
         self.no_samples = no_samples
+        self.max_workers = max_workers
 
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
@@ -376,7 +379,7 @@ class ConvergenceAnalysis(KMCRunner):
 
             # (1) get bisection midpoint 
             mid = float(np.sqrt(lo * hi))                               # geometric midpoint (bisection in log-space)
-            g_mid, _, _ = sites_gain(mid)                               # evaluate G_s(mid)
+            g_mid, _, _ = sites_gain(mid, max_workers=max_workers)      # evaluate G_s(mid)
 
             # (2) make decision based on G_s(mid)
             if g_mid > float(delta):
