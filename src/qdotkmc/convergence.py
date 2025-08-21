@@ -5,7 +5,7 @@ from typing import Optional
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
+from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, ConvergenceTuneConfig
 from . import const
 from .hamiltonian_box import SpecDens
 from .montecarlo import KMCRunner
@@ -36,7 +36,7 @@ def _rate_score_worker(args):
 
 class ConvergenceAnalysis(KMCRunner):
 
-    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, 
+    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, conv : ConvergenceTuneConfig,
                  no_samples : int, max_workers : Optional[int] = None):
 
         super().__init__(geom, dis, bath_cfg, run)
@@ -44,6 +44,9 @@ class ConvergenceAnalysis(KMCRunner):
         # NOTE : maybe also specify which algortihm type we use radial versus overlap cutoff?
         self.no_samples = no_samples
         self.max_workers = max_workers
+        print('test class', conv.theta_sites_lo)
+
+        assert geom.n_sites >= self.no_samples, "cannot have no_sample >= number of sites in lattice"
 
         # decide whether we run parallel or serial code to compute the rate score (convergence criterion)
         if self.max_workers is None or self.max_workers == 1:

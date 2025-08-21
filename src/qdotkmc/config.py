@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
-from typing import Any
+from typing import Any, Optional
 
 @dataclass(frozen=True)
 class GeometryConfig:
@@ -50,3 +50,30 @@ class RunConfig:
     nrealizations: int
     t_final: float
     time_grid_density: int = 100  # points per unit time for MSD time grid (NOTE : might want to modify this later)
+
+@dataclass(frozen=True)
+class ConvergenceTuneConfig:
+    """
+    immutable configuration for convergence tuning (θ_sites, θ_pol).
+    bundles algorithm parameters and execution controls.
+    """
+    # --- site cutoff tuning
+    theta_sites_lo: float = 0.10
+    theta_sites_hi: float = 0.01
+
+    # --- polaron cutoff tuning
+    theta_pol_start: float = 0.30
+    theta_pol_min:   float = 0.02
+
+    # --- algorithm hyperparameters
+    rho: float       = 0.7      # shrinkage span per iteration
+    delta: float     = 0.015    # flatness tolerance (per-octave gain target)
+    max_outer: int   = 12       # max steps for θ_sites bisection
+    max_steps_pol: int = 8      # max steps for θ_pol shrinkage
+
+    # --- execution control
+    no_samples: int = 100
+    max_workers: Optional[int] = None
+    criterion: str  = "rate-displacement"
+    verbose: bool   = True
+
