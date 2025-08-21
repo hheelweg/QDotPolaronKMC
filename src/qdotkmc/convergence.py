@@ -120,8 +120,7 @@ class ConvergenceAnalysis(KMCRunner):
 
 
     # TODO : write input parameters so that we can also use this for r_hop/r_ove
-    def _rate_score_parallel(self, theta_pol, theta_sites, *,
-                             criterion="rate-displacement",
+    def _rate_score_parallel(self, theta_pol, theta_sites,
                              score_info = True):
         """
         Parallel version of _rate_score over self.start_sites.
@@ -143,13 +142,13 @@ class ConvergenceAnalysis(KMCRunner):
         weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
         # dispatch configs + indices to parallelize over
-        jobs = [(int(start_idx), float(theta_pol), float(theta_sites), criterion, weight_by_idx[start_idx]) 
+        jobs = [(int(start_idx), float(theta_pol), float(theta_sites), self.tune_cfg.criterion, weight_by_idx[start_idx]) 
                 for start_idx in self.start_sites]
 
         rates_criterion = 0
         nsites_sel, npols_sel = 0, 0
 
-        with ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx) as ex:
+        with ProcessPoolExecutor(max_workers=self.tune_cfg.max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_rate_score_worker, job) for job in jobs]
             for fut in as_completed(futs):
 
@@ -164,8 +163,8 @@ class ConvergenceAnalysis(KMCRunner):
         # optional : store additional information
         info = {}
         if score_info:
-            info['ave_sites'] = nsites_sel / self.no_samples
-            info['ave_pols'] = npols_sel / self.no_samples
+            info['ave_sites'] = nsites_sel / self.tune_cfg.no_samples
+            info['ave_pols'] = npols_sel / self.tune_cfg.no_samples
 
         return rates_criterion, info
 
