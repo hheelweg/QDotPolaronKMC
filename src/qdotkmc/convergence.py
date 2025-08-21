@@ -342,10 +342,10 @@ class ConvergenceAnalysis(KMCRunner):
 
         # define a function : compute per-octave gain for sites by comparing ts and ρ * θ_sites
         # we call this funcion g = G_s(θ_sites), note that every call of this function triggers the inner loop
-        def sites_gain(theta_s: float):
+        def sites_gain(theta_s: float, max_workers: int):
             theta_s_tight = max(hi, rho * theta_s)
-            lam_lo, _ = _tune_theta_pol_wrapper(theta_s)
-            lam_hi, _ = _tune_theta_pol_wrapper(theta_s_tight)
+            lam_lo, _ = _tune_theta_pol_wrapper(theta_s, max_workers=max_workers)
+            lam_hi, _ = _tune_theta_pol_wrapper(theta_s_tight, max_workers=max_workers)
             g = self._per_oct_gain(lam_lo, lam_hi, max(theta_s_tight / theta_s, 1e-12))
             return g, lam_lo, lam_hi
 
