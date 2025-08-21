@@ -351,8 +351,8 @@ class ConvergenceAnalysis(KMCRunner):
 
         #  -------------------------    (1) edge-case handling     ----------------------------------------
         # (1.1) evaluate g_lo = G_s(lo) and g_hi = G_s(hi)
-        g_lo, lam_lo, _ = sites_gain(lo)                                # loose point gain toward tighter
-        g_hi, _, lam_hi = sites_gain(hi)                                # tight point gain toward even tighter (may be zero-span)
+        g_lo, lam_lo, _ = sites_gain(lo, max_workers=max_workers)                                # loose point gain toward tighter
+        g_hi, _, lam_hi = sites_gain(hi, max_workers=max_workers)                                # tight point gain toward even tighter (may be zero-span)
 
         # (1.2) if even the tight end is still “steep”, return the tightest (best we can do)
         if g_hi > float(delta):
