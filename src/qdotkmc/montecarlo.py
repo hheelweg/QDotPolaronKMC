@@ -407,7 +407,7 @@ class KMCRunner():
 
 
     # parallel KMC
-    def simulate_kmc_parallel(self):
+    def simulate_kmc_parallel(self, max_workers=max_workers):
         """Parallel over realizations on CPU (one process per realization)."""
 
         os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -435,7 +435,7 @@ class KMCRunner():
         jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r, sim_time) for r in range(R)]
 
         #msds = None
-        with ProcessPoolExecutor(max_workers=self.run.max_workers, mp_context=ctx) as ex:
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
             for fut in as_completed(futs):
                 rid, msd_r, sim_time = fut.result()
