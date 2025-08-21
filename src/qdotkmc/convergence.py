@@ -209,12 +209,12 @@ class ConvergenceAnalysis(KMCRunner):
 
         return tp, float(lam_from)
 
-    # --- outer: bisection in log(theta_sites) using fixed-span rule; returns chosen thetas + Lambda ---
+    # main auto-tune loop to obtain θ_pol/θ_sites
     def auto_tune_thetas(
                         self,
                         *,
-                        theta_sites_lo: float = 0.10,   # loose (larger) starting value
-                        theta_sites_hi: float = 0.01,   # tight (smaller) floor
+                        theta_sites_lo: float  = 0.10,   # loose (larger) starting value
+                        theta_sites_hi: float  = 0.01,   # tight (smaller) floor
                         theta_pol_start: float = 0.30,
                         theta_pol_min:   float = 0.02,
                         rho: float             = 0.7,   # fixed span to test gains
@@ -223,17 +223,22 @@ class ConvergenceAnalysis(KMCRunner):
                         criterion: str         = "rate-displacement",
                         verbose                = True
                     ):
+        '''
+
+
         
-        # ensure valid ordering
+        '''
+        
+        # ensure valid ordering of θ_sites bracket θ_sites ∈ [lo, hi] with lo > hi
         lo = max(theta_sites_lo, theta_sites_hi)
         hi = min(theta_sites_lo, theta_sites_hi)
         if not (lo > hi):
             raise ValueError("Require theta_sites_lo > theta_sites_hi (looser > tighter).")
 
-        # define a function: for a given theta_sites, tune theta_pol and return Lambda
-        def eval_L(ts: float):
+        # define a function: for a fixed θ_sites, tune θ_pol and return rate score lam
+        def _tune_theta_pol_wrapper(theta_s : float):
             tp_star, lam = self._tune_theta_pol(
-                                                ts,
+                                                theta_s,
                                                 theta_pol_start=theta_pol_start,
                                                 theta_pol_min=theta_pol_min,
                                                 rho=rho,
@@ -245,8 +250,8 @@ class ConvergenceAnalysis(KMCRunner):
         # helper: compute per-octave gain for sites by comparing ts and rho*ts (clamped at hi)
         def sites_gain(ts: float) -> tuple[float, float, float]:
             ts_tight = max(hi, rho * ts)
-            lam_lo, _ = eval_L(ts)
-            lam_hi, _ = eval_L(ts_tight)
+            lam_lo, _ = _tune_theta_pol_wrapper(ts)
+            lam_hi, _ = _tune_theta_pol_wrapper(ts_tight)
             g = self._per_oct_gain(lam_lo, lam_hi, max(ts_tight / ts, 1e-12))
             return g, lam_lo, lam_hi
 
@@ -287,7 +292,7 @@ class ConvergenceAnalysis(KMCRunner):
                 break
 
         # finalize at hi (largest theta_sites in bracket with gain <= delta)
-        tp_star, lam_star = self._tune_theta_pol_span(hi,
+        tp_star, lam_star = self._tune_theta_pol(hi,
                             theta_pol_start=theta_pol_start,
                             theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
         
