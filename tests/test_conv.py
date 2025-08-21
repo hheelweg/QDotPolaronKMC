@@ -86,7 +86,7 @@ def main():
     # print('score info', info)
 
     # automatically optimize thetas
-    thetas_result = convergence_setup.auto_tune_thetas()
+    thetas_result = convergence_setup.auto_tune_thetas(verbose=True)
     
     print(f"theta_sites (opt): {thetas_result['theta_sites']:.4f}")
     print(f"theta_pol (opt): {thetas_result['theta_pol']:.4f}")

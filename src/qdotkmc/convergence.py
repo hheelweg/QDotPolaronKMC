@@ -308,28 +308,28 @@ class ConvergenceAnalysis(KMCRunner):
 
         # define a function : compute per-octave gain for sites by comparing ts and ρ * θ_sites
         # we call this funcion g = G_s(θ_sites), note that every call of this function triggers the inner loop
-        def sites_gain(theta_s: float):
+        def sites_gain(theta_s: float, verbose=verbose):
             theta_s_tight = max(hi, self.tune_cfg.rho * theta_s)
-            _, lam_lo, info_lo = self._tune_theta_pol(theta_s)
-            _, lam_hi, info_hi = self._tune_theta_pol(theta_s_tight)
+            _, lam_lo, info_lo = self._tune_theta_pol(theta_s, verbose=verbose)
+            _, lam_hi, info_hi = self._tune_theta_pol(theta_s_tight, verbose=verbose)
             g = self._per_oct_gain(lam_lo, lam_hi, max(theta_s_tight / theta_s, 1e-12))
             return g, lam_lo, lam_hi, info_hi
 
         #  -------------------------    (1) edge-case handling     ----------------------------------------
         # (1.1) evaluate g_lo = G_s(lo) and g_hi = G_s(hi)
-        g_lo, lam_lo, _, info_lo = sites_gain(lo)                                # loose point gain toward tighter
-        g_hi, _, lam_hi, info_hi = sites_gain(hi)                                # tight point gain toward even tighter (may be zero-span)
+        g_lo, lam_lo, _, info_lo = sites_gain(lo, verbose=verbose)                                # loose point gain toward tighter
+        g_hi, _, lam_hi, info_hi = sites_gain(hi, verbose=verbose)                                # tight point gain toward even tighter (may be zero-span)
 
         # (1.2) if even the tight end is still “steep”, return the tightest (best we can do)
         if g_hi > float(self.tune_cfg.delta):
-            tp_star, lam_star, info_star = self._tune_theta_pol(hi)
+            tp_star, lam_star, info_star = self._tune_theta_pol(hi, verbose=verbose)
             print('[range-warning] algorithm cannot yield a reasonable result at hi (tight end of theta_sites is not flat enough).')
             return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
                         nsites=info_star['ave_sites'], npols=info_star['ave_pols'])
 
         # (1.3) if the loose end is already “flat”, keep the largest (cheapest) feasible theta_sites
         if g_lo <= float(self.tune_cfg.delta):
-            tp_star, lam_star, info_star = self._tune_theta_pol(lo)
+            tp_star, lam_star, info_star = self._tune_theta_pol(lo, verbose=verbose)
             print('[range-warning] algorithm yields trivial result at lo (loose end of theta_sites is already flat).')
             return dict(theta_sites=lo, theta_pol=tp_star, lambda_final=float(lam_star), 
                         nsites=info_star['ave_sites'], npols=info_star['ave_pols'])
@@ -340,7 +340,7 @@ class ConvergenceAnalysis(KMCRunner):
 
             # (1) get bisection midpoint 
             mid = float(np.sqrt(lo * hi))                               # geometric midpoint (bisection in log-space)
-            g_mid, _, _, info_mid = sites_gain(mid)               # evaluate G_s(mid)
+            g_mid, _, _, info_mid = sites_gain(mid, verbose=verbose)    # evaluate G_s(mid)
 
             # (2) make decision based on G_s(mid)
             if g_mid > float(self.tune_cfg.delta):
@@ -357,7 +357,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         #  -------------------------    (3) obtain θ_sites^*, θ_pol^*, Λ^*     ----------------------------------
         # finalize at hi (largest θ_sites in bracket with gain <= 𝛿)
-        tp_star, lam_star, info_star = self._tune_theta_pol(hi)
+        tp_star, lam_star, info_star = self._tune_theta_pol(hi, verbose=verbose)
         
         return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
                     nsites=int(info_star['ave_sites']), npols=int(info_star['ave_pols']))
