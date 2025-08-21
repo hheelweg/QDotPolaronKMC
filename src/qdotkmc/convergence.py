@@ -164,7 +164,9 @@ class ConvergenceAnalysis(KMCRunner):
 
     @staticmethod
     def _per_oct_gain(lam_from: float, lam_to: float, span_factor: float):
+        # (1) relative gain
         rel = (lam_to - lam_from) / (abs(lam_from) + 1e-300)
+        # (2) normalize per-octave 
         octaves = np.log(1.0 / max(span_factor, 1e-12)) / np.log(2.0)
         return rel / max(octaves, 1e-12)
 
@@ -235,7 +237,7 @@ class ConvergenceAnalysis(KMCRunner):
         if not (lo > hi):
             raise ValueError("Require theta_sites_lo > theta_sites_hi (looser > tighter).")
 
-        # define a function: for a fixed θ_sites, tune θ_pol and return rate score lam
+        # define a wrapper for a fixed θ_sites, tune θ_pol and return rate-score lam and optimal θ_pol^*
         def _tune_theta_pol_wrapper(theta_s : float):
             tp_star, lam = self._tune_theta_pol(
                                                 theta_s,
@@ -247,51 +249,58 @@ class ConvergenceAnalysis(KMCRunner):
                                                 )
             return lam, tp_star
 
-        # helper: compute per-octave gain for sites by comparing ts and rho*ts (clamped at hi)
-        def sites_gain(ts: float) -> tuple[float, float, float]:
-            ts_tight = max(hi, rho * ts)
-            lam_lo, _ = _tune_theta_pol_wrapper(ts)
-            lam_hi, _ = _tune_theta_pol_wrapper(ts_tight)
-            g = self._per_oct_gain(lam_lo, lam_hi, max(ts_tight / ts, 1e-12))
+        # define a function : compute per-octave gain for sites by comparing ts and ρ * θ_sites
+        # we call this funcion g = G_s(θ_sites), note that every call of this function triggers the inner loop
+        def sites_gain(theta_s: float):
+            theta_s_tight = max(hi, rho * theta_s)
+            lam_lo, _ = _tune_theta_pol_wrapper(theta_s)
+            lam_hi, _ = _tune_theta_pol_wrapper(theta_s_tight)
+            g = self._per_oct_gain(lam_lo, lam_hi, max(theta_s_tight / theta_s, 1e-12))
             return g, lam_lo, lam_hi
 
-        # evaluate at ends (edge-case handling)
-        g_lo, lam_lo, _ = sites_gain(lo)   # loose point gain toward tighter
-        g_hi, _, lam_hi = sites_gain(hi)   # tight point gain toward even tighter (may be zero-span)
+        #  -------------------------    (1) edge-case handling     ----------------------------------------
+        # (1.1) evaluate g_lo = G_s(lo) and g_hi = G_s(hi)
+        g_lo, lam_lo, _ = sites_gain(lo)                                # loose point gain toward tighter
+        g_hi, _, lam_hi = sites_gain(hi)                                # tight point gain toward even tighter (may be zero-span)
 
-        # if even the tight end is still “steep”, return the tightest (best we can do)
+        # (1.2) if even the tight end is still “steep”, return the tightest (best we can do)
         if g_hi > float(delta):
             tp_star, lam_star = self._tune_theta_pol(hi,
                                 theta_pol_start=theta_pol_start,
                                 theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+            print('[range-warning] algorithm cannot yield a reasonable result at hi (tight end of theta_sites is not flat enough).')
             return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star))
 
-        # if the loose end is already “flat”, keep the largest (cheapest) feasible theta_sites
+        # (1.3) if the loose end is already “flat”, keep the largest (cheapest) feasible theta_sites
         if g_lo <= float(delta):
             tp_star, lam_star = self._tune_theta_pol(lo,
                                 theta_pol_start=theta_pol_start,
                                 theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+            print('[range-warning] algorithm yields trivial result at lo (loose end of theta_sites is already flat).')
             return dict(theta_sites=lo, theta_pol=tp_star, lambda_final=float(lam_star))
 
-        # otherwise, bisection on log theta_sites to find largest theta with gain <= delta
+        #  -------------------------    (2) bisection search for θ_sites     ----------------------------------
+        # otherwise, bisection on log(θ_sites) to find largest θ_sites with gain <= 𝛿  
         for _ in range(int(max_outer)):
-            mid = float(np.sqrt(lo * hi))  # geometric midpoint (bisection in log-space)
-            g_mid, _, _ = sites_gain(mid)
 
+            # (1) get bisection midpoint 
+            mid = float(np.sqrt(lo * hi))                               # geometric midpoint (bisection in log-space)
+            g_mid, _, _ = sites_gain(mid)                               # evaluate G_s(mid)
+
+            # (2) make decision based on G_s(mid)
             if g_mid > float(delta):
-                # still steep at mid → move tighter
-                lo = mid
+                lo = mid                                                # still steep at mid, i.e. move tighter
             else:
-                # flat enough at mid → keep it as new “hi” (feasible)
-                hi = mid
+                hi = mid                                                # flat enough at mid, i.e. keep it as new “hi” (feasible)
             
             if verbose:
                 print(f"[sites] lo={lo:.4f} hi={hi:.4f} mid={mid:.4f} gain(mid)={g_mid*100:.2f}%/oct")
 
-            if lo / hi <= 1.10:  # bracket within ~10% is enough
+            if lo / hi <= 1.10:                                         # bracket [lo, hi] within ~ 10 % is enough
                 break
 
-        # finalize at hi (largest theta_sites in bracket with gain <= delta)
+        #  -------------------------    (3) obtain θ_sites^*, θ_pol^*, Λ^*     ----------------------------------
+        # finalize at hi (largest θ_sites in bracket with gain <= 𝛿)
         tp_star, lam_star = self._tune_theta_pol(hi,
                             theta_pol_start=theta_pol_start,
                             theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
