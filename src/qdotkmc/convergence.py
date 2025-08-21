@@ -356,17 +356,17 @@ class ConvergenceAnalysis(KMCRunner):
 
         # (1.2) if even the tight end is still “steep”, return the tightest (best we can do)
         if g_hi > float(delta):
-            tp_star, lam_star = self._tune_theta_pol(hi, max_workers=max_workers
-                                theta_pol_start=theta_pol_start,
-                                theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+            tp_star, lam_star = self._tune_theta_pol(hi, max_workers=max_workers,
+                                                     theta_pol_start=theta_pol_start,
+                                                     theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
             print('[range-warning] algorithm cannot yield a reasonable result at hi (tight end of theta_sites is not flat enough).')
             return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star))
 
         # (1.3) if the loose end is already “flat”, keep the largest (cheapest) feasible theta_sites
         if g_lo <= float(delta):
-            tp_star, lam_star = self._tune_theta_pol(lo, max_workers=max_workers
-                                theta_pol_start=theta_pol_start,
-                                theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+            tp_star, lam_star = self._tune_theta_pol(lo, max_workers=max_workers,
+                                                     theta_pol_start=theta_pol_start,
+                                                     theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
             print('[range-warning] algorithm yields trivial result at lo (loose end of theta_sites is already flat).')
             return dict(theta_sites=lo, theta_pol=tp_star, lambda_final=float(lam_star))
 
@@ -392,9 +392,9 @@ class ConvergenceAnalysis(KMCRunner):
 
         #  -------------------------    (3) obtain θ_sites^*, θ_pol^*, Λ^*     ----------------------------------
         # finalize at hi (largest θ_sites in bracket with gain <= 𝛿)
-        tp_star, lam_star = self._tune_theta_pol(hi, max_workers=max_workers
-                            theta_pol_start=theta_pol_start,
-                            theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+        tp_star, lam_star = self._tune_theta_pol(hi, max_workers=max_workers,
+                                                theta_pol_start=theta_pol_start,
+                                                theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
         
         return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star))
 
