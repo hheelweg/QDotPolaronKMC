@@ -363,6 +363,6 @@ class ConvergenceAnalysis(KMCRunner):
         tp_star, lam_star, info_star = self._tune_theta_pol(hi)
         
         return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
-                    nsites=info_star['ave_sites'], npols=info_star['ave_pols'])
+                    nsites=int(info_star['ave_sites']), npols=int(info_star['ave_pols']))
 
     
