@@ -44,6 +44,12 @@ class ConvergenceAnalysis(KMCRunner):
         # NOTE : maybe also specify which algortihm type we use radial versus overlap cutoff?
         self.no_samples = no_samples
         self.max_workers = max_workers
+        print('self max workers', self.max_workers)
+        # decide whether we run parallel or serial
+        if self.max_workers is None:
+            self._rate_score_func = self._rate_score_serial
+        else:
+            self._rate_score_func = self._rate_score_parallel
 
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
@@ -71,7 +77,7 @@ class ConvergenceAnalysis(KMCRunner):
 
     
     # TODO : write input parameters so that we can also use this for r_hop/r_ove
-    def _rate_score(self, theta_pol, theta_sites, 
+    def _rate_score_serial(self, theta_pol, theta_sites, 
                     criterion=None, score_info=False,
                     ):
 

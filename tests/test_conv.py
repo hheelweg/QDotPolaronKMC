@@ -58,8 +58,11 @@ def main():
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200)
 
+    # get maximum amount of workers if parallel execution demanded
+    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
 
-    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, no_samples=20)
+    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, 
+                                                                no_samples=20, max_workers=max_workers)
     
     # test rate convergence
     theta_sites = 0.029427271762092817#0.05
@@ -74,8 +77,6 @@ def main():
     #                                                 )
 
     # parallel execution of _rate_score
-    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    print('max_workers', max_workers)
     # criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites,
     #                                                          criterion='rate-displacement', score_info=True,
     #                                                          max_workers=max_workers)
