@@ -73,9 +73,9 @@ def main():
     #                                                 criterion='rate-displacement', score_info=True
     #                                                 )
 
-    # # parallel execution of _rate_score
-    # max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    # print('max_workers', max_workers)
+    # parallel execution of _rate_score
+    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
+    print('max_workers', max_workers)
     # criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites,
     #                                                          criterion='rate-displacement', score_info=True,
     #                                                          max_workers=max_workers)
@@ -85,7 +85,7 @@ def main():
     # print('score info', info)
 
     # perfrom convergence algorithm
-    result = convergence_setup.auto_tune_thetas(
+    result = convergence_setup.auto_tune_thetas(max_workers     = max_workers, 
                                                 theta_sites_lo  = 0.20,     # loose start
                                                 theta_sites_hi  = 0.001,    # tight floor
                                                 theta_pol_start = 0.30,
