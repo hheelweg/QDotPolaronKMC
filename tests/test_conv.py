@@ -62,7 +62,7 @@ def main():
     # get maximum amount of workers if parallel execution demanded
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
 
-    tune_cfg = qdotkmc.config.ConvergenceTuneConfig(no_samples=30, max_workers=max_workers)
+    tune_cfg = qdotkmc.config.ConvergenceTuneConfig(no_samples=30, max_workers=max_workers, criterion="rate-displacement")
 
     convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, tune_cfg)
     
@@ -75,7 +75,7 @@ def main():
 
     # execution of _rate_score
     criterion, info = convergence_setup._rate_score_func(theta_pol=theta_pol, theta_sites=theta_sites,
-                                                         criterion='rate-displacement', score_info=True
+                                                         score_info=True
                                                         )
     
     print('criterion', criterion)
