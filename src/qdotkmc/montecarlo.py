@@ -478,10 +478,10 @@ class KMCRunner():
             # store mean squared displacement for QDLattice realization r
             msds[r] = msd
 
-            print('----------------------------------')
-            print('---- SIMULATED TIME SUMMARY -----')
-            print(f'total simulated time {sim_time:.3f}')
-            print('----------------------------------')
+        print('----------------------------------')
+        print('---- SIMULATED TIME SUMMARY -----')
+        print(f'total simulated time {sim_time:.3f}')
+        print('----------------------------------')
         return times_msds, msds
 
     
