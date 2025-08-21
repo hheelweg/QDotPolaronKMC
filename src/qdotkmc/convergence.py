@@ -164,14 +164,37 @@ class ConvergenceAnalysis(KMCRunner):
 
     @staticmethod
     def _per_oct_gain(lam_from: float, lam_to: float, span_factor: float):
+        '''
+        Compute the normalized fractional improvement ("gain") per octave of shrinkage.
+        Given two rate-scores Λ (before and after tightening) and the shrinkage factor
+        span_factor = θ_new / θ_old, this function measures the relative improvement
+        scaled by the number of octaves of reduction (log_2 of the shrinkage).
+
+        Parameters
+        ----------
+        lam_from : float
+            Initial rate-score Λ at the looser threshold.
+        lam_to : float
+            Rate-score Λ after shrinkage.
+        span_factor : float
+            Shrinkage ratio (new threshold / old threshold), typically < 1.
+
+        Returns
+        -------
+        float
+            Normalized fractional improvement per octave of shrinkage.
+            A value ≈ δ (1 - 2 %) indicates a plateau where further tightening 
+            brings little additional benefit.
+        '''
         # (1) relative gain
         rel = (lam_to - lam_from) / (abs(lam_from) + 1e-300)
         # (2) normalize per-octave 
         octaves = np.log(1.0 / max(span_factor, 1e-12)) / np.log(2.0)
+
         return rel / max(octaves, 1e-12)
 
 
-    # --- inner: tune theta_pol at fixed theta_sites using fixed-span rule ---
+    # inner progressive shrinkage algortihm for finding θ_pol^* for fixed θ_sites
     def _tune_theta_pol(
                         self,
                         theta_sites: float,
@@ -184,32 +207,69 @@ class ConvergenceAnalysis(KMCRunner):
                         criterion: str         = "rate-displacement",
                         verbose                = True
                         ):
-        tp = float(theta_pol_start)
+        
+        '''
+        Inner progressive shrinkage algorithm to find the optimal θ_pol^* for a fixed θ_sites.
+        Starting from an initial θ_pol, the algorithm repeatedly shrinks θ_pol by a factor ρ
+        and evaluates the corresponding rate-score Λ. The process continues until further
+        tightening yields negligible improvement (per-octave gain ≤ δ) or θ_pol_min is reached.
 
-        # evaluate Lambda at current theta_pol
-        lam_from, _info = self._rate_score(tp, theta_sites, criterion=criterion, score_info=True)
+        Parameters
+        ----------
+        theta_sites : float
+            Fixed θ_sites value at which θ_pol is tuned.
+        theta_pol_start : float
+            Initial (looser) θ_pol value.
+        theta_pol_min : float
+            Minimum (tightest) allowed θ_pol value.
+        rho : float
+            Shrinkage factor applied each step (typically < 1).
+        delta : float
+            Plateau threshold, target fractional gain per octave (approx. 1 - 2%).
+        max_steps : int
+            Maximum number of shrinkage steps to attempt.
+        criterion : str
+            Convergence criterion for the rate-score.
+        verbose : bool
+            If True, prints progress of each shrinkage step.
+
+        Returns
+        -------
+        tuple
+            (θ_pol^*, Λ^*), where θ_pol^* is the selected polarization threshold 
+            and Λ^* the corresponding rate-score at fixed θ_sites.
+    
+        '''
+        # (0) initialize θ_pol
+        theta_p = float(theta_pol_start)
+        # evaluate rate-score Λ at current (initial) θ_pol
+        lam_from, _info = self._rate_score(theta_p, theta_sites, criterion=criterion, score_info=True)
 
         for _ in range(int(max_steps)):
-            tp_next = max(float(theta_pol_min), rho * tp)
-            if tp_next >= tp - 1e-15:
+
+            # (1) perform shrinkage
+            theta_p_next = max(float(theta_pol_min), rho * theta_p)
+            if theta_p_next >= theta_p - 1e-15:
                 break
 
-            lam_to, _ = self._rate_score_parallel(tp_next, theta_sites, criterion=criterion, score_info=False, max_workers=8)
+            # (2) evaluate new rate score for 
+            lam_to, _ = self._rate_score_parallel(theta_p_next, theta_sites, criterion=criterion, score_info=False, max_workers=8)
 
-            # per-octave gain over a fixed span tp -> rho*tp
+            # (3) per-octave gain G_p over a fixed span θ_pol -> ρ * θ_pol
             gain = self._per_oct_gain(lam_from, lam_to, rho)
 
-            # accept move
-            tp, lam_from = tp_next, lam_to
+            # (4) accept move by default
+            theta_p, lam_from = theta_p_next, lam_to
 
             if verbose:
-                print(f"[pol]  tp→{tp:.4f}  per-oct gain={gain*100:.2f}%/oct")
+                print(f"[pol] tp→{theta_p:.4f}  per-oct gain={gain*100:.2f}%/oct")
 
-            # stop when additional tightening barely helps
-            if gain < float(delta) or tp <= float(theta_pol_min) + 1e-12:
+            # (5) stop when additional tightening barely helps, i.e. G_p <= 𝛿
+            if gain < float(delta) or theta_p <= float(theta_pol_min) + 1e-12:
                 break
-
-        return tp, float(lam_from)
+        
+        # return θ_pol^* and corresponding Λ(θ_sites, θ_pol^*) for fixed θ_sites
+        return theta_p, float(lam_from)
 
     # main auto-tune loop to obtain θ_pol/θ_sites
     def auto_tune_thetas(
@@ -224,11 +284,42 @@ class ConvergenceAnalysis(KMCRunner):
                         max_outer: int         = 12,
                         criterion: str         = "rate-displacement",
                         verbose                = True
-                    ):
+                        ):
         '''
+        Automatically tune the convergence thresholds (θ_sites, θ_pol) by nested optimization.
 
+        The algorithm balances efficiency (looser cutoffs) against accuracy (tighter cutoffs):
+        1. For a given θ_sites, θ_pol is optimized internally via _tune_theta_pol.
+        2. Using this inner optimization, we evaluate the per-octave gain G_s(θ_sites) by
+            tightening θ_sites → ρ * θ_sites and comparing improvements.
+        3. A bisection search in log(θ_sites) space finds the largest θ_sites with 
+            G_s(θ_sites) ≤ δ (plateau criterion).
+        4. Edge cases are handled:
+            • If even the tightest θ_sites is too steep, return θ_sites = hi.
+            • If the loosest θ_sites is already flat, return θ_sites = lo.
 
-        
+        Parameters
+        ----------
+        theta_sites_lo, theta_sites_hi : float
+            Bracketing range for θ_sites (looser > tighter).
+        theta_pol_start, theta_pol_min : float
+            Initial and minimum values for θ_pol in the inner loop.
+        rho : float
+            Multiplicative span factor for testing improvements (typically < 1).
+        delta : float
+            Plateau threshold, target fractional gain per octave (approx. 1 - 2%).
+        max_outer : int
+            Maximum number of bisection iterations.
+        criterion : str
+            Convergence criterion for the rate-score.
+        verbose : bool
+            If True, prints progress of the bisection search.
+
+        Returns
+        -------
+        dict
+            Dictionary with final values of optimization.
+
         '''
         
         # ensure valid ordering of θ_sites bracket θ_sites ∈ [lo, hi] with lo > hi
