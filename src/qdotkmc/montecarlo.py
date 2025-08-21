@@ -407,7 +407,7 @@ class KMCRunner():
 
 
     # parallel KMC
-    def simulate_kmc_parallel(self, max_workers=max_workers):
+    def simulate_kmc_parallel(self, max_workers = None):
         """Parallel over realizations on CPU (one process per realization)."""
 
         os.environ.setdefault("OMP_NUM_THREADS", "1")
