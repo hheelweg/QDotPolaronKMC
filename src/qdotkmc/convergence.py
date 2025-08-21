@@ -329,9 +329,9 @@ class ConvergenceAnalysis(KMCRunner):
             raise ValueError("Require theta_sites_lo > theta_sites_hi (looser > tighter).")
 
         # define a wrapper for a fixed θ_sites, tune θ_pol and return rate-score lam and optimal θ_pol^*
-        def _tune_theta_pol_wrapper(theta_s : float):
+        def _tune_theta_pol_wrapper(theta_s : float, max_workers : int):
             tp_star, lam = self._tune_theta_pol(
-                                                theta_s,
+                                                theta_s, max_workers=max_workers,
                                                 theta_pol_start=theta_pol_start,
                                                 theta_pol_min=theta_pol_min,
                                                 rho=rho,
