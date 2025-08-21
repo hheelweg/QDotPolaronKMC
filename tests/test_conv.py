@@ -62,7 +62,7 @@ def main():
     # get maximum amount of workers if parallel execution demanded
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
 
-    tune_cfg = qdotkmc.config.ConvergenceTuneConfig(max_workers=max_workers)
+    tune_cfg = qdotkmc.config.ConvergenceTuneConfig(no_samples=30, max_workers=max_workers)
 
     convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, tune_cfg)
     

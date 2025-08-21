@@ -67,7 +67,7 @@ class ConvergenceAnalysis(KMCRunner):
         # (2) produce no_samples starting indices from where to compute rate vectors
         ss_conv = self._ss_root.spawn(1)[0]
         rng_conv = default_rng(ss_conv)
-        self.start_sites = rng_conv.integers(0, self.qd_lattice.geom.n_sites, size=self.no_samples)
+        self.start_sites = rng_conv.integers(0, self.qd_lattice.geom.n_sites, size=self.tune_cfg.no_samples)
 
         # (3) get Boltzmann weights for each start polaron in start_sites
         E = self.qd_lattice.full_ham.evals
