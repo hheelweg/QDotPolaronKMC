@@ -38,4 +38,4 @@ This should get the job done and export all output files to `cwd`. All print com
 
 ### Functionality
 
-The 
+The current version of the code does not (yet) include a module to handle proper convergence of the KMC parameters that we use to make the computation of rates computationally more efficient (`r_hop/r_ove`). We assume these parameters as given, future versions will include convergence tests and some auto-tune functionality to obtain these parameters before running the KMC simulation and obtaining credible results. 
