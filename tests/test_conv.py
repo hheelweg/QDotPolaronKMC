@@ -71,10 +71,10 @@ def main():
     print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, theta_sites, theta_pol)
 
-    # # serial execution of _rate_score
-    # criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, theta_sites=theta_sites,
-    #                                                 criterion='rate-displacement', score_info=True
-    #                                                 )
+    # serial execution of _rate_score
+    criterion, info = convergence_setup._rate_score_func(theta_pol=theta_pol, theta_sites=theta_sites,
+                                                         criterion='rate-displacement', score_info=True
+                                                        )
 
     # parallel execution of _rate_score
     # criterion, info = convergence_setup._rate_score_parallel(theta_pol=theta_pol, theta_sites=theta_sites,
@@ -82,19 +82,19 @@ def main():
     #                                                          max_workers=max_workers)
 
 
-    # print('criterion', criterion)
-    # print('score info', info)
+    print('criterion', criterion)
+    print('score info', info)
 
-    # perfrom convergence algorithm
-    result = convergence_setup.auto_tune_thetas(max_workers     = max_workers, 
-                                                theta_sites_lo  = 0.20,     # loose start
-                                                theta_sites_hi  = 0.001,    # tight floor
-                                                theta_pol_start = 0.30,
-                                                theta_pol_min   = 0.001,
-                                                rho             = 0.8,
-                                                delta           = 0.04,
-                                                )
-    print(result)
+    # # perfrom convergence algorithm
+    # result = convergence_setup.auto_tune_thetas(max_workers     = max_workers, 
+    #                                             theta_sites_lo  = 0.20,     # loose start
+    #                                             theta_sites_hi  = 0.001,    # tight floor
+    #                                             theta_pol_start = 0.30,
+    #                                             theta_pol_min   = 0.001,
+    #                                             rho             = 0.8,
+    #                                             delta           = 0.04,
+    #                                             )
+    # print(result)
     
     
 

@@ -46,7 +46,7 @@ class ConvergenceAnalysis(KMCRunner):
         self.max_workers = max_workers
         print('self max workers', self.max_workers)
         # decide whether we run parallel or serial
-        if self.max_workers is None:
+        if self.max_workers is None or self.max_workers == 1:
             self._rate_score_func = self._rate_score_serial
         else:
             self._rate_score_func = self._rate_score_parallel
@@ -78,8 +78,8 @@ class ConvergenceAnalysis(KMCRunner):
     
     # TODO : write input parameters so that we can also use this for r_hop/r_ove
     def _rate_score_serial(self, theta_pol, theta_sites, 
-                    criterion=None, score_info=False,
-                    ):
+                           criterion="rate-displacement", score_info=False,
+                           ):
 
         # get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
@@ -121,8 +121,8 @@ class ConvergenceAnalysis(KMCRunner):
     # serial version to compute rate scores
     # TODO : write input parameters so that we can also use this for r_hop/r_ove
     def _rate_score_parallel(self, theta_pol, theta_sites, *,
-                             criterion="rate-displacement", score_info = True,
-                             max_workers=None):
+                             criterion="rate-displacement",
+                             score_info = True):
         """
         Parallel version of _rate_score over self.start_sites.
         Returns the same aggregate score and selection counts.
@@ -149,7 +149,7 @@ class ConvergenceAnalysis(KMCRunner):
         rates_criterion = 0
         nsites_sel, npols_sel = 0, 0
 
-        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
+        with ProcessPoolExecutor(max_workers=self.max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_rate_score_worker, job) for job in jobs]
             for fut in as_completed(futs):
 
