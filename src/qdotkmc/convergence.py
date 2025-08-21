@@ -55,7 +55,7 @@ class ConvergenceAnalysis(KMCRunner):
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
     
-
+    # build setu-uop for obtaining convergence
     def _build_rate_convergenc_env(self):
 
         # (0) build bath
@@ -169,6 +169,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
+
     @staticmethod
     def _per_oct_gain(lam_from: float, lam_to: float, span_factor: float):
         '''
@@ -205,12 +206,12 @@ class ConvergenceAnalysis(KMCRunner):
                         self,
                         theta_sites: float,
                         *,
-                        theta_pol_start: float = 0.30,
-                        theta_pol_min: float   = 0.02,
-                        rho: float             = 0.7,
-                        delta: float           = 0.015,
-                        max_steps: int         = 8,
-                        criterion: str         = "rate-displacement",
+                        # theta_pol_start: float = 0.30,
+                        # theta_pol_min: float   = 0.02,
+                        # rho: float             = 0.7,
+                        # delta: float           = 0.015,
+                        # max_steps: int         = 8,
+                        # criterion: str         = "rate-displacement",
                         verbose                = True
                         ):
         
@@ -247,22 +248,22 @@ class ConvergenceAnalysis(KMCRunner):
     
         '''
         # (0) initialize θ_pol
-        theta_p = float(theta_pol_start)
+        theta_p = float(self.tune_cfg.theta_pol_start)
         # evaluate rate-score Λ at current (initial) θ_pol
-        lam_from, _ = self._rate_score_func(theta_p, theta_sites, criterion=criterion, score_info=True)
+        lam_from, _ = self._rate_score_func(theta_p, theta_sites, criterion=self.tune_cfg.criterion, score_info=True)
 
-        for _ in range(int(max_steps)):
+        for _ in range(int(self.tune_cfg.max_steps)):
 
             # (1) perform shrinkage
-            theta_p_next = max(float(theta_pol_min), rho * theta_p)
+            theta_p_next = max(float(self.tune_cfg.theta_pol_min), self.tune_cfg.rho * theta_p)
             if theta_p_next >= theta_p - 1e-15:
                 break
 
             # (2) evaluate new rate score for 
-            lam_to, _ = self._rate_score_func(theta_p_next, theta_sites, criterion=criterion, score_info=False)
+            lam_to, _ = self._rate_score_func(theta_p_next, theta_sites, criterion=self.tune_cfg.criterion, score_info=False)
 
             # (3) per-octave gain G_p over a fixed span θ_pol -> ρ * θ_pol
-            gain = self._per_oct_gain(lam_from, lam_to, rho)
+            gain = self._per_oct_gain(lam_from, lam_to, self.tune_cfg.rho)
 
             # (4) accept move by default
             theta_p, lam_from = theta_p_next, lam_to
@@ -271,7 +272,7 @@ class ConvergenceAnalysis(KMCRunner):
                 print(f"[pol] tp→{theta_p:.4f}  per-oct gain={gain*100:.2f}%/oct")
 
             # (5) stop when additional tightening barely helps, i.e. G_p <= 𝛿
-            if gain < float(delta) or theta_p <= float(theta_pol_min) + 1e-12:
+            if gain < float(self.tune_cfg.delta) or theta_p <= float(self.tune_cfg.theta_pol_min) + 1e-12:
                 break
         
         # return θ_pol^* and corresponding Λ(θ_sites, θ_pol^*) for fixed θ_sites
@@ -281,14 +282,14 @@ class ConvergenceAnalysis(KMCRunner):
     def auto_tune_thetas(
                         self,
                         *,
-                        theta_sites_lo: float  = 0.10,   # loose (larger) starting value
-                        theta_sites_hi: float  = 0.01,   # tight (smaller) floor
-                        theta_pol_start: float = 0.30,
-                        theta_pol_min:   float = 0.02,
-                        rho: float             = 0.7,   # fixed span to test gains
-                        delta: float           = 0.015, # “plateau” target per-octave gain (≈1–2%)
-                        max_outer: int         = 12,
-                        criterion: str         = "rate-displacement",
+                        # theta_sites_lo: float  = 0.10,   # loose (larger) starting value
+                        # theta_sites_hi: float  = 0.01,   # tight (smaller) floor
+                        # theta_pol_start: float = 0.30,
+                        # theta_pol_min:   float = 0.02,
+                        # rho: float             = 0.7,   # fixed span to test gains
+                        # delta: float           = 0.015, # “plateau” target per-octave gain (≈1–2%)
+                        # max_outer: int         = 12,
+                        # criterion: str         = "rate-displacement",
                         verbose                = True
                         ):
         '''
@@ -329,27 +330,20 @@ class ConvergenceAnalysis(KMCRunner):
         '''
         
         # ensure valid ordering of θ_sites bracket θ_sites ∈ [lo, hi] with lo > hi
-        lo = max(theta_sites_lo, theta_sites_hi)
-        hi = min(theta_sites_lo, theta_sites_hi)
+        lo = max(self.tune_cfg.theta_sites_lo, self.tune_cfg.theta_sites_hi)
+        hi = min(self.tune_cfg.theta_sites_lo, self.tune_cfg.theta_sites_hi)
         if not (lo > hi):
             raise ValueError("Require theta_sites_lo > theta_sites_hi (looser > tighter).")
 
         # define a wrapper for a fixed θ_sites, tune θ_pol and return rate-score lam and optimal θ_pol^*
         def _tune_theta_pol_wrapper(theta_s : float):
-            tp_star, lam = self._tune_theta_pol(
-                                                theta_s,
-                                                theta_pol_start=theta_pol_start,
-                                                theta_pol_min=theta_pol_min,
-                                                rho=rho,
-                                                delta=delta,
-                                                criterion=criterion,
-                                                )
+            tp_star, lam = self._tune_theta_pol(theta_s)
             return lam, tp_star
 
         # define a function : compute per-octave gain for sites by comparing ts and ρ * θ_sites
         # we call this funcion g = G_s(θ_sites), note that every call of this function triggers the inner loop
         def sites_gain(theta_s: float):
-            theta_s_tight = max(hi, rho * theta_s)
+            theta_s_tight = max(hi, self.tune_cfg.rho * theta_s)
             lam_lo, _ = _tune_theta_pol_wrapper(theta_s)
             lam_hi, _ = _tune_theta_pol_wrapper(theta_s_tight)
             g = self._per_oct_gain(lam_lo, lam_hi, max(theta_s_tight / theta_s, 1e-12))
@@ -361,31 +355,27 @@ class ConvergenceAnalysis(KMCRunner):
         g_hi, _, lam_hi = sites_gain(hi)                                # tight point gain toward even tighter (may be zero-span)
 
         # (1.2) if even the tight end is still “steep”, return the tightest (best we can do)
-        if g_hi > float(delta):
-            tp_star, lam_star = self._tune_theta_pol(hi,
-                                                     theta_pol_start=theta_pol_start,
-                                                     theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+        if g_hi > float(self.tune_cfg.delta):
+            tp_star, lam_star = self._tune_theta_pol(hi)
             print('[range-warning] algorithm cannot yield a reasonable result at hi (tight end of theta_sites is not flat enough).')
             return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star))
 
         # (1.3) if the loose end is already “flat”, keep the largest (cheapest) feasible theta_sites
-        if g_lo <= float(delta):
-            tp_star, lam_star = self._tune_theta_pol(lo,
-                                                     theta_pol_start=theta_pol_start,
-                                                     theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+        if g_lo <= float(self.tune_cfg.delta):
+            tp_star, lam_star = self._tune_theta_pol(lo)
             print('[range-warning] algorithm yields trivial result at lo (loose end of theta_sites is already flat).')
             return dict(theta_sites=lo, theta_pol=tp_star, lambda_final=float(lam_star))
 
         #  -------------------------    (2) bisection search for θ_sites     ----------------------------------
         # otherwise, bisection on log(θ_sites) to find largest θ_sites with gain <= 𝛿  
-        for _ in range(int(max_outer)):
+        for _ in range(int(self.tune_cfg.max_outer)):
 
             # (1) get bisection midpoint 
             mid = float(np.sqrt(lo * hi))                               # geometric midpoint (bisection in log-space)
             g_mid, _, _ = sites_gain(mid)                               # evaluate G_s(mid)
 
             # (2) make decision based on G_s(mid)
-            if g_mid > float(delta):
+            if g_mid > float(self.tune_cfg.delta):
                 lo = mid                                                # still steep at mid, i.e. move tighter
             else:
                 hi = mid                                                # flat enough at mid, i.e. keep it as new “hi” (feasible)
@@ -398,9 +388,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         #  -------------------------    (3) obtain θ_sites^*, θ_pol^*, Λ^*     ----------------------------------
         # finalize at hi (largest θ_sites in bracket with gain <= 𝛿)
-        tp_star, lam_star = self._tune_theta_pol(hi,
-                                                theta_pol_start=theta_pol_start,
-                                                theta_pol_min=theta_pol_min, rho=rho, delta=delta, criterion=criterion)
+        tp_star, lam_star = self._tune_theta_pol(hi)
         
         return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star))
 
