@@ -241,7 +241,7 @@ class ConvergenceAnalysis(KMCRunner):
         # (0) initialize θ_pol
         theta_p = float(theta_pol_start)
         # evaluate rate-score Λ at current (initial) θ_pol
-        lam_from, _info = self._rate_score(theta_p, theta_sites, criterion=criterion, score_info=True)
+        lam_from, _ = self._rate_score_parallel(theta_p, theta_sites, criterion=criterion, score_info=True, max_worker=8)
 
         for _ in range(int(max_steps)):
 
