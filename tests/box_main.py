@@ -70,20 +70,23 @@ def main():
     # perform KMC simulation (serial)
     #times, msds = kmc_setup.simulate_kmc()
 
-    # export msds as .csv file for inspection
+    # export msds as .csv file for inspection (test-wise)
     qdotkmc.utils.export_msds(times, msds)
 
 
     # get noise-averaged (pooled) trajectory MSD
     msds_mean = np.mean(msds, axis = 0)
 
+    # two ways of backing out diffusivities currently implemented
 
+    # (1) averaging the MSDs over all noise-realizations (all QDLattices) and the performing fit to obtain D
     diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times, ndim)
 
+    # (2) obtaining an individual D for each noise-realization (each QDLattice) and then weighing them together 
+    # according to their inverse variances (weighing lower-variance fits more stronlgy)
     diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
     
-    # -------------------------------------------------------------------------
-    # without taking into account units:
+
     print('diffusivity ', diff1, diff2)
     print('diffusivity error', sigma_D1, sigma_D2)
     
