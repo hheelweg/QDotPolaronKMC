@@ -236,6 +236,7 @@ class ConvergenceAnalysis(KMCRunner):
         theta_p = float(self.tune_cfg.theta_pol_start)
         # evaluate rate-score Λ at current (initial) θ_pol
         lam_from, score_info = self._rate_score_func(theta_p, theta_sites, score_info=True)
+        print(score_info)
 
         for _ in range(int(self.tune_cfg.max_steps_pol)):
 
