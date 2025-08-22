@@ -206,7 +206,7 @@ class KMCRunner():
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # (a) compute rates from r_hop/r_ove (OLD) 
-            rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, 
+            rates, final_states, tot_time = KMCRunner._make_kmatrix_box(qd_lattice, 
                                                                    center_global, 
                                                                    r_hop=self.geom.r_hop, 
                                                                    r_ove=self.geom.r_ove)
