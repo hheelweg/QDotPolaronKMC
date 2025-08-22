@@ -388,7 +388,6 @@ class KMCRunner():
     def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, simulated_time, seed = None):
 
         # build QD lattice realization
-        print('seed latt.', seed)
         qd_lattice, real_seed = self._build_grid_realization(bath, rid = realization_id, seed = seed)
         print('real id', real_seed)
 
