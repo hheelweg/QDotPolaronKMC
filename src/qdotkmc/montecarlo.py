@@ -237,13 +237,13 @@ class KMCRunner():
                                             bath set up to build QDLattice instance"
 
         # get random seef from realization id (rid)
-        # if seed is None:
-        #     rnd_seed = self._spawn_realization_seed(rid)
-        # else:
-        #     rnd_seed = seed
+        if seed is None:
+            rnd_seed = self._spawn_realization_seed(rid)
+        else:
+            rnd_seed = seed
 
-        rnd_seed = self._spawn_realization_seed(rid)
-        print('seed', seed, rnd_seed)
+        # rnd_seed = self._spawn_realization_seed(rid)
+        print('seed build', rnd_seed)
         
         # initialize instance of QDLattice class
         # NOTE : change to rnd_seed = self.dis.seed_base for default seed
@@ -391,6 +391,7 @@ class KMCRunner():
     def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, simulated_time, seed = None):
 
         # build QD lattice realization
+        print('seed latt.', seed)
         qd_lattice = self._build_grid_realization(bath, rid = realization_id, seed = seed)
 
         # get trajectory seed sequence
