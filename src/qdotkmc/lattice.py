@@ -73,6 +73,7 @@ class QDLattice():
         box_length = (2 * box_radius + 1) * spacing
         # raise wanring if lattice dimensions are exceeded
         if box_length > max_length * spacing:
+            print(box_length, max_length * spacing)
             raise ValueError('The lattice dimensions are exceeded! Please choose r_hop and r_ove accordingly!')
         return r_hop, r_ove, box_length
     
