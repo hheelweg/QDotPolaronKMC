@@ -38,14 +38,4 @@ This should get the job done and export all output files to `cwd`. All print com
 
 ### Functionality
 
-The current version of the code has two different ways of computing rates implemented (switched by `rates_by`). The underlying theory for computing rates of course remains unchanged, *i.e.*, the polaron-transformed Redfield theory, but what changes is the way we perform **truncation** in high-dimensional QD lattices due to increased computational cost:
-
-* `rates_by = "radius"` is the implementation with $r_\mathrm{hop}$ and $r_\mathrm{ove}$, inspired from the Kassal paper - and in alignment with previous implementations of the code. As $r_\mathrm{hop} \to \infty$ and $r_\mathrm{ove} \to \infty$, we approach the full Redfield rates.
-
-* `rates_by = "weight"` is a novel implementation based on $\theta_\mathrm{site}$ and $\theta_\mathrm{pol}$ where we use these two parameters to steer how many destination polaron states $\nu'$ and site state we want to consider for the rate computation at each polaron site $\nu$. As $\theta_\mathrm{site} \to 0$ and $\theta_\mathrm{pol} \to 0$, we recover the full Redfield rates. 
-
-There are currently two types if test scripts in `tests` directory that can serve as templates:
-
-* `test_main.py`: very base-line code to peform a single KMC simulation, setting the rate hyperparameters $r_\mathrm{hop}$ / $r_\mathrm{ove}$ (if `rates_by = "radius"`) or $\theta_\mathrm{site}$ / $\theta_\mathrm{pol}$ (if `rates_by = "weight"`) as fixed and obtaining diffusivities.
-
-* `test_conv.py`: includes an automatic refinement of $\theta_\mathrm{site}$ / $\theta_\mathrm{pol}$ (if `rates_by = "weight"`) to some optimal parameters  $\theta_\mathrm{site}^\ast$ and $\theta_\mathrm{pol}^\ast$ and then uses those parameters in a KMC simulation to obtain diffusivities eventually. This more realistically mimics the workflow as we need to optimize these hyperparameters in order to have a good balance of accuracy and efficiency of our KMC simulations. **Note**: If the simulations take too long to run with $\theta_\mathrm{site}^\ast$ / $\theta_\mathrm{pol}^\ast$, then this could mean that we take into account too many polarons/sites for the rate computation to be reasonably cheap. In this case, you might want to increase the parameter `delta` in `auto_tune_thetas` to $\approx. 10 \%$ for example. 
+The current version of the code does not (yet) include a module to handle proper convergence of the KMC parameters that we use to make the computation of rates computationally more efficient (`r_hop/r_ove`). We assume these parameters as given, future versions will include convergence tests and some auto-tune functionality to obtain these parameters before running the KMC simulation and obtaining credible results. 
