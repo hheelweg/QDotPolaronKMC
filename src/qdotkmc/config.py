@@ -40,6 +40,7 @@ class DisorderConfig:
                                                 # keep default for reproducibility
 
 
+# NOTE : currently only really implemented for "cubic-exp", but code is easily extendable
 @dataclass(frozen=True)
 class BathConfig:
 
@@ -47,7 +48,7 @@ class BathConfig:
 
     w_c: float                                  # cutoff frequency for bath (units ?)
     reorg_nrg: float                            # reorganization energy (units ?) 
-    spectral_density: Any = "cubic-exp"
+    spectral_density: Any = "cubic-exp"         
 
     @property
     def spectrum(self) -> list:
