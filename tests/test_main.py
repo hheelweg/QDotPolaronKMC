@@ -61,7 +61,7 @@ def main():
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N)
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
-                          dipolegen=dipolegen, J_c = J_c, seed_base = seed)
+                          dipolegen=dipolegen, J_c = J_c)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200,
                                     r_hop = r_hop, r_ove = r_ove, rates_by = "radius", theta_site = theta_site, theta_pol = theta_pol, 
