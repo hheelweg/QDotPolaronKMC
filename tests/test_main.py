@@ -56,11 +56,12 @@ def main():
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, max_workers)
     
     # define dataclasses
-    geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N, qd_spacing = spacing, r_hop = r_hop, r_ove = r_ove)
+    geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N, qd_spacing = spacing)
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
                           dipolegen=dipolegen, J_c = J_c, seed_base = seed)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200,
+                                    r_hop = r_hop, r_ove = r_ove, 
                                     max_workers = max_workers)
     
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
