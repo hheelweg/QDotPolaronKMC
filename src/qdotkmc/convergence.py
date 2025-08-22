@@ -76,7 +76,7 @@ class ConvergenceAnalysis(KMCRunner):
             return self._rate_score_parallel(*args, **kwargs)
 
     
-    def _rate_score_serial(self, theta_pol, theta_sites, score_info = True):
+    def _rate_score_serial(self, theta_pol, theta_site, score_info = True):
 
         # get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
@@ -86,7 +86,7 @@ class ConvergenceAnalysis(KMCRunner):
 
             # NEW way to obtain rates from theta_pol/theta_sites
             rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(self.qd_lattice, start_idx,
-                                                                             theta_sites=theta_sites,
+                                                                             theta_site=theta_site,
                                                                              theta_pol=theta_pol,
                                                                              selection_info = True
                                                                              )
@@ -115,7 +115,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel(self, theta_pol, theta_sites, score_info = True):
+    def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
         """
         Parallel version of _rate_score over self.start_sites.
         Returns the same aggregate score and selection counts.

@@ -24,7 +24,7 @@ class Redfield():
 
         # initialize θ_pol and θ_sites
         self.theta_pol = None
-        self.theta_sites = None
+        self.theta_site = None
 
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
@@ -122,11 +122,11 @@ class Redfield():
  
     # selection of sites, polarons by overlap
     def select_by_overlap(self, center_global: int, *,
-                                  theta_sites: float,                       # tighter -> more sites kept (higher cost, higher fidelity)
-                                  theta_pol:   float,                       # tighter -> more ν' kept (linear cost, physics coverage)
-                                  max_nuprime: Optional[int] = None,        # optional hard cap on # of ν' considered (after ranking)
-                                  verbose: bool = False,
-                                  ):
+                          theta_site: float,                                # tighter -> more sites kept (higher cost, higher fidelity)
+                          theta_pol:   float,                               # tighter -> more ν' kept (linear cost, physics coverage)
+                          max_nuprime: Optional[int] = None,                # optional hard cap on # of ν' considered (after ranking)
+                          verbose: bool = False,
+                          ):
         """
         Physics-aware, two-parameter selector for a single center polaron ν.
 
@@ -190,7 +190,7 @@ class Redfield():
 
         if totS <= 0.0:
             # degenerate: no meaningful destinations; return a compact source-only site set
-            site_g = utils._mass_core_by_theta(w0, theta_sites)
+            site_g = utils._mass_core_by_theta(w0, theta_site)
             pol_g  = np.array([nu], dtype=np.intp)
             if verbose:
                 print(f"[select] degenerate S: sites={site_g.size}")
@@ -217,9 +217,9 @@ class Redfield():
 
         if s_sum <= 0.0:
             # conservative fallback: union of mass cores (rare, but safe)
-            site_set = set(utils._mass_core_by_theta(w0, theta_sites).tolist())
+            site_set = set(utils._mass_core_by_theta(w0, theta_site).tolist())
             for j in kept:
-                site_set |= set(utils._mass_core_by_theta(W[:, j], theta_sites).tolist())
+                site_set |= set(utils._mass_core_by_theta(W[:, j], theta_site).tolist())
             site_g = np.array(sorted(site_set), dtype=np.intp)
             if verbose:
                 print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
@@ -228,7 +228,7 @@ class Redfield():
         # keep smallest prefix reaching (1 - θ_sites) coverage
         order_s = np.argsort(-s)
         csum_s  = np.cumsum(s[order_s])
-        k_sites = int(np.searchsorted(csum_s, (1.0 - float(theta_sites)) * s_sum, side="left")) + 1
+        k_sites = int(np.searchsorted(csum_s, (1.0 - float(theta_site)) * s_sum, side="left")) + 1
         site_g  = np.sort(order_s[:k_sites]).astype(np.intp)
 
         if verbose:
