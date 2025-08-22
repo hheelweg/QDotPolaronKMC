@@ -64,8 +64,8 @@ def main():
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
 
     tune_cfg = qdotkmc.config.ConvergenceTuneConfig(no_samples = 20, max_workers=max_workers, criterion="rate-displacement",
-                                                    theta_sites_lo  = 0.30,
-                                                    theta_sites_hi  = 0.001,
+                                                    theta_site_lo  = 0.30,
+                                                    theta_site_hi  = 0.001,
                                                     theta_pol_start = 0.30,
                                                     theta_pol_min   = 0.001,
                                                     rho             = 0.8,
@@ -96,7 +96,7 @@ def main():
     # theta_site_opt = thetas_result['theta_site']
     # theta_pol_opt = thetas_result['theta_pol']
     
-    # print(f"theta_sites (opt): {theta_site_opt:.4f}")
+    # print(f"theta_site (opt): {theta_site_opt:.4f}")
     # print(f"theta_pol (opt): {theta_pol_opt:.4f}")
     
     

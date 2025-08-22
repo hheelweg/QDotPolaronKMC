@@ -14,11 +14,11 @@ _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker(args):
-    (start_idx, theta_pol, theta_sites, criterion, weight) = args
+    (start_idx, theta_pol, theta_site, criterion, weight) = args
     # Compute rates for this start index
     qd_lattice = _QDLAT_GLOBAL
     rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(qd_lattice, start_idx,
-                                                                     theta_pol=theta_pol, theta_sites=theta_sites,
+                                                                     theta_pol=theta_pol, theta_site=theta_site,
                                                                      selection_info = True)
     
     # evaluate convergence criterion on rates vector
@@ -84,7 +84,7 @@ class ConvergenceAnalysis(KMCRunner):
         nsites_sel, npols_sel = 0, 0
         for i, start_idx in enumerate(self.start_sites):
 
-            # NEW way to obtain rates from theta_pol/theta_sites
+            # NEW way to obtain rates from theta_pol/theta_site
             rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(self.qd_lattice, start_idx,
                                                                              theta_site=theta_site,
                                                                              theta_pol=theta_pol,
@@ -136,7 +136,7 @@ class ConvergenceAnalysis(KMCRunner):
         weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
         # dispatch configs + indices to parallelize over
-        jobs = [(int(start_idx), float(theta_pol), float(theta_sites), self.tune_cfg.criterion, weight_by_idx[start_idx]) 
+        jobs = [(int(start_idx), float(theta_pol), float(theta_site), self.tune_cfg.criterion, weight_by_idx[start_idx]) 
                 for start_idx in self.start_sites]
 
         rates_criterion = 0
@@ -196,7 +196,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rel / max(octaves, 1e-12)
 
     # inner progressive shrinkage algorithm for finding θ_pol^* for fixed θ_sites
-    def _tune_theta_pol(self, theta_sites: float, verbose = True):
+    def _tune_theta_pol(self, theta_site: float, verbose = True):
         
         '''
         Inner progressive shrinkage algorithm to find the optimal θ_pol^* for a fixed θ_sites.
@@ -206,7 +206,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         Parameters
         ----------
-        theta_sites : float
+        theta_site : float
             Fixed θ_sites value at which θ_pol is tuned.
         theta_pol_start : float
             Initial (looser) θ_pol value.
@@ -233,7 +233,7 @@ class ConvergenceAnalysis(KMCRunner):
         # (0) initialize θ_pol
         theta_p = float(self.tune_cfg.theta_pol_start)
         # evaluate rate-score Λ at current (initial) θ_pol
-        lam_from, info = self._rate_score(theta_p, theta_sites, score_info=True)
+        lam_from, info = self._rate_score(theta_p, theta_site, score_info=True)
 
         for _ in range(int(self.tune_cfg.max_steps_pol)):
 
@@ -243,7 +243,7 @@ class ConvergenceAnalysis(KMCRunner):
                 break
 
             # (2) evaluate new rate score for 
-            lam_to, info = self._rate_score(theta_p_next, theta_sites, score_info=True)
+            lam_to, info = self._rate_score(theta_p_next, theta_site, score_info=True)
 
             # (3) per-octave gain G_p over a fixed span θ_pol -> ρ * θ_pol
             gain = self._per_oct_gain(lam_from, lam_to, self.tune_cfg.rho)
@@ -279,7 +279,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         Parameters
         ----------
-        theta_sites_lo, theta_sites_hi : float
+        theta_site_lo, theta_site_hi : float
             Bracketing range for θ_sites (looser > tighter).
         theta_pol_start, theta_pol_min : float
             Initial and minimum values for θ_pol in the inner loop.
@@ -302,10 +302,10 @@ class ConvergenceAnalysis(KMCRunner):
         '''
         
         # ensure valid ordering of θ_sites bracket θ_sites ∈ [lo, hi] with lo > hi
-        lo = max(self.tune_cfg.theta_sites_lo, self.tune_cfg.theta_sites_hi)
-        hi = min(self.tune_cfg.theta_sites_lo, self.tune_cfg.theta_sites_hi)
+        lo = max(self.tune_cfg.theta_site_lo, self.tune_cfg.theta_site_hi)
+        hi = min(self.tune_cfg.theta_site_lo, self.tune_cfg.theta_site_hi)
         if not (lo > hi):
-            raise ValueError("Require theta_sites_lo > theta_sites_hi (looser > tighter).")
+            raise ValueError("Require theta_site_lo > theta_site_hi (looser > tighter).")
 
         # define a function : compute per-octave gain for sites by comparing ts and ρ * θ_sites
         # we call this funcion g = G_s(θ_sites), note that every call of this function triggers the inner loop
@@ -324,15 +324,15 @@ class ConvergenceAnalysis(KMCRunner):
         # (1.2) if even the tight end is still “steep”, return the tightest (best we can do)
         if g_hi > float(self.tune_cfg.delta):
             tp_star, lam_star, info_star = self._tune_theta_pol(hi, verbose=verbose)
-            print('[range-warning] algorithm cannot yield a reasonable result at hi (tight end of theta_sites is not flat enough).')
-            return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
+            print('[range-warning] algorithm cannot yield a reasonable result at hi (tight end of theta_site is not flat enough).')
+            return dict(theta_site=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
                         nsites=info_star['ave_sites'], npols=info_star['ave_pols'])
 
-        # (1.3) if the loose end is already “flat”, keep the largest (cheapest) feasible theta_sites
+        # (1.3) if the loose end is already “flat”, keep the largest (cheapest) feasible theta_site
         if g_lo <= float(self.tune_cfg.delta):
             tp_star, lam_star, info_star = self._tune_theta_pol(lo, verbose=verbose)
-            print('[range-warning] algorithm yields trivial result at lo (loose end of theta_sites is already flat).')
-            return dict(theta_sites=lo, theta_pol=tp_star, lambda_final=float(lam_star), 
+            print('[range-warning] algorithm yields trivial result at lo (loose end of  is already flat).')
+            return dict(theta_site=lo, theta_pol=tp_star, lambda_final=float(lam_star), 
                         nsites=info_star['ave_sites'], npols=info_star['ave_pols'])
 
         #  -------------------------    (2) bisection search for θ_sites     ----------------------------------

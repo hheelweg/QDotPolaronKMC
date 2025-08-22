@@ -65,8 +65,8 @@ class ConvergenceTuneConfig:
     bundles algorithm parameters and execution controls.
     """
     # --- site cutoff tuning
-    theta_sites_lo: float = 0.10
-    theta_sites_hi: float = 0.02
+    theta_site_lo: float = 0.10
+    theta_site_hi: float = 0.02
 
     # --- polaron cutoff tuning
     theta_pol_start: float = 0.30
