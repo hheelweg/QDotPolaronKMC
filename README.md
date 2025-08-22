@@ -38,4 +38,12 @@ This should get the job done and export all output files to `cwd`. All print com
 
 ### Functionality
 
-The current version of the code does not (yet) include a module to handle proper convergence of the KMC parameters that we use to make the computation of rates computationally more efficient (`r_hop/r_ove`). We assume these parameters as given, future versions will include convergence tests and some auto-tune functionality to obtain these parameters before running the KMC simulation and obtaining credible results. 
+The current version of the code has two different ways of computing rates implemented (switched by `rates_by`). The underlying theory for computing rates of course remains unchanged, *i.e.*, the polaron-transformed Redfield theory, but what changes is the way we perform **truncation** in high-dimensional QD lattices due to increased computational cost:
+
+* `rates_by = "radius"` is the implementation with $r_\mathrm{hop}$ and $r_\mathrm{ove}$, inspired from the Kassal paper - and in alignment with previous implementations of the code. As $r_\mathrm{hop} \to \infty$ and $r_\mathrm{ove} \to \infty$, we approach the full Redfield rates.
+
+* `rates_by = "weight"` is a novel implementation based on $\theta_\mathrm{site}$ and $\theta_\mathrm{pol}$ where we use these two parameters to steer how many destination polaron states $\nu'$ and site state we want to consider for the rate computation at each polaron site $\nu$. As $\theta_\mathrm{site} \to 0$ and $\theta_\mathrm{pol} \to 0$, we recover the full Redfield rates. 
+
+There are currently two types if test scripts in `tests` directory that can serve as templates:
+
+* `test_main.py`: very base-line code to peform a single 
