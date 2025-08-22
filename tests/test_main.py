@@ -21,14 +21,13 @@ def main():
     #seed = 12345
 
     # Hamiltonian and bath related parameters
-    reorg_nrg = 0.01                            # reorganization energy (units?)
-    w_c = 0.1                                   # cutoff frequency (units?)
-    J_c = 10                                    # J_c (units?)
     inhomog_sd = 0.002                          # inhomogenous broadening (units?)
     nrg_center = 2.0                            # mean site energy (units ?)
-    rel_spatial_disorder = 0.0                  # relative spatial disorder
-    dipolegen = 'random'                        # dipole generation procedure
+    J_c = 10                                    # J_c (units?)
+
+    w_c = 0.1                                   # cutoff frequency (units?)
     temp = 200                                  # temperature (K)
+    reorg_nrg = 0.01                            # reorganization energy (units?)
     spec_density = 'cubic-exp'                  # bath spectral density
 
     # PTRE and KMC related parameters
@@ -60,8 +59,7 @@ def main():
     
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N)
-    dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
-                          dipolegen=dipolegen, J_c = J_c)
+    dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, J_c = J_c)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200,
                                     r_hop = r_hop, r_ove = r_ove, rates_by = "radius", theta_site = theta_site, theta_pol = theta_pol, 

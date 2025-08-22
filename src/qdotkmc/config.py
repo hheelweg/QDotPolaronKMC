@@ -32,9 +32,9 @@ class DisorderConfig:
 
     nrg_center: float
     inhomog_sd: float
-    relative_spatial_disorder: float
-    dipolegen: Any   
     J_c: float
+    relative_spatial_disorder: float = 0.0      # relative spatial disorder
+    dipolegen: Any = "random"                   # dipole generation procedure
     seed_base: int = 12345                      # root seed for disorder draws (realization-level)
                                                 # can be drawn randomly to make experiments random
                                                 # keep default for reproducibility
