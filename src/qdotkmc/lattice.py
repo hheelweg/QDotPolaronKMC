@@ -1,10 +1,9 @@
 import numpy as np
 import math
 from scipy import integrate
-from . import utils, const, redfield_box, hamiltonian_box
+from . import hamiltonian, redfield, utils
 from .config import GeometryConfig, DisorderConfig
-from .hamiltonian_box import SpecDens
-from collections import deque
+from .hamiltonian import SpecDens
 
 # class to set up QD Lattice 
 class QDLattice():
@@ -193,7 +192,7 @@ class QDLattice():
         self.J_dense = J_off.copy()
 
         # (5) set up Hamilonian instance etc. 
-        self.full_ham = hamiltonian_box.Hamiltonian(
+        self.full_ham = hamiltonian.Hamiltonian(
             self.eignrgs, self.eigstates,
             J_dense = self.J_dense
             )
@@ -206,7 +205,7 @@ class QDLattice():
     # setup instance of Redfield class
     def _setup_redfield(self):
 
-        self.redfield = redfield_box.Redfield(
+        self.redfield = redfield.Redfield(
             self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron,
             time_verbose=True
         )

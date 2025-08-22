@@ -3,7 +3,6 @@ import numpy as np
 from . import const
 from . import utils
 import time
-from scipy import sparse
 from typing import Optional, List
 
 

@@ -2,12 +2,12 @@ import numpy as np
 import os
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Optional, Callable
+from typing import Optional
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
-from . import lattice, hamiltonian_box, const, utils
-from .hamiltonian_box import SpecDens
+from . import hamiltonian, lattice, const, utils
+from .hamiltonian import SpecDens
 
 # global variable to allow parallel workers to use the same bath setup
 _BATH_GLOBAL = None
@@ -459,7 +459,7 @@ class KMCRunner():
         T = self.run.ntrajs                                                 # number of trajetories per QDLattice realization
 
         # build bath spectral density (once for all QDLattice realizations!)
-        bath = hamiltonian_box.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
+        bath = hamiltonian.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
 
 
         # loop over number of QDLattice realizations

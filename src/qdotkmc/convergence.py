@@ -6,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, ConvergenceTuneConfig
 from . import const
-from .hamiltonian_box import SpecDens
+from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
 
 # global variable to allow parallel workers to use the same QDLattice for convergence tests
