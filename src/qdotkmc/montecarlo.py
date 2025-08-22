@@ -58,8 +58,8 @@ class KMCRunner():
         return int(ss_real.generate_state(1, dtype=np.uint64)[0])
     
     # child SeedSequences for all trajectories of a given realization (QDLattice)
-    def _spawn_trajectory_seedseq(self, rid : int):
-        ss_real = SeedSequence(self._spawn_realization_seed(rid))
+    def _spawn_trajectory_seedseq(self, rid : int, real_seed : Optional[int] = None):
+        ss_real = SeedSequence(self._spawn_realization_seed(rid)) if real_seed is None else SeedSequence(real_seed)
         return ss_real.spawn(self.run.ntrajs)
     
     
@@ -236,14 +236,11 @@ class KMCRunner():
         assert isinstance(bath, SpecDens), "Need to make sure we have a proper \
                                             bath set up to build QDLattice instance"
 
-        # get random seef from realization id (rid)
+        # get random seef from realization id (rid), if no seed already specified
         if seed is None:
             rnd_seed = self._spawn_realization_seed(rid)
         else:
-            rnd_seed = seed
-
-        # rnd_seed = self._spawn_realization_seed(rid)
-        print('seed build', rnd_seed)
+            rnd_seed = seed 
         
         # initialize instance of QDLattice class
         # NOTE : change to rnd_seed = self.dis.seed_base for default seed
@@ -252,7 +249,7 @@ class KMCRunner():
         # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
         qd._setup(bath)
 
-        return qd
+        return qd, rnd_seed
     
     
     # NOTE : if periodic = True, this incorporates periodic boundary conditions
@@ -392,10 +389,10 @@ class KMCRunner():
 
         # build QD lattice realization
         print('seed latt.', seed)
-        qd_lattice = self._build_grid_realization(bath, rid = realization_id, seed = seed)
+        qd_lattice, real_seed = self._build_grid_realization(bath, rid = realization_id, seed = seed)
 
         # get trajectory seed sequence
-        traj_ss = self._spawn_trajectory_seedseq(rid = realization_id)
+        traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
 
         # initialize mean squared displacement
         msd = np.zeros_like(times)
