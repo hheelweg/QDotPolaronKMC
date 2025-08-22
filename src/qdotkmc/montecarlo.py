@@ -61,9 +61,8 @@ class KMCRunner():
     
     
     # rate computation based on r_hop/r_ove
-    # TODO : can we make this @staticmethod?
     @staticmethod
-    def _make_kmatrix_box(qd_lattice, center_global, r_hop, r_ove):
+    def _make_kmatrix_box(qd_lattice, center_global, r_hop, r_ove, selection_info = False):
 
 
         # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
@@ -105,11 +104,17 @@ class KMCRunner():
         qd_lattice.stored_polaron_sites[overall_idx_start] = np.copy(final_states)   # global indices
         qd_lattice.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
 
-        return rates, final_states, tot_time
+        # (4) optional: export information about selected polarons/sites for computation of rates
+        sel_info= {}
+        if selection_info:
+            sel_info['npols_sel'] = len(pol_g)
+            sel_info['nsites_sel'] = len(site_g)
+
+        return rates, final_states, tot_time, sel_info
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
-    # NOTE : this can likely be deleted
+    # NOTE : this can likely be deleted as it not doing much, which we couldn't implement directly
     @staticmethod
     def _get_box(qd_lattice, center, box_length, periodic=True):
 
@@ -206,7 +211,7 @@ class KMCRunner():
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # (a) compute rates from r_hop/r_ove (OLD) 
-            rates, final_states, tot_time = KMCRunner._make_kmatrix_box(qd_lattice, 
+            rates, final_states, tot_time, _ = KMCRunner._make_kmatrix_box(qd_lattice, 
                                                                    center_global, 
                                                                    r_hop=self.geom.r_hop, 
                                                                    r_ove=self.geom.r_ove)
