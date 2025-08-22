@@ -34,6 +34,9 @@ def main():
     # PTRE and KMC related parameters
     r_hop = 8                                   # hopping radius (see Kassal) (in units of lattice spacing)
     r_ove = 8                                   # overlap radius (see Kassal) (in units of lattice spacing)
+
+    theta_site = 0.05
+    theta_pol = 0.05
     
     ntrajs = 10                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
@@ -61,7 +64,7 @@ def main():
                           dipolegen=dipolegen, J_c = J_c, seed_base = seed)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200,
-                                    r_hop = r_hop, r_ove = r_ove, rates_by = "weight",  
+                                    r_hop = r_hop, r_ove = r_ove, rates_by = "weight", theta_site = theta_site, theta_pol = theta_pol, 
                                     max_workers = max_workers)
     
     # set of KMC simulation
