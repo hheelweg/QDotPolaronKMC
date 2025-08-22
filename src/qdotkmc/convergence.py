@@ -73,6 +73,13 @@ class ConvergenceAnalysis(KMCRunner):
         Z = np.sum(np.exp(- beta * E))
         self.weights = w / Z
 
+
+    def _rate_score(self, *args):
+        if self.tune_cfg.max_workers is None or self.tune_cfg.max_workers == 1:
+            return self._rate_score_serial(*args)
+        else:
+            return self._rate_score_parallel(*args)
+
     
     def _rate_score_serial(self, theta_pol, theta_sites, score_info=False):
 

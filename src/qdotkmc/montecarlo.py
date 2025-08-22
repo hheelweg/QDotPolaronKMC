@@ -38,13 +38,6 @@ class KMCRunner():
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
 
-        # select whether to conduct KMC serial or in parallel (over realizations of noise)
-        # if self.run.max_workers is None or self.run.max_workers == 1:
-        #     print('execute serial')
-        #     self._simulate_kmc = self.simulate_kmc_serial()
-        # else:
-        #     print('execute parallel')
-        #     self._simulate_kmc = self.simulate_kmc_parallel()
     
     # make join time-grid
     def _make_time_grid(self):
@@ -414,6 +407,7 @@ class KMCRunner():
 
         return msd, simulated_time
 
+    # execute parallel if available based on max_worker (otherwise serial)
     def _simulate_kmc(self):
         if self.run.max_workers is None or self.run.max_workers == 1:
             return self.simulate_kmc_serial()
