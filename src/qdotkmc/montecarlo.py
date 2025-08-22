@@ -436,6 +436,9 @@ class KMCRunner():
         # dispatch configs + indices
         jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r, sim_time) for r in range(R)]
 
+        for rid in range(R):
+            print('test seed ', self._spawn_realization_seed(rid))
+
         #msds = None
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
