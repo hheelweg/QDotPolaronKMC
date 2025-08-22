@@ -27,9 +27,9 @@ class Redfield():
         self._J2_cache = {}                                 # key: tuple(site_g) -> J2 ndarray
 
     
-    # map λ to row index (compact 5-row cache)
-    _LAM2IDX = {-2.0: 0, -1.0: 1, 0.0: 2, 1.0: 3, 2.0: 4}
-    _IDX2LAM = np.array([-2.0, -1.0, 0.0, 1.0, 2.0], dtype=np.float64)
+        # map λ to row index (compact 5-row cache)
+        self._LAM2IDX = {-2.0: 0, -1.0: 1, 0.0: 2, 1.0: 3, 2.0: 4}
+        self._IDX2LAM = np.array([-2.0, -1.0, 0.0, 1.0, 2.0], dtype=np.float64)
 
     def _corr_rows_all(self, center_global, pol_g):
         kappa = float(self.kappa)
@@ -50,7 +50,7 @@ class Redfield():
         # find missing entries per-λ within the requested pol_g slice
         missing = np.isnan(rows[:, pol_g].real)  # (5, P)
         if missing.any():
-            for li, lam in enumerate(_IDX2LAM):
+            for li, lam in enumerate(self._IDX2LAM):
                 miss = missing[li]
                 if not miss.any():
                     continue
@@ -63,7 +63,7 @@ class Redfield():
 
         # return a dict of (P,) views in pol_g order
         sliced = rows[:, pol_g]  # (5, P)
-        return {lam: sliced[_LAM2IDX[lam]] for lam in _LAM2IDX}
+        return {lam: sliced[self._LAM2IDX[lam]] for lam in self._LAM2IDX}
     
     
     # bath half-Fourier Transforms
