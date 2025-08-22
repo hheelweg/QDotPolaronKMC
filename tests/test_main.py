@@ -68,8 +68,8 @@ def main():
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
     # perform KMC simulation (parallel)
-    times, msds = kmc_setup.simulate_kmc_parallel()
-    #times, msds = kmc_setup._simulate_kmc()
+    #times, msds = kmc_setup.simulate_kmc_parallel()
+    times, msds = kmc_setup._simulate_kmc()
 
     # perform KMC simulation (serial)
     #times, msds = kmc_setup.simulate_kmc_serial()
