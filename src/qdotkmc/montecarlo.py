@@ -69,8 +69,9 @@ class KMCRunner():
 
         # (1) use legacy self._get_box() and initialize box 
         # NOTE : this can likely be deleted
-        r_hop, r_ove, box_length = lattice.QDLattice._init_box_dims(r_hop, r_ove, qd_lattice.geom.qd_spacing)
-        #qd_lattice.rhop, qd_lattice.r_ove = r_hop, r_ove 
+        r_hop, r_ove, box_length = lattice.QDLattice._init_box_dims(r_hop, r_ove, 
+                                                                    spacing = qd_lattice.geom.qd_spacing,
+                                                                    max_length = qd_lattice.geom.N)
         polaron_start_site = qd_lattice.polaron_locs[center_global]
         self._get_box(qd_lattice, polaron_start_site, box_length=box_length)
 

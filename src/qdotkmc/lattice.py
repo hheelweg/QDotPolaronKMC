@@ -61,20 +61,20 @@ class QDLattice():
         self.stored_rate_vectors = [np.array([]) for _ in np.arange(self.geom.n_sites)]
     
 
-    # NOTE : this uses box_radius = min(r_hop, r_ove) rounded to the next higher integer
     @staticmethod
-    def _init_box_dims(r_hop, r_ove, qd_spacing):
+    def _init_box_dims(r_hop, r_ove, spacing, max_length):
         # convert to actual units
-        r_hop = r_hop * qd_spacing
-        r_ove = r_ove * qd_spacing
+        r_hop = r_hop * spacing
+        r_ove = r_ove * spacing
         # box radius and dimensions:
+        # NOTE : this uses box_radius = min(r_hop, r_ove) rounded to the next higher integer
         box_radius = math.ceil(min(r_hop, r_ove))
         # self.box_radius = r_box
-        box_length = (2 * box_radius + 1) * qd_spacing
+        box_length = (2 * box_radius + 1) * spacing
         # raise wanring if lattice dimensions are exceeded
-        # if self.box_length > self.geom.N:
-        #     raise Warning('the lattice dimensions are exceeded! \
-        #                   Please choose r_hop and r_ove accordingly!')
+        if box_length > max_length * spacing:
+            raise Warning('the lattice dimensions are exceeded! \
+                          Please choose r_hop and r_ove accordingly!')
         return r_hop, r_ove, box_length
     
 
