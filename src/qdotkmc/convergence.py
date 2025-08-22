@@ -74,6 +74,7 @@ class ConvergenceAnalysis(KMCRunner):
         self.weights = w / Z
 
 
+    # compute rate score in parallel (if available) or in serial
     def _rate_score(self, *args):
         if self.tune_cfg.max_workers is None or self.tune_cfg.max_workers == 1:
             return self._rate_score_serial(*args)
@@ -238,7 +239,7 @@ class ConvergenceAnalysis(KMCRunner):
         # (0) initialize θ_pol
         theta_p = float(self.tune_cfg.theta_pol_start)
         # evaluate rate-score Λ at current (initial) θ_pol
-        lam_from, info = self._rate_score_func(theta_p, theta_sites, score_info=True)
+        lam_from, info = self._rate_score(theta_p, theta_sites, score_info=True)
 
         for _ in range(int(self.tune_cfg.max_steps_pol)):
 
@@ -248,7 +249,7 @@ class ConvergenceAnalysis(KMCRunner):
                 break
 
             # (2) evaluate new rate score for 
-            lam_to, info = self._rate_score_func(theta_p_next, theta_sites, score_info=True)
+            lam_to, info = self._rate_score(theta_p_next, theta_sites, score_info=True)
 
             # (3) per-octave gain G_p over a fixed span θ_pol -> ρ * θ_pol
             gain = self._per_oct_gain(lam_from, lam_to, self.tune_cfg.rho)
