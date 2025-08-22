@@ -36,6 +36,7 @@ class Redfield():
         # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}                                 # key: tuple(site_g) -> J2 ndarray
 
+        # GPU
         self.use_gpu = bool(int(os.getenv("QDOT_USE_GPU", "1"))) and _HAS_CUPY
         self.gpu_use_c64 = bool(int(os.getenv("QDOT_GPU_USE_C64", "0")))  # default: complex128
 
@@ -448,7 +449,7 @@ class Redfield():
             and returns a NumPy array (gamma_plus).
             """
             if not _HAS_CUPY:
-                return
+                raise RuntimeError("CuPy not available")
 
             # dtypes (stay in 128-bit by default for accuracy)
             cupy_c = cp.complex64 if use_c64 else cp.complex128
