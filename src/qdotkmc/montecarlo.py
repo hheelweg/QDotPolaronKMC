@@ -69,7 +69,7 @@ class KMCRunner():
 
         # (1) use legacy self._get_box() and initialize box 
         # NOTE : this can likely be deleted
-        print(qd_lattice.geom.N * qd_lattice.geom.qd_spacing)
+        print(qd_lattice.geom.N * qd_lattice.geom.qd_spacing, (2 * r_hop + 1)*qd_lattice.geom.qd_spacing)
         r_hop, r_ove, box_length = lattice.QDLattice._init_box_dims(r_hop, r_ove, 
                                                                     spacing = qd_lattice.geom.qd_spacing,
                                                                     max_length = qd_lattice.geom.N)
