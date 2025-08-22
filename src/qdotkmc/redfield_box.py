@@ -4,7 +4,7 @@ from . import const
 from . import utils
 import time
 from scipy import sparse
-from typing import Optional
+from typing import Optional, List
 
 
 class Redfield():
@@ -67,9 +67,14 @@ class Redfield():
 
     
     # NOTE : this is the box-based refinement of polarons/sites from candidates within box
-    def refine_by_radius(self, r_hop, r_ove, *,
-                         pol_idxs_global, site_idxs_global, center_global,
-                         periodic=False, grid_dims=None):
+    def refine_by_radius(self, center_global: int, *,
+                         r_hop: int, 
+                         r_ove: int,
+                         pol_idxs_global: List[int], 
+                         site_idxs_global: List[int],
+                         periodic = False, 
+                         grid_dims = None
+                         ):
         """
         Returns subsets pol_g ⊆ pol_idxs_global and site_g ⊆ site_idxs_global
         that are within r_hop / r_ove (ina actual units) of center_global, preserving order.
@@ -79,8 +84,6 @@ class Redfield():
         - self.polaron_locations are absolute coordinates (shape: [N, D])
         - self.ham.qd_lattice_rel are site coordinates in the same frame
         """
-        # if r_hop is None: r_hop = self.r_hop
-        # if r_ove is None: r_ove = self.r_ove
 
         pol_idxs_global  = np.asarray(pol_idxs_global,  dtype=np.intp)
         site_idxs_global = np.asarray(site_idxs_global, dtype=np.intp)
@@ -118,15 +121,12 @@ class Redfield():
         return pol_g, site_g
  
     # selection of sites, polarons
-    def select_sites_and_polarons(
-                                    self,
-                                    center_global: int,
-                                    *,
-                                    theta_sites: float,                 # tighter -> more sites kept (higher cost, higher fidelity)
-                                    theta_pol:   float,                 # tighter -> more ν' kept (linear cost, physics coverage)
-                                    max_nuprime: Optional[int] = None,  # optional hard cap on # of ν' considered (after ranking)
-                                    verbose: bool = False,
-                                ):
+    def select_sites_and_polarons(self, center_global: int, *,
+                                  theta_sites: float,                       # tighter -> more sites kept (higher cost, higher fidelity)
+                                  theta_pol:   float,                       # tighter -> more ν' kept (linear cost, physics coverage)
+                                  max_nuprime: Optional[int] = None,        # optional hard cap on # of ν' considered (after ranking)
+                                  verbose: bool = False,
+                                  ):
         """
         Physics-aware, two-parameter selector for a single center polaron ν.
 

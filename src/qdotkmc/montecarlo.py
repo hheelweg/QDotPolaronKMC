@@ -84,11 +84,11 @@ class KMCRunner():
         # (3) refine the polaron and site indices by additional constraints on r_hop and r_ove
         # NOTE : refine_by_radius function can maybe be moved into this module ? 
         pol_g, site_g = qd_lattice.redfield.refine_by_radius(
+                    center_global = center_global,                      # reference index
                     r_hop = r_hop,
                     r_ove = r_ove,
                     pol_idxs_global = pol_box,
                     site_idxs_global = site_box,
-                    center_global = center_global,                      # global index of the center polaron
                     periodic=True,                                      # or False to match array setup
                     grid_dims=qd_lattice.geom.lattice_dimension
                     )
