@@ -441,7 +441,7 @@ class Redfield():
                     + bath_map[ 2.0] * H2)
 
     
-        def _build_gamma_plus_gpu(self, J, J2, Up, u0, bath_map, *, use_c64=False):
+        def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
             """
             Minimal CuPy mirror of your CPU gamma accumulation.
             Inputs are NumPy arrays; this uploads them for the current call
