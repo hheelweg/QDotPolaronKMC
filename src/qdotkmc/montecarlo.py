@@ -75,7 +75,7 @@ class KMCRunner():
                                                                     spacing = qd_lattice.geom.qd_spacing,
                                                                     max_length = qd_lattice.geom.N)
         polaron_start_site = qd_lattice.polaron_locs[center_global]
-        self._get_box(qd_lattice, polaron_start_site, box_length=box_length)
+        KMCRunner._get_box(qd_lattice, polaron_start_site, box_length=box_length)
 
         # (2) use the global indices of polaron and site inside box to further refine
         # selection by r_ove r_ove
