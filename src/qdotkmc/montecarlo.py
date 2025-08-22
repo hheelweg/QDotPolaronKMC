@@ -2,6 +2,7 @@ import numpy as np
 import os
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Optional
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
@@ -230,7 +231,7 @@ class KMCRunner():
     
 
     # build realization of QD lattice
-    def _build_grid_realization(self, bath : SpecDens, rid : int, seed : int):
+    def _build_grid_realization(self, bath : SpecDens, rid : int, seed : Optional[int] = None):
 
         assert isinstance(bath, SpecDens), "Need to make sure we have a proper \
                                             bath set up to build QDLattice instance"
@@ -241,7 +242,7 @@ class KMCRunner():
         else:
             rnd_seed = seed
 
-        print('seed', rnd_seed)
+        print('seed', seed, rnd_seed)
         
         # initialize instance of QDLattice class
         # NOTE : change to rnd_seed = self.dis.seed_base for default seed
