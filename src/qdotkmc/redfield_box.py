@@ -121,7 +121,7 @@ class Redfield():
         return pol_g, site_g
  
     # selection of sites, polarons by overlap
-    def select_sites_and_polarons(self, center_global: int, *,
+    def select_by_overlap(self, center_global: int, *,
                                   theta_sites: float,                       # tighter -> more sites kept (higher cost, higher fidelity)
                                   theta_pol:   float,                       # tighter -> more ν' kept (linear cost, physics coverage)
                                   max_nuprime: Optional[int] = None,        # optional hard cap on # of ν' considered (after ranking)

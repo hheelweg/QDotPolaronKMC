@@ -171,12 +171,11 @@ class KMCRunner():
         qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_sites = theta_pol, theta_sites
 
         # (1) select sites and polarons that ''matter'' for computing the rates
-        site_g, pol_g = qd_lattice.redfield.select_sites_and_polarons(
-                                                                      center_global=center_global, 
-                                                                      theta_sites= qd_lattice.redfield.theta_sites, 
-                                                                      theta_pol = qd_lattice.redfield.theta_pol, 
-                                                                      verbose=False
-                                                                      )
+        site_g, pol_g = qd_lattice.redfield.select_by_overlap(center_global = center_global, 
+                                                              theta_sites = qd_lattice.redfield.theta_sites, 
+                                                              theta_pol = qd_lattice.redfield.theta_pol, 
+                                                              verbose = False
+                                                              )
 
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
