@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.linalg as la
 import pandas as pd
+from . import lattice
 
 
 # diagonalize Hamiltonian
@@ -175,6 +176,25 @@ def mass_core_by_theta(w_col, theta: float):
     k = int(np.searchsorted(csum, target, side="left")) + 1
     return np.sort(order[:k]).astype(np.intp)
 
+
+# get closest index (formerly in montecarlo.py)
+# NOTE : move to uitls.py?
+def get_closest_idx(qd_lattice, pos, array, periodic=True):
+    """
+    Find the index in `array` closest to `pos` under periodic boundary conditions.
+    """
+    assert isinstance(qd_lattice, lattice.QDLattice), 'need to specify valid QDLattice instance.'
+    
+    # Vectorized periodic displacement
+    delta = array - pos  # shape (N, dims)
+
+    # Apply periodic boundary condition (minimum image convention)
+    delta -= np.round(delta / qd_lattice.geom.boundary) * qd_lattice.geom.boundary
+
+    # Compute squared distances
+    dists_squared = np.sum(delta**2, axis=1)
+
+    return np.argmin(dists_squared)
 
 # NOTE : move to utils.py ?
 def get_ipr(Umat):

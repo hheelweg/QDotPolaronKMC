@@ -6,7 +6,7 @@ from typing import Optional
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
-from . import lattice, hamiltonian_box, const
+from . import lattice, hamiltonian_box, const, utils
 from .hamiltonian_box import SpecDens
 
 # global variable to allow parallel workers to use the same bath setup
@@ -145,7 +145,7 @@ class KMCRunner():
 
         # (4) define the GLOBAL center index once
         # NOTE : it seems like eventuall this is all we need, so we might get rid of this function alltogether ??
-        qd_lattice.center_global = int(self.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
+        qd_lattice.center_global = int(utils.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
 
         # (5) optional: local position of the center inside the box (rarely needed now)
         where = np.nonzero(qd_lattice.pol_idxs_last == qd_lattice.center_global)[0]
@@ -501,22 +501,7 @@ class KMCRunner():
 
     
     
-    # (08/09/2025) more efficient version
-    # NOTE : move to uitls.py?
-    def get_closest_idx(self, qd_lattice, pos, array):
-        """
-        Find the index in `array` closest to `pos` under periodic boundary conditions.
-        """
-        # Vectorized periodic displacement
-        delta = array - pos  # shape (N, dims)
 
-        # Apply periodic boundary condition (minimum image convention)
-        delta -= np.round(delta / qd_lattice.geom.boundary) * qd_lattice.geom.boundary
-
-        # Compute squared distances
-        dists_squared = np.sum(delta**2, axis=1)
-
-        return np.argmin(dists_squared)
     
 
 
