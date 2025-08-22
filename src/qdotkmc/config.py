@@ -7,7 +7,13 @@ class GeometryConfig:
 
     dims : int
     N : int
+    nc_edgelength : float = 8
+    ligand_length : float = 1
     qd_spacing: float
+
+    @property
+    def qd_spacing(self) -> float:
+        return self.nc_edgelength + 2 * self.ligand_length
 
     @property
     def n_sites(self) -> int:

@@ -14,6 +14,7 @@ def main():
 
     ndim = 2                                    # number of dimensions
     N = 30                                      # number of QDs in each dimension
+
     nc_edgelength = 8                           # length of each QD (units?)
     ligand_length = 1                           # length of ligands on QD (units?)
 

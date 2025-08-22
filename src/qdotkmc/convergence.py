@@ -31,7 +31,7 @@ def _rate_score_worker(args):
     
     return lamda * weight, sel_info['nsites_sel'], sel_info['npols_sel']
 
-
+# TODO : only implemented for rates_by = "weight". 
 class ConvergenceAnalysis(KMCRunner):
 
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, 
@@ -45,6 +45,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
+
     
     # build setu-uop for obtaining convergence
     def _build_rate_convergenc_env(self):

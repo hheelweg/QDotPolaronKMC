@@ -11,11 +11,13 @@ import qdotkmc
 
 def main():
 
+    # NOTE : a lot of the input parameters (especially the ones that are not used regularly)
+    # have been moved as defaults to .config dataclasses. 
 
     ndim = 2                                    # number of dimensions
     N = 20                                      # number of QDs in each dimension
-    nc_edgelength = 8                           # length of each QD (units?)
-    ligand_length = 1                           # length of ligands on QD (units?)
+    # nc_edgelength = 8                           # length of each QD (units?)
+    # ligand_length = 1                           # length of ligands on QD (units?)
 
     # seed for randomness of Hamiltonian (if None, then Hamiltonian is randomly drawn for every instance of the class)
     seed = 12345
@@ -45,7 +47,7 @@ def main():
     #-------------------------------------------------------------------------
 
     # lattice spacing
-    spacing = nc_edgelength + 2 * ligand_length
+    # spacing = nc_edgelength + 2 * ligand_length
 
     # specify the bath
     spectrum = [spec_density, reorg_nrg, w_c]
@@ -55,11 +57,11 @@ def main():
 
 
     # create instance of MC class to run KMC simulation
-    print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
-                                J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, max_workers)
+    # print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
+    #                             J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove, max_workers)
     
     # define dataclasses
-    geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N, qd_spacing = spacing)
+    geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N)
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
                           dipolegen=dipolegen, J_c = J_c, seed_base = seed)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
