@@ -192,11 +192,11 @@ class KMCRunner():
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # (a) compute rates from r_hop/r_ove (OLD) 
-            rates, final_states, tot_time, _ = KMCRunner._make_rates(qd_lattice, 
-                                                                    center_global, 
-                                                                    r_hop=self.run.r_hop, 
-                                                                    r_ove=self.run.r_ove
-                                                                    )
+            rates, final_states, tot_time, _ = self._make_rates(qd_lattice, 
+                                                                center_global, 
+                                                                r_hop=self.run.r_hop, 
+                                                                r_ove=self.run.r_ove
+                                                                )
             # (b) compute rates from theta_pol/theta_sites (NEW)
             # NOTE : need to update arguments
             #rates, final_states, tot_time, _ = self._make_kmatrix_boxNEW(qd_lattice, center_global)
