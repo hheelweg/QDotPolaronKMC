@@ -66,19 +66,18 @@ class KMCRunner():
 
 
         # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
-        qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop * qd_lattice.geom.qd_spacing, r_ove * qd_lattice.geom.qd_spacing
-        print(qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove)
+        # qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop * qd_lattice.geom.qd_spacing, r_ove * qd_lattice.geom.qd_spacing
 
         # (1) use legacy self._get_box() and initialize box 
         # NOTE : this can likely be deleted
         r_hop, r_ove, box_length = lattice.QDLattice._init_box_dims(r_hop, r_ove, 
                                                                     spacing = qd_lattice.geom.qd_spacing,
                                                                     max_length = qd_lattice.geom.N)
-        print(r_hop, r_ove)
         polaron_start_site = qd_lattice.polaron_locs[center_global]
         self._get_box(qd_lattice, polaron_start_site, box_length=box_length)
 
-        # (2) use the global indices of polaron and site inside box
+        # (2) use the global indices of polaron and site inside box to further refine
+        # selection by r_ove r_ove
         pol_box  = qd_lattice.pol_idxs_last
         site_box = qd_lattice.site_idxs_last
 
