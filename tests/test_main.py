@@ -32,8 +32,8 @@ def main():
     spec_density = 'cubic-exp'                  # bath spectral density
 
     # PTRE and KMC related parameters
-    r_hop = 8                                   # hopping radius (see Kassal) (in units of lattice spacing)
-    r_ove = 8                                   # overlap radius (see Kassal) (in units of lattice spacing)
+    r_hop = 7                                   # hopping radius (see Kassal) (in units of lattice spacing)
+    r_ove = 7                                   # overlap radius (see Kassal) (in units of lattice spacing)
     
     ntrajs = 10                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
@@ -68,14 +68,14 @@ def main():
     kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     print('inital', kmc.run.r_hop, kmc.run.r_ove)
 
-    kmc.run.r_hop = 7
-    kmc.run.r_ove = 7
+    kmc.run.r_hop = 8
+    kmc.run.r_ove = 8
     
     # perform KMC simulation (parallel)
     #times, msds = kmc_setup.simulate_kmc_parallel()
     times, msds = kmc._simulate_kmc()
 
-    print('inital', kmc.run.r_hop, kmc.run.r_ove)
+    print('final', kmc.run.r_hop, kmc.run.r_ove)
 
     # perform KMC simulation (serial)
     #times, msds = kmc_setup.simulate_kmc_serial()
