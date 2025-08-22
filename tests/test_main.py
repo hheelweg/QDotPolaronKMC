@@ -60,25 +60,17 @@ def main():
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, relative_spatial_disorder = rel_spatial_disorder,
                           dipolegen=dipolegen, J_c = J_c, seed_base = seed)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
-    run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200,
+    run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=100,
                                     r_hop = r_hop, r_ove = r_ove, 
                                     max_workers = max_workers)
     
-    
+    # set of KMC simulation
     kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
-    print('inital', kmc.run.r_hop, kmc.run.r_ove)
 
-    kmc.run.r_hop = 8
-    kmc.run.r_ove = 8
-    
-    # perform KMC simulation (parallel)
-    #times, msds = kmc_setup.simulate_kmc_parallel()
+
+    # perform KMC simulation (automatically switches parallel/serial based on max_workers)
     times, msds = kmc._simulate_kmc()
 
-    print('final', kmc.run.r_hop, kmc.run.r_ove)
-
-    # perform KMC simulation (serial)
-    #times, msds = kmc_setup.simulate_kmc_serial()
 
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)
