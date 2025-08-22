@@ -358,11 +358,11 @@ class Redfield():
         J = np.asarray(
                         self.ham.J_dense[np.ix_(site_g, site_g)], dtype=np.float64, order='C'
                         )      
-        J2 = self._get_J2_cached(J, site_g)         # J * J caching for memory efficieny 
-        U = self.ham.Umat                           # unitary transformation for site/polaron mapping
+        J2 = self._get_J2_cached(J, site_g)             # J * J caching for memory efficieny 
+        U = self.ham.Umat                               # unitary transformation for site/polaron mapping
 
-        u0 = U[site_g, m0]                          #  overlap (a | 𝜈) for 𝜈
-        Up = U[np.ix_(site_g, pol_g)]               #  overlap (a | 𝜈') for all 𝜈' ∈ pol_g
+        u0 = U[site_g, m0]                              #  overlap (a | 𝜈) for 𝜈
+        Up = U[np.ix_(site_g, pol_g)]                   #  overlap (a | 𝜈') for all 𝜈' ∈ pol_g
 
         if time_verbose:
             print('time(site→eig rows/cols)', time.time() - t1, flush=True)
@@ -427,9 +427,84 @@ class Redfield():
                     + bath_map[ 1.0] * H1
                     + bath_map[ 2.0] * H2)
 
+        def _build_gamma_plus_fast(J, J2, Up, u0, bath_map):
+            """
+            Drop-in replacement for your _build_gamma_plus.
+            J:  (n,n) float64 symmetric real
+            J2: (n,n) float64  (your cached 'J*J as a matrix' object)
+            Up:(n,P) complex128
+            u0:(n,)  complex128
+            bath_map: dict {lam: (P,) complex128} for lam in {-2,-1,0,1,2}
+            Returns: gamma_plus (P,) complex128
+            """
+            n, P = Up.shape
+            UpH = Up.conj().T                             # (P,n)
+
+            # Shared matvecs/matmuls (Level-3 when possible)
+            Ju0 = J @ u0                                  # (n,)
+            JUp = J @ Up                                  # (n,P)
+
+            # -------- T0 (full unconstrained sum) via two GEMV, no n×P temporaries
+            # sum_rowR = JUp.T @ conj(u0)
+            sum_rowR = JUp.T @ u0.conj()                  # (P,)
+            # sum_rowC = Up^H @ Ju0
+            sum_rowC = UpH @ Ju0                          # (P,)
+            T0 = sum_rowR * sum_rowC                      # (P,)
+
+            # -------- One-equality sums (Hadamards but fused with reductions)
+            # Tac = Σ_i (Ju0_i * conj(u0_i)) * (JUp_i,· * conj(Up_i,·))
+            s_ac = Ju0 * u0.conj()                        # (n,)
+            Tac = np.einsum('i,ip,ip->p', s_ac, JUp, Up.conj(), optimize=True)
+
+            # Tbd = Σ_i (conj(Ju0_i) * u0_i) * (Up_i,· * conj(JUp_i,·))
+            s_bd = Ju0.conj() * u0                        # (n,)
+            Tbd = np.einsum('i,ip,ip->p', s_bd, Up, JUp.conj(), optimize=True)
+
+            # Tad = Σ_i |u0_i|^2 * |JUp_i,·|^2   ->  (|JUp|^2)^T @ |u0|^2
+            Au0 = np.abs(u0)**2                           # (n,)
+            Tad = (np.abs(JUp)**2).T @ Au0                # (P,)
+
+            # Tbc = Σ_i |Ju0_i|^2 * |Up_i,·|^2   ->  (|Up|^2)^T @ |Ju0|^2
+            AJu0 = np.abs(Ju0)**2                         # (n,)
+            Tbc  = (np.abs(Up)**2).T @ AJu0               # (P,)
+
+            # -------- Pair terms (both with one GEMM + one fused reduction)
+            # E_acbd[p] = (conj(u0)∘conj(Up[:,p]))^T · J2 · (u0∘Up[:,p])
+            Y = u0[:, None] * Up                          # (n,P)
+            Z = J2 @ Y                                    # (n,P)
+            X = u0.conj()[:, None] * Up.conj()            # (n,P)
+            E_acbd = np.einsum('ip,ip->p', X, Z, optimize=True)
+
+            # E_adbc = (|Up|^2)^T @ (J2 @ |u0|^2)   (already optimal)
+            t_b = J2 @ Au0                                # (n,)
+            E_adbc = (np.abs(Up)**2).T @ t_b              # (P,)
+
+            # -------- Möbius inclusion–exclusion buckets H_λ
+            H2   = E_acbd
+            Hm2  = E_adbc
+            H1   = Tac + Tbd - 2.0*E_acbd
+            Hm1  = Tad + Tbc - 2.0*E_adbc
+
+            # If K0 ≡ 0 in your model, skip H0 entirely:
+            if np.allclose(bath_map[0.0], 0.0):
+                gamma = (bath_map[-2.0]*Hm2
+                    + bath_map[-1.0]*Hm1
+                    + bath_map[ 1.0]*H1
+                    + bath_map[ 2.0]*H2)
+            else:
+                H0   = T0 - (H2 + Hm2 + H1 + Hm1)
+                gamma = (bath_map[-2.0]*Hm2
+                    + bath_map[-1.0]*Hm1
+                    + bath_map[ 0.0]*H0
+                    + bath_map[ 1.0]*H1
+                    + bath_map[ 2.0]*H2)
+
+            return gamma
+
+
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
-        gamma_plus = _build_gamma_plus(J, J2, Up, u0, bath_map)
+        gamma_plus = _build_gamma_plus_fast(J, J2, Up, u0, bath_map)
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
@@ -438,7 +513,6 @@ class Redfield():
         red_R_tensor = 2.0 * np.real(gamma_plus)
         rates = np.delete(red_R_tensor, center_loc) / const.hbar
         final_site_idxs = np.delete(pol_g, center_loc).astype(int)
-
 
 
         if time_verbose:
