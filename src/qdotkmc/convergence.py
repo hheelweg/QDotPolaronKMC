@@ -75,14 +75,14 @@ class ConvergenceAnalysis(KMCRunner):
 
 
     # compute rate score in parallel (if available) or in serial
-    def _rate_score(self, *args):
+    def _rate_score(self, *args, **kwargs):
         if self.tune_cfg.max_workers is None or self.tune_cfg.max_workers == 1:
-            return self._rate_score_serial(*args)
+            return self._rate_score_serial(*args, **kwargs)
         else:
-            return self._rate_score_parallel(*args)
+            return self._rate_score_parallel(*args, **kwargs)
 
     
-    def _rate_score_serial(self, theta_pol, theta_sites, score_info=False):
+    def _rate_score_serial(self, theta_pol, theta_sites, score_info = True):
 
         # get rates starting from each polaron starting index and analyze by criterion
         rates_criterion = None
