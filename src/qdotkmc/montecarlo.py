@@ -122,10 +122,10 @@ class KMCRunner():
 
         # (1) select sites and polarons that ''matter'' for computing the rates
         site_g, pol_g = qd_lattice.redfield.select_by_weight(center_global = center_global, 
-                                                              theta_site = qd_lattice.redfield.theta_site, 
-                                                              theta_pol = qd_lattice.redfield.theta_pol, 
-                                                              verbose = False
-                                                              )
+                                                             theta_site = qd_lattice.redfield.theta_site, 
+                                                             theta_pol = qd_lattice.redfield.theta_pol, 
+                                                             verbose = False
+                                                             )
 
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
@@ -160,7 +160,7 @@ class KMCRunner():
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # (a) compute rates from r_hop/r_ove (OLD) 
-            rates, final_states, tot_time, _ = KMCRunner._make_kmatrix_box(qd_lattice, 
+            rates, final_states, tot_time, _ = KMCRunner._make_rates_radius(qd_lattice, 
                                                                    center_global, 
                                                                    r_hop=self.run.r_hop, 
                                                                    r_ove=self.run.r_ove)
