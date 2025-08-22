@@ -79,8 +79,8 @@ class Redfield():
         - self.polaron_locations are absolute coordinates (shape: [N, D])
         - self.ham.qd_lattice_rel are site coordinates in the same frame
         """
-        # if r_hop is None: r_hop = self.r_hop
-        # if r_ove is None: r_ove = self.r_ove
+        if r_hop is None: r_hop = self.r_hop
+        if r_ove is None: r_ove = self.r_ove
 
         pol_idxs_global  = np.asarray(pol_idxs_global,  dtype=np.intp)
         site_idxs_global = np.asarray(site_idxs_global, dtype=np.intp)

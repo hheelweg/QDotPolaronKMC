@@ -66,7 +66,7 @@ class KMCRunner():
 
 
         # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
-        # qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop * qd_lattice.geom.qd_spacing, r_ove * qd_lattice.geom.qd_spacing
+        qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop * qd_lattice.geom.qd_spacing, r_ove * qd_lattice.geom.qd_spacing
 
         # (1) use legacy self._get_box() and initialize box 
         # NOTE : this can likely be deleted
@@ -83,8 +83,8 @@ class KMCRunner():
         # (3) refine the polaron and site indices by additional constraints on r_hop and r_ove
         # NOTE : refine_by_radius function can maybe be moved into this module ? 
         pol_g, site_g = qd_lattice.redfield.refine_by_radius(
-                    r_hop = r_hop,
-                    r_ove = r_ove,
+                    r_hop = qd_lattice.redfield.r_hop,
+                    r_ove = qd_lattice.redfield.r_ove,
                     pol_idxs_global = pol_box,
                     site_idxs_global = site_box,
                     center_global = center_global,                      # global index of the center polaron
