@@ -237,11 +237,12 @@ class KMCRunner():
                                             bath set up to build QDLattice instance"
 
         # get random seef from realization id (rid)
-        if seed is None:
-            rnd_seed = self._spawn_realization_seed(rid)
-        else:
-            rnd_seed = seed
+        # if seed is None:
+        #     rnd_seed = self._spawn_realization_seed(rid)
+        # else:
+        #     rnd_seed = seed
 
+        rnd_seed = self._spawn_realization_seed(rid)
         print('seed', seed, rnd_seed)
         
         # initialize instance of QDLattice class
@@ -438,12 +439,14 @@ class KMCRunner():
         # Use fork context so children inherit memory instead of pickling args
         ctx = mp.get_context("fork")
 
+        seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
+
         # dispatch configs + indices
         jobs = [(self.geom, self.dis, self.bath_cfg, self.run, times_msds, rid,
-                 sim_time,  self._spawn_realization_seed(rid)) for rid in range(R)]
+                 sim_time, seeds[rid]) for rid in range(R)]
 
         for rid in range(R):
-            print('test seed ', self._spawn_realization_seed(rid))
+            print('test seed ',seeds[rid])
 
         #msds = None
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
