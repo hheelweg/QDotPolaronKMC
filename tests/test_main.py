@@ -30,7 +30,7 @@ def main():
 
     # ---- KMC parameters ---------
     ntrajs = 10                                 # number of trajectories to compute MSDs over
-    nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    nrealizations = 2                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
@@ -43,6 +43,8 @@ def main():
     #-------------------------------------------------------------------------
     # obtain max_workers from SLURM environment for parallelization of work
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
+    # enforce serial for debugging
+    max_workers = 1
 
 
     # define dataclasses
