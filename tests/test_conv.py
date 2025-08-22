@@ -77,11 +77,11 @@ def main():
 
     # ----------   use thetas for KMC simulation     ----------
     # setup KMC simulation
-    kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run,
-                                       rates_by = rates_by,
-                                       theta_site = theta_site_opt,         # feed in optimized theta_site
-                                       theta_pol = theta_pol_opt            # feed in optimized theta_pol
-                                       )
+    kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
+    
+    kmc.run.rates_by = rates_by
+    kmc.run.theta_site = theta_site_opt                     # feed in optimized parameter for theta_site
+    kmc.run.theta_pol = theta_pol_opt                       # feed in optimized paramter for theta_pol
     
     # perform KMC simulation (automatically switches parallel/serial based on max_workers)
     times, msds = kmc._simulate_kmc()
@@ -93,7 +93,6 @@ def main():
     msds_mean = np.mean(msds, axis = 0)
 
     # obtain diffusivities in two distinct ways
-
     diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times, ndim)
 
     diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
