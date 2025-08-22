@@ -40,7 +40,7 @@ class BathConfig:
     spectrum: Any     # your existing spectrum information object/callable
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class RunConfig:
 
     ntrajs: int
