@@ -366,7 +366,7 @@ class ConvergenceAnalysis(KMCRunner):
         # finalize at hi (largest θ_sites in bracket with gain <= 𝛿)
         tp_star, lam_star, info_star = self._tune_theta_pol(hi, verbose=verbose)
         
-        return dict(theta_sites=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
+        return dict(theta_site=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
                     nsites=int(info_star['ave_sites']), npols=int(info_star['ave_pols']))
 
     

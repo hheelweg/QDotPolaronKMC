@@ -89,11 +89,11 @@ def main():
     # set verbose = False to avoid printing updates on convergence
     thetas_result = convergence_setup.auto_tune_thetas(verbose=True)
 
-    theta_sites_opt = thetas_result['theta_sites']
-    theta_pols_opt = thetas_result['theta_pols']
+    theta_site_opt = thetas_result['theta_site']
+    theta_pol_opt = thetas_result['theta_pol']
     
-    print(f"theta_sites (opt): {theta_sites_opt:.4f}")
-    print(f"theta_pol (opt): {theta_pols_opt:.4f}")
+    print(f"theta_sites (opt): {theta_site_opt:.4f}")
+    print(f"theta_pol (opt): {theta_pol_opt:.4f}")
     
     
 
