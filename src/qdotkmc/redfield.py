@@ -508,7 +508,7 @@ class Redfield():
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
         if getattr(self, "use_gpu", False):
-            gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=getattr(self, "gpu_use_c64", False))
+            gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
         else:
             gamma_plus = _build_gamma_plus(J, J2, Up, u0, bath_map)  
         #gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
