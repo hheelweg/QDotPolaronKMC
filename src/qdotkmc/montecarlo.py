@@ -59,6 +59,8 @@ class KMCRunner():
     
     # child SeedSequences for all trajectories of a given realization (QDLattice)
     def _spawn_trajectory_seedseq(self, rid : int, seed : Optional[int] = None):
+        # create trajectory seed sequence specific to the seed of the realization (seed)
+        # otherwise (seed = None) initialize new seeds. 
         ss_real = SeedSequence(self._spawn_realization_seed(rid)) if seed is None else SeedSequence(seed)
         return ss_real.spawn(self.run.ntrajs)
     
@@ -389,7 +391,6 @@ class KMCRunner():
 
         # build QD lattice realization
         qd_lattice, real_seed = self._build_grid_realization(bath, rid = realization_id, seed = seed)
-        print('real id', real_seed)
 
         # get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
@@ -413,7 +414,7 @@ class KMCRunner():
 
 
     # parallel KMC
-    def simulate_kmc_parallel(self, max_workers = None):
+    def simulate_kmc_parallel(self):
         """Parallel over realizations on CPU (one process per realization)."""
 
         os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -437,17 +438,16 @@ class KMCRunner():
         # Use fork context so children inherit memory instead of pickling args
         ctx = mp.get_context("fork")
 
+        # create seeds for lattice realizations, its important to feed them here
+        # in order to have parallel execution yield the same results as serial
         seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
 
         # dispatch configs + indices
         jobs = [(self.geom, self.dis, self.bath_cfg, self.run, times_msds, rid,
                  sim_time, seeds[rid]) for rid in range(R)]
 
-        for rid in range(R):
-            print('test seed ',seeds[rid])
-
         #msds = None
-        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
+        with ProcessPoolExecutor(max_workers=self.run.max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
             for fut in as_completed(futs):
                 rid, msd_r, sim_time = fut.result()
