@@ -17,13 +17,13 @@ class Redfield():
 
         self.kappa=kappa
 
-        # initialize hopping and overlap radii
-        self.r_hop = None 
-        self.r_ove = None 
+        # # initialize hopping and overlap radii
+        # self.r_hop = None 
+        # self.r_ove = None 
 
-        # initialize θ_pol and θ_sites
-        self.theta_pol = None
-        self.theta_site = None
+        # # initialize θ_pol and θ_sites
+        # self.theta_pol = None
+        # self.theta_site = None
 
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
@@ -239,7 +239,7 @@ class Redfield():
 
 
     # obtain redfield rates within box
-    def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global, verbosity = False):
+    def make_redfield(self, *, pol_idxs_global, site_idxs_global, center_global, verbosity = False):
         """
         Compute outgoing Redfield rates from a fixed polaron (eigenstate) ν to all ν' in the
         current box, using an exact, closed-form λ-contraction.
