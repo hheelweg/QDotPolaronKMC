@@ -44,7 +44,14 @@ class DisorderConfig:
 class BathConfig:
 
     temp: float
-    spectrum: Any     # your existing spectrum information object/callable
+
+    w_c: float                                  # cutoff frequency for bath (units ?)
+    reorg_nrg: float                            # reorganization energy (units ?) 
+    spectral_density: Any = "cubic-exp"
+
+    @property
+    def spectrum(self) -> list:
+        return [self.spectral_density, self.reorg_nrg, self.w_c]
 
 
 RatesBy = Literal["radius", "weight"]
@@ -54,8 +61,8 @@ class RunConfig:
 
     ntrajs: int
     nrealizations: int
-    t_final: float
-    time_grid_density: int = 100            # points per unit time for MSD time grid (NOTE : might want to modify this later)
+    t_final: float = 5                      # time for each trajectory (units ?)
+    time_grid_density: int = 200            # points per unit time for MSD time grid
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
 
     # mode selector to compute rates in KMC 

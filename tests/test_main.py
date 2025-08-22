@@ -20,15 +20,15 @@ def main():
     # seed for randomness of Hamiltonian (if None, then Hamiltonian is randomly drawn for every instance of the class)
     #seed = 12345
 
-    # Hamiltonian and bath related parameters
+    # system parameters
     inhomog_sd = 0.002                          # inhomogenous broadening (units?)
     nrg_center = 2.0                            # mean site energy (units ?)
     J_c = 10                                    # J_c (units?)
 
+    # bath parameters
     w_c = 0.1                                   # cutoff frequency (units?)
     temp = 200                                  # temperature (K)
     reorg_nrg = 0.01                            # reorganization energy (units?)
-    spec_density = 'cubic-exp'                  # bath spectral density
 
     # PTRE and KMC related parameters
     r_hop = 8                                   # hopping radius (see Kassal) (in units of lattice spacing)
@@ -40,14 +40,13 @@ def main():
     ntrajs = 10                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
-    t_final = 5                                # final time for each trajectory (units?)
     #-------------------------------------------------------------------------
 
     # lattice spacing
     # spacing = nc_edgelength + 2 * ligand_length
 
     # specify the bath
-    spectrum = [spec_density, reorg_nrg, w_c]
+    #spectrum = [spec_density, reorg_nrg, w_c]
 
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
     print('max_workers', max_workers)
@@ -60,8 +59,8 @@ def main():
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N)
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, J_c = J_c)
-    bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
-    run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200,
+    bath_cfg = qdotkmc.config.BathConfig(temp = temp, w_c=w_c, reorg_nrg=reorg_nrg)
+    run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations,
                                     r_hop = r_hop, r_ove = r_ove, rates_by = "radius", theta_site = theta_site, theta_pol = theta_pol, 
                                     max_workers = max_workers)
     
