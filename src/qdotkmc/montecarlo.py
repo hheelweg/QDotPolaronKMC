@@ -13,14 +13,15 @@ _BATH_GLOBAL = None
 
 # top-level worker for a single lattice realization
 def _one_lattice_worker(args):
-    (geom, dis, bath_cfg, run, t_final, times_msds, rid, sim_time) = args
+    (geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed) = args
     runner = KMCRunner(geom, dis, bath_cfg, run)
     return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
                                             bath = _BATH_GLOBAL,
                                             t_final = run.t_final,
                                             times = times_msds,
-                                            realization_id=rid,
-                                            simulated_time=sim_time)
+                                            realization_id = rid,
+                                            simulated_time = sim_time,
+                                            seed = seed)
 
 
 class KMCRunner():
@@ -229,13 +230,16 @@ class KMCRunner():
     
 
     # build realization of QD lattice
-    def _build_grid_realization(self, bath : SpecDens, rid : int):
+    def _build_grid_realization(self, bath : SpecDens, rid : int, seed : int):
 
         assert isinstance(bath, SpecDens), "Need to make sure we have a proper \
                                             bath set up to build QDLattice instance"
 
         # get random seef from realization id (rid)
-        rnd_seed = self._spawn_realization_seed(rid)
+        if seed is None:
+            rnd_seed = self._spawn_realization_seed(rid)
+        else:
+            rnd_seed = seed
 
         print('seed', rnd_seed)
         
@@ -382,10 +386,10 @@ class KMCRunner():
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
-    def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, simulated_time):
+    def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, simulated_time, seed = None):
 
         # build QD lattice realization
-        qd_lattice = self._build_grid_realization(bath, rid = realization_id)
+        qd_lattice = self._build_grid_realization(bath, rid = realization_id, seed = seed)
 
         # get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id)
@@ -434,7 +438,8 @@ class KMCRunner():
         ctx = mp.get_context("fork")
 
         # dispatch configs + indices
-        jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r, sim_time) for r in range(R)]
+        jobs = [(self.geom, self.dis, self.bath_cfg, self.run, times_msds, r,
+                 sim_time,  self._spawn_realization_seed(rid)) for r in range(R)]
 
         for rid in range(R):
             print('test seed ', self._spawn_realization_seed(rid))
