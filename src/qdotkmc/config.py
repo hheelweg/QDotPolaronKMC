@@ -49,9 +49,14 @@ class RunConfig:
     time_grid_density: int = 100            # points per unit time for MSD time grid (NOTE : might want to modify this later)
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
 
-    # TODO : eventually move r_hop, r_ove to RunConfig
+    # --- parameters for selection by radius ...
     r_hop: Optional[float] = None
     r_ove: Optional[float] = None
+
+    # --- parameters for selection by overlap ...
+    theta_site: Optional[float] = None
+    theta_pol: Optional[float] = None
+
 
 @dataclass(frozen=True)
 class ConvergenceTuneConfig:

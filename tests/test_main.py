@@ -64,11 +64,18 @@ def main():
                                     r_hop = r_hop, r_ove = r_ove, 
                                     max_workers = max_workers)
     
-    kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
+    
+    kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
+    print('inital', kmc.run.r_hop, kmc.run.r_ove)
+
+    kmc.run.r_hop = 7
+    kmc.run.r_ove = 7
     
     # perform KMC simulation (parallel)
     #times, msds = kmc_setup.simulate_kmc_parallel()
-    times, msds = kmc_setup._simulate_kmc()
+    times, msds = kmc._simulate_kmc()
+
+    print('inital', kmc.run.r_hop, kmc.run.r_ove)
 
     # perform KMC simulation (serial)
     #times, msds = kmc_setup.simulate_kmc_serial()
