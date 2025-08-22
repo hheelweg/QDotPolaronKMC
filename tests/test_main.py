@@ -61,7 +61,7 @@ def main():
                           dipolegen=dipolegen, J_c = J_c, seed_base = seed)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200,
-                                    r_hop = r_hop, r_ove = r_ove, rates_by = "radius",  
+                                    r_hop = r_hop, r_ove = r_ove, rates_by = "weight",  
                                     max_workers = max_workers)
     
     # set of KMC simulation
