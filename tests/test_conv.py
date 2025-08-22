@@ -80,26 +80,26 @@ def main():
     print('parameter summary:', ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, seed, rel_spatial_disorder,
                                 J_c, spectrum, temp, ntrajs, nrealizations, r_hop, r_ove)
 
-    theta_pol = 0.05
-    theta_site = 0.05
-    # execution of _rate_score
-    criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, 
-                                                    theta_site=theta_site,
-                                                    score_info=True
-                                                    )
+    # theta_pol = 0.05
+    # theta_site = 0.05
+    # # execution of _rate_score
+    # criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, 
+    #                                                 theta_site=theta_site,
+    #                                                 score_info=True
+    #                                                 )
     
-    print('criterion', criterion)
-    print('score info', info)
+    # print('criterion', criterion)
+    # print('score info', info)
 
-    # #  ---------    automatically optimize thetas    ----------
-    # # set verbose = False to avoid printing updates on convergence
-    # thetas_result = convergence_setup.auto_tune_thetas(verbose=True)
+    #  ---------    automatically optimize thetas    ----------
+    # set verbose = False to avoid printing updates on convergence
+    thetas_result = convergence_setup.auto_tune_thetas(verbose=True)
 
-    # theta_site_opt = thetas_result['theta_site']
-    # theta_pol_opt = thetas_result['theta_pol']
+    theta_site_opt = thetas_result['theta_site']
+    theta_pol_opt = thetas_result['theta_pol']
     
-    # print(f"theta_site (opt): {theta_site_opt:.4f}")
-    # print(f"theta_pol (opt): {theta_pol_opt:.4f}")
+    print(f"theta_site (opt): {theta_site_opt:.4f}")
+    print(f"theta_pol (opt): {theta_pol_opt:.4f}")
     
     
 

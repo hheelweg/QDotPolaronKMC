@@ -149,6 +149,7 @@ class KMCRunner():
         return rates, final_states, tot_time, sel_info
 
     
+
     def _make_rates(self, qd_lattice, center_global, *, selection_info=False, **kwargs):
         """
         dynamically switch between rate modii 
@@ -186,15 +187,12 @@ class KMCRunner():
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
-            # (a) compute rates from r_hop/r_ove (OLD) 
+            # compute rates
             rates, final_states, tot_time, _ = self._make_rates(qd_lattice, 
                                                                 center_global, 
-                                                                r_hop=self.run.r_hop, 
-                                                                r_ove=self.run.r_ove
+                                                                r_hop = self.run.r_hop, 
+                                                                r_ove = self.run.r_ove
                                                                 )
-            # (b) compute rates from theta_pol/theta_sites (NEW)
-            # NOTE : need to update arguments
-            #rates, final_states, tot_time, _ = self._make_kmatrix_boxNEW(qd_lattice, center_global)
         else:
             tot_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
