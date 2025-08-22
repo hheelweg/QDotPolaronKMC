@@ -17,9 +17,9 @@ def _rate_score_worker(args):
     (start_idx, theta_pol, theta_site, criterion, weight) = args
     # Compute rates for this start index
     qd_lattice = _QDLAT_GLOBAL
-    rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(qd_lattice, start_idx,
-                                                                     theta_pol=theta_pol, theta_site=theta_site,
-                                                                     selection_info = True)
+    rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
+                                                                   theta_pol=theta_pol, theta_site=theta_site,
+                                                                   selection_info = True)
     
     # evaluate convergence criterion on rates vector
     if criterion == "rate-displacement":
@@ -85,11 +85,11 @@ class ConvergenceAnalysis(KMCRunner):
         for i, start_idx in enumerate(self.start_sites):
 
             # NEW way to obtain rates from theta_pol/theta_site
-            rates, final_sites, _, sel_info = KMCRunner._make_kmatrix_boxNEW(self.qd_lattice, start_idx,
-                                                                             theta_site=theta_site,
-                                                                             theta_pol=theta_pol,
-                                                                             selection_info = True
-                                                                             )
+            rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(self.qd_lattice, start_idx,
+                                                                           theta_site=theta_site,
+                                                                           theta_pol=theta_pol,
+                                                                           selection_info = True
+                                                                           )
             
             # how many polarons/sites were selected 
             nsites_sel += sel_info['nsites_sel']

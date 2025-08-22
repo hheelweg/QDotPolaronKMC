@@ -62,7 +62,7 @@ class KMCRunner():
     
     # rate computation based on r_hop/r_ove
     @staticmethod
-    def _make_kmatrix_radius(qd_lattice, center_global, r_hop, r_ove, selection_info = False):
+    def _make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info = False):
 
 
         # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
@@ -115,7 +115,7 @@ class KMCRunner():
 
     # rate computation based on theta_pol/theta_tau
     @staticmethod
-    def _make_kmatrix_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info = False):
+    def _make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info = False):
 
         # (0) set up θ_pol and θ_sites 
         qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_site = theta_pol, theta_site
