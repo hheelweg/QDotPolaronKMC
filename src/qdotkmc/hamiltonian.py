@@ -29,7 +29,6 @@ class Hamiltonian():
     def _init_system(self, evals, eigstates):
         self.nsite = int(np.size(evals))
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
-        print('max/min', np.max(self.omega_diff))
 
 
 class _PhiTransformer:
@@ -188,7 +187,8 @@ class SpecDens:
     
 
 
-# previous version that computes 
+# previous version that computes bath spectral density etc.
+# TODO : delete this
 class SpecDensOld():
 
     def __init__(self, spec_dens_list, max_energy_diff):

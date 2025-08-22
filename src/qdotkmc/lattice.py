@@ -199,7 +199,6 @@ class QDLattice():
         
         # (6) optional : get IPR statistics
         ipr_mean, ipr_std = utils.get_ipr(self.eigstates)
-        print('IPR mean/std', ipr_mean, ipr_std)
 
 
     # setup instance of Redfield class
