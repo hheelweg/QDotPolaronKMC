@@ -44,7 +44,7 @@ class KMCRunner():
             self._simulate_kmc = self.simulate_kmc_serial()
         else:
             print('execute parallel')
-            self._simulate_kmc = self.simulate_kmc_parallel(max_workers=self.run.max_workers)
+            self._simulate_kmc = self.simulate_kmc_parallel()
     
     # make join time-grid
     def _make_time_grid(self):
