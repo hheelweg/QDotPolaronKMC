@@ -1,9 +1,11 @@
 # %%
 import numpy as np
-import src.montecarlo as mc
-import src.utils as utils
+import qdotkmc
+from qdotkmc import montecarlo as mc
+from qdotkmc import utils
 import math
 import matplotlib.pyplot as plt
+import time
 # %% [markdown]
 # ### Test Script for getting the PTRE KMC calculations going
 # this script just contains some tests. we use the following sample parameters
@@ -29,7 +31,7 @@ spec_density = 'cubic-exp'                  # bath spectral density
 
 # PTRE and KMC related parameters
 numtrials = 1                               # number of trials to average over (here: 1)
-method = 'first-order'                      # method for computing bath integrals 
+method = 'cheby-fit'                      # method for computing bath integrals 
 r_hop = 3                                  # hopping radius (see Kassal) (in units of lattice spacing)
 r_ove = 3                                   # overlap radius (see Kassal) (in units of lattice spacing)
 r_box = math.ceil(min(r_hop, r_ove))        
@@ -44,7 +46,7 @@ spacing = nc_edgelength + 2 * ligand_length
 spectrum = [spec_density, reorg_nrg, w_c, method]
 
 # %% [markdown]
-# This is me playin around with the interplay between $J_c$ and `inhomog_sd` and looking at the effect it has on the location of the
+# This is me playing around with the interplay between $J_c$ and `inhomog_sd` and looking at the effect it has on the location of the
 # polaron eigenstates. It looks like the bigger $J_c$ gets as compared to `inhomog_sd`, the more clamped the polaron states become in
 # the middle of the lattice.
 # %%
@@ -72,7 +74,7 @@ plt.show()
 # %%
 J_c = 2
 inhomog_sd = 0.02
-ndim = 2
+ndim = 1
 N = 10
 
 # greate instance of MC class to run KMC simulation
@@ -81,8 +83,10 @@ kmc_setup = mc.KMCRunner(ndim, N, spacing, nrg_center, inhomog_sd, dipolegen, se
 
 ntrajs = 10                                 # number of trajectories to compute MSDs over
 t_final = 10                               # final time for each trajectory (units?)
-
+run_time= time.time()
 times, msds = kmc_setup.NEW_simulate_kmc(t_final)
+run_time = time.time()-run_time
+print(run_time)
 
 diff, diff_err = kmc_setup.get_diffusivity_hh(msds, times, ndim)
 
@@ -104,7 +108,7 @@ utils.plot_lattice(polaron_states ,kmc_setup.qd_locations, label = 'polaron stat
 plt.legend()
 plt.show()
 
-center_test = [5 5]
+center_test = [5, 5]
 
 # get polaron locations (abs. and rel)
 kmc_setup.NEW_get_box(center_test)
