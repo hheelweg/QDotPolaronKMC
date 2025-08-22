@@ -78,7 +78,6 @@ def main():
     diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
     
     # -------------------------------------------------------------------------
-    # without taking into account units:
     print('diffusivity ', diff1, diff2)
     print('diffusivity error', sigma_D1, sigma_D2)
     
