@@ -36,8 +36,9 @@ class Redfield():
         # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}                                 # key: tuple(site_g) -> J2 ndarray
 
-        self.use_gpu = bool(int(os.getenv("QDOT_USE_GPU", "1"))) and _HAS_CUPY
-        self.gpu_use_c64 = bool(int(os.getenv("QDOT_GPU_USE_C64", "0")))  # default: complex128
+        if _HAS_CUPY:
+            self.use_gpu = bool(int(os.getenv("QDOT_USE_GPU", "1")))
+            self.gpu_use_c64 = bool(int(os.getenv("QDOT_GPU_USE_C64", "0")))  # default: complex128
 
     
     # bath half-Fourier Transforms
@@ -507,6 +508,7 @@ class Redfield():
 
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
+        # via GPU/cupy
         if _HAS_CUPY:
             gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
         else:
