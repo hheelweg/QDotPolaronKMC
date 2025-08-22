@@ -58,8 +58,8 @@ class KMCRunner():
         return int(ss_real.generate_state(1, dtype=np.uint64)[0])
     
     # child SeedSequences for all trajectories of a given realization (QDLattice)
-    def _spawn_trajectory_seedseq(self, rid : int, real_seed : Optional[int] = None):
-        ss_real = SeedSequence(self._spawn_realization_seed(rid)) if real_seed is None else SeedSequence(real_seed)
+    def _spawn_trajectory_seedseq(self, rid : int, seed : Optional[int] = None):
+        ss_real = SeedSequence(self._spawn_realization_seed(rid)) if seed is None else SeedSequence(seed)
         return ss_real.spawn(self.run.ntrajs)
     
     
