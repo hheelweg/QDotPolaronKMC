@@ -15,15 +15,7 @@ class Redfield():
         self.polaron_locations = polaron_locations          # polaron locations (global frame)
         self.site_locations = site_locations                # site locations (global frame)
 
-        self.kappa=kappa
-
-        # # initialize hopping and overlap radii
-        # self.r_hop = None 
-        # self.r_ove = None 
-
-        # # initialize θ_pol and θ_sites
-        # self.theta_pol = None
-        # self.theta_site = None
+        self.kappa = kappa                                    # kappa-polaron for polaron transformation
 
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
@@ -33,27 +25,73 @@ class Redfield():
 
         # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}                                 # key: tuple(site_g) -> J2 ndarray
+
+    
+    # map λ to row index (compact 5-row cache)
+    _LAM2IDX = {-2.0: 0, -1.0: 1, 0.0: 2, 1.0: 3, 2.0: 4}
+    _IDX2LAM = np.array([-2.0, -1.0, 0.0, 1.0, 2.0], dtype=np.float64)
+
+    def _corr_rows_all(self, center_global, pol_g):
+        kappa = float(self.kappa)
+        center = int(center_global)
+        pol_g = np.asarray(pol_g, dtype=np.intp)
+
+        # per-(kappa,center) array cache: shape (5, Npol_total)
+        key = (kappa, center)
+        cache = self._corr_cache.get(key)
+        if cache is None:
+            Npol = self.ham.Umat.shape[1]
+            cache = np.full((5, Npol), np.nan + 0j, dtype=np.complex128)
+            self._corr_cache[key] = cache
+
+        rows = cache  # (5, Npol_total)
+        omega_col = self.ham.omega_diff[:, center]  # cheap strided view
+
+        # find missing entries per-λ within the requested pol_g slice
+        missing = np.isnan(rows[:, pol_g].real)  # (5, P)
+        if missing.any():
+            for li, lam in enumerate(_IDX2LAM):
+                miss = missing[li]
+                if not miss.any():
+                    continue
+                need = pol_g[miss]
+                if lam == 0.0:
+                    rows[li, need] = 0.0
+                else:
+                    vals = self.ham.spec.correlationFT(omega_col[need], float(lam), kappa)
+                    rows[li, need] = vals
+
+        # return a dict of (P,) views in pol_g order
+        sliced = rows[:, pol_g]  # (5, P)
+        return {lam: sliced[_LAM2IDX[lam]] for lam in _LAM2IDX}
     
     
     # bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
+    # def _corr_row(self, lam, center_global, pol_g):
+    #     key = (float(lam), float(self.kappa), int(center_global))
+    #     row_cache = self._corr_cache.get(key)
+    #     if row_cache is None:
+    #         row_cache = {}
+    #         self._corr_cache[key] = row_cache
+
+    #     # gather missing indices
+    #     need = [int(i) for i in pol_g if int(i) not in row_cache]
+    #     if need:
+    #         omega = self.ham.omega_diff[need, int(center_global)]
+    #         vals  = self.ham.spec.correlationFT(omega, lam, self.kappa)  # vectorized
+    #         for i, v in zip(need, vals):
+    #             row_cache[i] = v
+
+    #     # assemble in pol_g order
+    #     return np.array([row_cache[int(i)] for i in pol_g], dtype=np.complex128)
     def _corr_row(self, lam, center_global, pol_g):
-        key = (float(lam), float(self.kappa), int(center_global))
-        row_cache = self._corr_cache.get(key)
-        if row_cache is None:
-            row_cache = {}
-            self._corr_cache[key] = row_cache
-
-        # gather missing indices
-        need = [int(i) for i in pol_g if int(i) not in row_cache]
-        if need:
-            omega = self.ham.omega_diff[need, int(center_global)]
-            vals  = self.ham.spec.correlationFT(omega, lam, self.kappa)  # vectorized
-            for i, v in zip(need, vals):
-                row_cache[i] = v
-
-        # assemble in pol_g order
-        return np.array([row_cache[int(i)] for i in pol_g], dtype=np.complex128)
+        # preserves your old signature & return type
+        lam = float(lam)
+        if lam == 0.0:
+            return np.zeros(len(pol_g), dtype=np.complex128)
+        rows = self._corr_rows_all(center_global, pol_g)
+        return rows[lam]
 
     # compute J2 := J * J
     def _get_J2_cached(self, J, site_g):
