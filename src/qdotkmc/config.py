@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 
 @dataclass(frozen=True)
 class GeometryConfig:
@@ -40,6 +40,8 @@ class BathConfig:
     spectrum: Any     # your existing spectrum information object/callable
 
 
+RatesBy = Literal["radius", "weight"]
+
 @dataclass(frozen=False)
 class RunConfig:
 
@@ -48,6 +50,10 @@ class RunConfig:
     t_final: float
     time_grid_density: int = 100            # points per unit time for MSD time grid (NOTE : might want to modify this later)
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
+
+    # mode selector to compute rates in KMC 
+    # the selection here determines the simplification scheme for the Redfield rates
+    rates_by: RatesBy = "radius"
 
     # --- parameters for selection by radius ...
     r_hop: Optional[float] = None
