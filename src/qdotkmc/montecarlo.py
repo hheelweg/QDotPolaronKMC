@@ -38,7 +38,7 @@ class KMCRunner():
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
 
-        self.rates_by = self.run.rates_by       # determine strategy to obtain rates
+        #self.rates_by = self.run.rates_by       # determine strategy to obtain rates
 
     
     # make join time-grid
@@ -157,7 +157,7 @@ class KMCRunner():
         # allow one-off mode switch per call (optional)
         rates_by = kwargs.pop("rates_by", getattr(self.run, "rates_by", "radius"))
 
-        if self.rates_by == "radius":
+        if self.run.rates_by == "radius":
             r_hop = kwargs.pop("r_hop", self.run.r_hop)
             r_ove = kwargs.pop("r_ove", self.run.r_ove)
             if r_hop is None or r_ove is None:
@@ -165,7 +165,7 @@ class KMCRunner():
             # ignore irrelevant overrides quietly
             return self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
 
-        elif self.rates_by == "weight":
+        elif self.run.rates_by == "weight":
             theta_pol  = kwargs.pop("theta_pol",  self.run.theta_pol)
             theta_site = kwargs.pop("theta_site", self.run.theta_site)
             if theta_pol is None or theta_site is None:
