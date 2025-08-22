@@ -105,7 +105,8 @@ class KMCRunner():
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
     # NOTE : this can likely be deleted
-    def _get_box(self, qd_lattice, center, box_length, periodic=True):
+    @staticmethod
+    def _get_box(qd_lattice, center, box_length, periodic=True):
 
         # (1) box size (unchanged)
         #qd_lattice.box_size = qd_lattice.box_length * qd_lattice.geom.qd_spacing
