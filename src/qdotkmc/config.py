@@ -50,8 +50,8 @@ class RunConfig:
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
 
     # TODO : eventually move r_hop, r_ove to RunConfig
-    r_hop: float
-    r_ove: float
+    r_hop: Optional[float] = None
+    r_ove: Optional[float] = None
 
 @dataclass(frozen=True)
 class ConvergenceTuneConfig:
