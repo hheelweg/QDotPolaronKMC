@@ -390,6 +390,7 @@ class KMCRunner():
         # build QD lattice realization
         print('seed latt.', seed)
         qd_lattice, real_seed = self._build_grid_realization(bath, rid = realization_id, seed = seed)
+        print('real id', real_seed)
 
         # get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
