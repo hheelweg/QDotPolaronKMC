@@ -213,8 +213,8 @@ class KMCRunner():
             # (a) compute rates from r_hop/r_ove (OLD) 
             rates, final_states, tot_time, _ = KMCRunner._make_kmatrix_box(qd_lattice, 
                                                                    center_global, 
-                                                                   r_hop=self.geom.r_hop, 
-                                                                   r_ove=self.geom.r_ove)
+                                                                   r_hop=self.run.r_hop, 
+                                                                   r_ove=self.run.r_ove)
             # (b) compute rates from theta_pol/theta_sites (NEW)
             # NOTE : need to update arguments
             #rates, final_states, tot_time, _ = self._make_kmatrix_boxNEW(qd_lattice, center_global)

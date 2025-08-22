@@ -8,9 +8,6 @@ class GeometryConfig:
     dims : int
     N : int
     qd_spacing: float
-    # TODO : eventually move r_hop, r_ove to RunConfig
-    r_hop: float
-    r_ove: float
 
     @property
     def n_sites(self) -> int:
@@ -51,6 +48,10 @@ class RunConfig:
     t_final: float
     time_grid_density: int = 100            # points per unit time for MSD time grid (NOTE : might want to modify this later)
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
+
+    # TODO : eventually move r_hop, r_ove to RunConfig
+    r_hop: float
+    r_ove: float
 
 @dataclass(frozen=True)
 class ConvergenceTuneConfig:

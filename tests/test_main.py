@@ -62,7 +62,6 @@ def main():
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, spectrum = spectrum)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations, t_final = t_final, time_grid_density=200,
                                     max_workers = max_workers)
-
     
     kmc_setup = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
