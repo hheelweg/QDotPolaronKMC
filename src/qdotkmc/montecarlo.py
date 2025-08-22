@@ -2,7 +2,7 @@ import numpy as np
 import os
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Optional
+from typing import Optional, Callable
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
@@ -37,6 +37,38 @@ class KMCRunner():
 
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
+
+        print(f"make rates by {self.run.rates_by}")
+
+
+
+    def _make_rates(self, qd_lattice, center_global, *, selection_info=False, **kwargs):
+        """
+        Use self.run.rates_by to choose the strategy, but allow per-call overrides:
+          - radius mode:  r_hop=..., r_ove=...
+          - weight mode:  theta_pol=..., theta_site=...
+        Optional: pass rates_by='radius'|'weight' to override mode just for this call.
+        """
+        # allow one-off mode switch per call (optional)
+        rates_by = kwargs.pop("rates_by", getattr(self.run, "rates_by", "radius"))
+
+        if self.run.rates_by == "radius":
+            r_hop = kwargs.pop("r_hop", self.run.r_hop)
+            r_ove = kwargs.pop("r_ove", self.run.r_ove)
+            if r_hop is None or r_ove is None:
+                raise ValueError("Need r_hop and r_ove for radius mode (pass as kwargs or set in RunConfig).")
+            # ignore irrelevant overrides quietly
+            return self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
+
+        elif self.run.rates_by == "weight":
+            theta_pol  = kwargs.pop("theta_pol",  self.run.theta_pol)
+            theta_site = kwargs.pop("theta_site", self.run.theta_site)
+            if theta_pol is None or theta_site is None:
+                raise ValueError("Need theta_pol and theta_site for weight mode (pass as kwargs or set in RunConfig).")
+            return self._make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info)
+
+        else:
+            raise ValueError(f"Unknown rates_by: {rates_by!r}")
 
     
     # make join time-grid
@@ -160,10 +192,11 @@ class KMCRunner():
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # (a) compute rates from r_hop/r_ove (OLD) 
-            rates, final_states, tot_time, _ = KMCRunner._make_rates_radius(qd_lattice, 
-                                                                   center_global, 
-                                                                   r_hop=self.run.r_hop, 
-                                                                   r_ove=self.run.r_ove)
+            rates, final_states, tot_time, _ = KMCRunner._make_rates(qd_lattice, 
+                                                                    center_global, 
+                                                                    r_hop=self.run.r_hop, 
+                                                                    r_ove=self.run.r_ove
+                                                                    )
             # (b) compute rates from theta_pol/theta_sites (NEW)
             # NOTE : need to update arguments
             #rates, final_states, tot_time, _ = self._make_kmatrix_boxNEW(qd_lattice, center_global)
