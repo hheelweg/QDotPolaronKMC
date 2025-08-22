@@ -69,9 +69,10 @@ class KMCRunner():
 
         # (1) use legacy self._get_box() and initialize box 
         # NOTE : this can likely be deleted
-        qd_lattice._init_box_dims(r_hop, r_ove)
+        r_hop, r_ove, box_length = lattice.QDLattice._init_box_dims(r_hop, r_ove, qd_lattice.geom.qd_spacing)
+        qd_lattice.rhop, qd_lattice.r_ove = r_hop, r_ove 
         polaron_start_site = qd_lattice.polaron_locs[center_global]
-        self._get_box(qd_lattice, polaron_start_site)
+        self._get_box(qd_lattice, polaron_start_site, box_length=box_length)
 
         # (2) use the global indices of polaron and site inside box
         pol_box  = qd_lattice.pol_idxs_last
@@ -103,10 +104,10 @@ class KMCRunner():
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
     # NOTE : this can likely be deleted
-    def _get_box(self, qd_lattice, center, periodic=True):
+    def _get_box(self, qd_lattice, center, box_length, periodic=True):
 
         # (1) box size (unchanged)
-        qd_lattice.box_size = qd_lattice.box_length * qd_lattice.geom.qd_spacing
+        #qd_lattice.box_size = qd_lattice.box_length * qd_lattice.geom.qd_spacing
 
         # (2) helpers (unchanged logic)
         # NOTE : put this somewhere as a helper function ?
@@ -133,8 +134,8 @@ class KMCRunner():
                 raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
 
         # (3) global index sets inside the axis-aligned periodic box
-        pol_idxs = find_indices_within_box(qd_lattice.polaron_locs, center, qd_lattice.geom.lattice_dimension, qd_lattice.box_size, periodic)
-        site_idxs = find_indices_within_box(qd_lattice.qd_locations,  center, qd_lattice.geom.lattice_dimension, qd_lattice.box_size, periodic)
+        pol_idxs = find_indices_within_box(qd_lattice.polaron_locs, center, qd_lattice.geom.lattice_dimension, box_length, periodic)
+        site_idxs = find_indices_within_box(qd_lattice.qd_locations,  center, qd_lattice.geom.lattice_dimension, box_length, periodic)
 
         # keep order, store contiguously
         qd_lattice.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
