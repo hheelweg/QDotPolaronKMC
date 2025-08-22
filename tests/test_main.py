@@ -32,13 +32,9 @@ def main():
     ntrajs = 10                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
-    rates_by = "radius"                         # select mode/strategy for rates comutation
+    rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
     # here we leave both 
-
-    # (1) for "radius"
-    r_hop = 8                                   # hopping radius (see Kassal) (in units of lattice spacing)
-    r_ove = 8                                   # overlap radius (see Kassal) (in units of lattice spacing)
 
     # (2) for "weight"
     theta_site = 0.05
@@ -54,7 +50,7 @@ def main():
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, J_c = J_c)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, w_c=w_c, reorg_nrg=reorg_nrg)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations,
-                                    r_hop = r_hop, r_ove = r_ove, rates_by = rates_by, 
+                                    rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 
                                     max_workers = max_workers
                                     )
