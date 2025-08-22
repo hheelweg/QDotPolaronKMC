@@ -48,7 +48,7 @@ def main():
     spectrum = [spec_density, reorg_nrg, w_c]
 
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    #max_workers = 1
+    max_workers = 1
     print('max_workers', max_workers)
 
 
