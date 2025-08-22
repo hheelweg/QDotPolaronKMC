@@ -64,16 +64,15 @@ class QDLattice():
     @staticmethod
     def _init_box_dims(r_hop, r_ove, spacing, max_length):
         # convert to actual units (scaled r_hop/r_ove)
-        r_hop = r_hop * spacing
-        r_ove = r_ove * spacing
+        r_hop *= spacing
+        r_ove *= r_ove * spacing
         # box radius and dimensions:
         # NOTE : this uses box_radius = min(r_hop, r_ove) rounded to the next higher integer
         box_radius = math.ceil(min(r_hop / spacing, r_ove /spacing))
-        # self.box_radius = r_box
+        # return quadratic box-length in actual units
         box_length = (2 * box_radius + 1) * spacing
         # raise wanring if lattice dimensions are exceeded
         if box_length > max_length * spacing:
-            print(box_length, max_length * spacing)
             raise ValueError('The lattice dimensions are exceeded! Please choose r_hop and r_ove accordingly!')
         return r_hop, r_ove, box_length
     
