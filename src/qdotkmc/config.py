@@ -53,7 +53,7 @@ class RunConfig:
     r_hop: Optional[float] = None
     r_ove: Optional[float] = None
 
-    # --- parameters for selection by overlap ...
+    # --- parameters for selection by weight ...
     theta_site: Optional[float] = None
     theta_pol: Optional[float] = None
 

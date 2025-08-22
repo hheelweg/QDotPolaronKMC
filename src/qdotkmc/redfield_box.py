@@ -66,7 +66,8 @@ class Redfield():
         return J2
 
     
-    # NOTE : this is the box-based refinement of polarons/sites from candidates within box
+    # selection of sites, polarons for rates based on RADIUS
+    # NOTE : this is our known implementation (similar to Kassal)
     def select_by_radius(self, center_global: int, *,
                          r_hop: int, 
                          r_ove: int,
@@ -120,8 +121,8 @@ class Redfield():
 
         return pol_g, site_g
  
-    # selection of sites, polarons by overlap
-    def select_by_overlap(self, center_global: int, *,
+    # selection of sites, polarons for rates based on WEIGHT
+    def select_by_weight(self, center_global: int, *,
                           theta_site: float,                                # tighter -> more sites kept (higher cost, higher fidelity)
                           theta_pol:   float,                               # tighter -> more ν' kept (linear cost, physics coverage)
                           max_nuprime: Optional[int] = None,                # optional hard cap on # of ν' considered (after ranking)

@@ -62,7 +62,7 @@ class KMCRunner():
     
     # rate computation based on r_hop/r_ove
     @staticmethod
-    def _make_kmatrix_box(qd_lattice, center_global, r_hop, r_ove, selection_info = False):
+    def _make_kmatrix_radius(qd_lattice, center_global, r_hop, r_ove, selection_info = False):
 
 
         # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
@@ -112,66 +112,16 @@ class KMCRunner():
 
         return rates, final_states, tot_time, sel_info
 
-    # make box around center position where we are currently at
-    # TODO : incorporate periodic boundary conditions explicty (boolean)
-    # NOTE : this can likely be deleted as it not doing much, which we couldn't implement directly
-    @staticmethod
-    def _get_box(qd_lattice, center, box_length, periodic=True):
-
-        # (1) box size (unchanged)
-        #qd_lattice.box_size = qd_lattice.box_length * qd_lattice.geom.qd_spacing
-
-        # (2) helpers (unchanged logic)
-        # NOTE : put this somewhere as a helper function ?
-        def find_indices_within_box(points, center, grid_dims, box_size, periodic=True):
-            half_box = box_size / 2
-            dim = len(center)
-            assert len(points[0]) == len(center) == len(grid_dims)
-
-            if dim == 1:
-                dx = np.abs(points - center[0])
-                if periodic:
-                    dx = np.minimum(dx, grid_dims[0] - dx)
-                return np.where(dx <= half_box)[0]
-
-            elif dim == 2:
-                dx = np.abs(points[:, 0] - center[0])
-                dy = np.abs(points[:, 1] - center[1])
-                if periodic:
-                    dx = np.minimum(dx, grid_dims[0] - dx)
-                    dy = np.minimum(dy, grid_dims[1] - dy)
-                return np.where((dx <= half_box) & (dy <= half_box))[0]
-
-            else:
-                raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
-
-        # (3) global index sets inside the axis-aligned periodic box
-        pol_idxs = find_indices_within_box(qd_lattice.polaron_locs, center, qd_lattice.geom.lattice_dimension, box_length, periodic)
-        site_idxs = find_indices_within_box(qd_lattice.qd_locations,  center, qd_lattice.geom.lattice_dimension, box_length, periodic)
-
-        # keep order, store contiguously
-        qd_lattice.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
-        qd_lattice.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
-
-        # (4) define the GLOBAL center index once
-        # NOTE : it seems like eventuall this is all we need, so we might get rid of this function alltogether ??
-        qd_lattice.center_global = int(utils.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
-
-        # (5) optional: local position of the center inside the box (rarely needed now)
-        where = np.nonzero(qd_lattice.pol_idxs_last == qd_lattice.center_global)[0]
-        # If the box is tight or discrete, it should be present; if not, refine_by_radius will handle it.
-        qd_lattice.center_local = int(where[0]) if where.size == 1 else None
-
 
     # rate computation based on theta_pol/theta_tau
     @staticmethod
-    def _make_kmatrix_boxNEW(qd_lattice, center_global, theta_pol, theta_site, selection_info = False):
+    def _make_kmatrix_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info = False):
 
         # (0) set up θ_pol and θ_sites 
         qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_site = theta_pol, theta_site
 
         # (1) select sites and polarons that ''matter'' for computing the rates
-        site_g, pol_g = qd_lattice.redfield.select_by_overlap(center_global = center_global, 
+        site_g, pol_g = qd_lattice.redfield.select_by_weight(center_global = center_global, 
                                                               theta_site = qd_lattice.redfield.theta_site, 
                                                               theta_pol = qd_lattice.redfield.theta_pol, 
                                                               verbose = False
@@ -510,7 +460,55 @@ class KMCRunner():
         return times_msds, msds
 
     
-    
+    # make box around center position where we are currently at
+    # TODO : incorporate periodic boundary conditions explicty (boolean)
+    # NOTE : this can likely be deleted as it not doing much, which we couldn't implement directly
+    @staticmethod
+    def _get_box(qd_lattice, center, box_length, periodic=True):
+
+        # (1) box size (unchanged)
+        #qd_lattice.box_size = qd_lattice.box_length * qd_lattice.geom.qd_spacing
+
+        # (2) helpers (unchanged logic)
+        # NOTE : put this somewhere as a helper function ?
+        def find_indices_within_box(points, center, grid_dims, box_size, periodic=True):
+            half_box = box_size / 2
+            dim = len(center)
+            assert len(points[0]) == len(center) == len(grid_dims)
+
+            if dim == 1:
+                dx = np.abs(points - center[0])
+                if periodic:
+                    dx = np.minimum(dx, grid_dims[0] - dx)
+                return np.where(dx <= half_box)[0]
+
+            elif dim == 2:
+                dx = np.abs(points[:, 0] - center[0])
+                dy = np.abs(points[:, 1] - center[1])
+                if periodic:
+                    dx = np.minimum(dx, grid_dims[0] - dx)
+                    dy = np.minimum(dy, grid_dims[1] - dy)
+                return np.where((dx <= half_box) & (dy <= half_box))[0]
+
+            else:
+                raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
+
+        # (3) global index sets inside the axis-aligned periodic box
+        pol_idxs = find_indices_within_box(qd_lattice.polaron_locs, center, qd_lattice.geom.lattice_dimension, box_length, periodic)
+        site_idxs = find_indices_within_box(qd_lattice.qd_locations,  center, qd_lattice.geom.lattice_dimension, box_length, periodic)
+
+        # keep order, store contiguously
+        qd_lattice.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
+        qd_lattice.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
+
+        # (4) define the GLOBAL center index once
+        # NOTE : it seems like eventuall this is all we need, so we might get rid of this function alltogether ??
+        qd_lattice.center_global = int(utils.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
+
+        # (5) optional: local position of the center inside the box (rarely needed now)
+        where = np.nonzero(qd_lattice.pol_idxs_last == qd_lattice.center_global)[0]
+        # If the box is tight or discrete, it should be present; if not, refine_by_radius will handle it.
+        qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
     
 
