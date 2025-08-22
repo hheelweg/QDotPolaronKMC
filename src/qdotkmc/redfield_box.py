@@ -67,7 +67,7 @@ class Redfield():
 
     
     # NOTE : this is the box-based refinement of polarons/sites from candidates within box
-    def refine_by_radius(self, center_global: int, *,
+    def select_by_radius(self, center_global: int, *,
                          r_hop: int, 
                          r_ove: int,
                          pol_idxs_global: List[int], 

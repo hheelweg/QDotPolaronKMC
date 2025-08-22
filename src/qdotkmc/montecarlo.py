@@ -62,7 +62,8 @@ class KMCRunner():
     
     # rate computation based on r_hop/r_ove
     # TODO : can we make this @staticmethod?
-    def _make_kmatrix_box(self, qd_lattice, center_global, r_hop, r_ove):
+    @staticmethod
+    def _make_kmatrix_box(qd_lattice, center_global, r_hop, r_ove):
 
 
         # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
@@ -83,14 +84,14 @@ class KMCRunner():
 
         # (3) refine the polaron and site indices by additional constraints on r_hop and r_ove
         # NOTE : refine_by_radius function can maybe be moved into this module ? 
-        pol_g, site_g = qd_lattice.redfield.refine_by_radius(
+        pol_g, site_g = qd_lattice.redfield.select_by_radius(
                     center_global = center_global,                      # reference index
                     r_hop = r_hop,
                     r_ove = r_ove,
                     pol_idxs_global = pol_box,
                     site_idxs_global = site_box,
-                    periodic=True,                                      # or False to match array setup
-                    grid_dims=qd_lattice.geom.lattice_dimension
+                    periodic = True,                                     # or False to match array setup
+                    grid_dims = qd_lattice.geom.lattice_dimension
                     )
 
         # (4) compute rates on those exact indices (no re-derivation)
