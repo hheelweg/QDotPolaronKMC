@@ -81,10 +81,10 @@ def main():
     theta_pol = 0.05
     theta_site = 0.05
     # execution of _rate_score
-    criterion, info = convergence_setup._rate_score_func(theta_pol=theta_pol, 
-                                                         theta_site=theta_site,
-                                                         score_info=True
-                                                        )
+    criterion, info = convergence_setup._rate_score(theta_pol=theta_pol, 
+                                                    theta_site=theta_site,
+                                                    score_info=True
+                                                    )
     
     print('criterion', criterion)
     print('score info', info)
