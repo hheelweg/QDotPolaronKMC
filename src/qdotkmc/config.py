@@ -7,9 +7,9 @@ class GeometryConfig:
 
     dims : int
     N : int
-    nc_edgelength : float = 8.
-    ligand_length : float = 1.
-    qd_spacing: float
+    nc_edgelength : float = 8
+    ligand_length : float = 1
+    #qd_spacing: float
 
     @property
     def qd_spacing(self) -> float:
