@@ -59,7 +59,7 @@ class ConvergenceAnalysis(KMCRunner):
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
 
         # (1) draw a lattice realization
-        self.qd_lattice = self._build_grid_realization(bath, rid=0)
+        self.qd_lattice, _ = self._build_grid_realization(bath, rid=0)
 
         # (2) produce no_samples starting indices from where to compute rate vectors
         ss_conv = self._ss_root.spawn(1)[0]
