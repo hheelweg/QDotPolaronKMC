@@ -438,8 +438,8 @@ class KMCRunner():
         ctx = mp.get_context("fork")
 
         # dispatch configs + indices
-        jobs = [(self.geom, self.dis, self.bath_cfg, self.run, times_msds, r,
-                 sim_time,  self._spawn_realization_seed(rid)) for r in range(R)]
+        jobs = [(self.geom, self.dis, self.bath_cfg, self.run, times_msds, rid,
+                 sim_time,  self._spawn_realization_seed(rid)) for rid in range(R)]
 
         for rid in range(R):
             print('test seed ', self._spawn_realization_seed(rid))
