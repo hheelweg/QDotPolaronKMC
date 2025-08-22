@@ -178,13 +178,13 @@ def mass_core_by_theta(w_col, theta: float):
 
 
 # get closest index (formerly in montecarlo.py)
-# NOTE : move to uitls.py?
+# NOTE : need to implement non-periodic boundary conditions? 
 def get_closest_idx(qd_lattice, pos, array, periodic=True):
     """
     Find the index in `array` closest to `pos` under periodic boundary conditions.
     """
     assert isinstance(qd_lattice, lattice.QDLattice), 'need to specify valid QDLattice instance.'
-    
+
     # Vectorized periodic displacement
     delta = array - pos  # shape (N, dims)
 
@@ -196,7 +196,8 @@ def get_closest_idx(qd_lattice, pos, array, periodic=True):
 
     return np.argmin(dists_squared)
 
-# NOTE : move to utils.py ?
+
+
 def get_ipr(Umat):
     # returns ipr of one column vector, or mean ipr of multiple column vectors
     IPRs = 1/np.sum(Umat ** 4, axis = 0)

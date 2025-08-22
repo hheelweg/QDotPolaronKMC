@@ -67,21 +67,20 @@ class Redfield():
 
     
     # NOTE : this is the box-based refinement of polarons/sites from candidates within box
-    def refine_by_radius(self, *,
-                     pol_idxs_global, site_idxs_global, center_global,
-                     periodic=False, grid_dims=None,
-                     r_hop=None, r_ove=None):
+    def refine_by_radius(self, r_hop, r_ove, *,
+                         pol_idxs_global, site_idxs_global, center_global,
+                         periodic=False, grid_dims=None):
         """
         Returns subsets pol_g ⊆ pol_idxs_global and site_g ⊆ site_idxs_global
-        that are within r_hop / r_ove of center_global, preserving order.
+        that are within r_hop / r_ove (ina actual units) of center_global, preserving order.
         Also returns center_local (the position of center_global inside pol_g).
 
         Assumes:
         - self.polaron_locations are absolute coordinates (shape: [N, D])
         - self.ham.qd_lattice_rel are site coordinates in the same frame
         """
-        if r_hop is None: r_hop = self.r_hop
-        if r_ove is None: r_ove = self.r_ove
+        # if r_hop is None: r_hop = self.r_hop
+        # if r_ove is None: r_ove = self.r_ove
 
         pol_idxs_global  = np.asarray(pol_idxs_global,  dtype=np.intp)
         site_idxs_global = np.asarray(site_idxs_global, dtype=np.intp)
