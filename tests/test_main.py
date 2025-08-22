@@ -16,11 +16,9 @@ def main():
 
     ndim = 2                                    # number of dimensions
     N = 20                                      # number of QDs in each dimension
-    # nc_edgelength = 8                           # length of each QD (units?)
-    # ligand_length = 1                           # length of ligands on QD (units?)
 
     # seed for randomness of Hamiltonian (if None, then Hamiltonian is randomly drawn for every instance of the class)
-    seed = 12345
+    #seed = 12345
 
     # Hamiltonian and bath related parameters
     reorg_nrg = 0.01                            # reorganization energy (units?)

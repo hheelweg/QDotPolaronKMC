@@ -5,11 +5,10 @@ from typing import Any, Optional, Literal
 @dataclass(frozen=True)
 class GeometryConfig:
 
-    dims : int
-    N : int
-    nc_edgelength : float = 8
-    ligand_length : float = 1
-    #qd_spacing: float
+    dims : int                              # number of dimensions
+    N : int                                 # number of QDs in each dimension
+    nc_edgelength : float = 8               # length of each QD (units ?)
+    ligand_length : float = 1               # length of each ligand (units ?)
 
     @property
     def qd_spacing(self) -> float:
@@ -36,7 +35,9 @@ class DisorderConfig:
     relative_spatial_disorder: float
     dipolegen: Any   
     J_c: float
-    seed_base: int                      # root seed for disorder draws (realization-level)
+    seed_base: int = 12345                      # root seed for disorder draws (realization-level)
+                                                # can be drawn randomly to make experiments random
+                                                # keep default for reproducibility
 
 
 @dataclass(frozen=True)
