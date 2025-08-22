@@ -239,7 +239,7 @@ class Redfield():
 
 
     # obtain redfield rates within box
-    def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global, verbosity = True):
+    def make_redfield_box(self, *, pol_idxs_global, site_idxs_global, center_global, verbosity = False):
         """
         Compute outgoing Redfield rates from a fixed polaron (eigenstate) ν to all ν' in the
         current box, using an exact, closed-form λ-contraction.
