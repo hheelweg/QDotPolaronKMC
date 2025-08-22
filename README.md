@@ -46,4 +46,6 @@ The current version of the code has two different ways of computing rates implem
 
 There are currently two types if test scripts in `tests` directory that can serve as templates:
 
-* `test_main.py`: very base-line code to peform a single 
+* `test_main.py`: very base-line code to peform a single KMC simulation, setting the rate hyperparameters $r_\mathrm{hop}$/$r_\mathrm{ove}$ (if `rates_by = "radius"`) or $\theta_\mathrm{site}$/$\theta_\mathrm{pol}$ (if `rates_by = "weight"`) as fixed and obtaining diffusivities.
+
+* `test_conv.py`: includes an automatic refinement of $\theta_\mathrm{site}$/$\theta_\mathrm{pol}$ (if `rates_by = "weight"`) to some optimal parameters  $\theta_\mathrm{site}^*$ and $\theta_\mathrm{pol}^*$ and then uses those parameters in a KMC simulation to obtain diffusivities eventually. This more realistically mimics the workflow as we need to optimize these hyperparameters in order to have a good balance of accuracy and efficiency of our KMC simulations. **Note**: If the simulations take too long to run with $\theta_\mathrm{site}^*$/$\theta_\mathrm{pol}^*$, then this could mean that we take into account too many polarons/sites for the rate computation for the computation to be reasonably cheap. In this case, you might want to increase the parameter `delta` in `auto_tune_thetas` to $\approx. 10 \%$ for example. 
