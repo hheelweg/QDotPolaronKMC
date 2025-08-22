@@ -65,7 +65,7 @@ class QDLattice():
     def _init_box_dims(r_hop, r_ove, spacing, max_length):
         # convert to actual units (scaled r_hop/r_ove)
         r_hop *= spacing
-        r_ove *= r_ove * spacing
+        r_ove *= spacing
         # box radius and dimensions:
         # NOTE : this uses box_radius = min(r_hop, r_ove) rounded to the next higher integer
         box_radius = math.ceil(min(r_hop / spacing, r_ove /spacing))
