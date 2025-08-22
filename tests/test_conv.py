@@ -80,6 +80,7 @@ def main():
     kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
     
     kmc.run.rates_by = rates_by
+    print('mode', kmc.run.rates_by)
     kmc.run.theta_site = theta_site_opt                     # feed in optimized parameter for theta_site
     kmc.run.theta_pol = theta_pol_opt                       # feed in optimized paramter for theta_pol
     
