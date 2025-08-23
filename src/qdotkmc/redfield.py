@@ -523,7 +523,7 @@ class Redfield():
         t2 = time.time()
         if self.use_gpu:
             # run on GPU
-            gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
+            gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
         else:
             # run on CPU
             gamma_plus = _build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
