@@ -44,7 +44,7 @@ def main():
     # obtain max_workers from SLURM environment for parallelization of work
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
     # enforce serial for debugging
-    #max_workers = 1
+    max_workers = 1
 
 
     # define dataclasses
