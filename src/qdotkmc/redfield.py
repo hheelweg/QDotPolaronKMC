@@ -5,8 +5,8 @@ from . import utils
 import time
 from typing import Optional, List
 import os
-os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
+#os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+#os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
 
 # import cupy if GPU available
 try:
