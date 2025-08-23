@@ -63,7 +63,7 @@ class Redfield():
             cp.cuda.set_allocator(pool.malloc)
         
         # TODO : what is this for?
-        self.gpu_use_c64 = True #(os.getenv("QDOT_GPU_USE_C64", "0") == "1")
+        self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
         
         self._gpu_box = None                                # will hold per-box GPU arrays
     
