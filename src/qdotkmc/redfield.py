@@ -37,6 +37,7 @@ class Redfield():
         self._J2_cache = {}                                 # key: tuple(site_g) -> J2 ndarray
 
         # GPU
+        print('has cupy flag', _HAS_CUPY)
         self.use_gpu = bool(int(os.getenv("QDOT_USE_GPU", "1"))) and _HAS_CUPY
         self.gpu_use_c64 = bool(int(os.getenv("QDOT_GPU_USE_C64", "0")))  # default: complex128
 
@@ -506,6 +507,7 @@ class Redfield():
         t2 = time.time()
         # via GPU/cupy
         if _HAS_CUPY:
+            print('run on GPU')
             gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
         else:
             print('run on CPU')
