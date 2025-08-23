@@ -542,41 +542,57 @@ class Redfield():
 
         #     return cp.asnumpy(gamma)
         def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
-            import cupy as cp
-            gb = self._ensure_gpu_box(J, J2, Up)           # gets J,J2,Up,JUp,Up_abs2 on device
-            cupy_c = cp.complex64 if use_c64 else cp.complex128
 
-            u0g = cp.asarray(u0, dtype=cupy_c)
+            # 1) get (and reuse) cached device arrays for this box
+            gb = self._ensure_gpu_box(J, J2, Up)  # provides: gb.J, gb.J2, gb.Up, gb.JUp, gb.UpH, gb.Up_abs2
+            # Make sure your _GPUBox stores:
+            #   gb.J, gb.J2 : float64
+            #   gb.Up       : complex128
+            #   gb.JUp      : complex128  (= gb.J @ gb.Up, cached once per box)
+            #   gb.UpH      : complex128  (= cp.conj(gb.Up), cached once per box)
+            #   gb.Up_abs2  : float64     (= cp.abs(gb.Up)**2), cached once per box
 
-            # center-dependent shared matvec
-            Ju0 = gb.J @ u0g                                # (n,)
+            # 2) per-center vectors on device (keep complex128)
+            u0g = cp.asarray(u0, dtype=cp.complex128)
+            Ju0 = gb.J @ u0g                     # (n,)
 
-            # T0 via two GEMV
-            sum_rowR = gb.JUp.T @ cp.conj(u0g)              # (P,)
-            sum_rowC = gb.UpH.T  @ Ju0                      # (P,)
-            T0 = sum_rowR * sum_rowC
+            # 3) T0 via two GEMV (unchanged)
+            sum_rowR = gb.JUp.T @ cp.conj(u0g)   # (P,)
+            sum_rowC = gb.UpH.T  @ Ju0           # (P,)
+            T0 = sum_rowR * sum_rowC             # (P,)
 
-            # one-equality sums (einsum-free, a bit faster on many GPUs)
-            Tac = cp.sum((Ju0 * cp.conj(u0g))[:,None] * gb.JUp * gb.UpH, axis=0)
-            Tbd = cp.sum((cp.conj(Ju0) * u0g)[:,None] * gb.Up * cp.conj(gb.JUp), axis=0)
+            # 4) One-equality sums — use the SAME einsum forms as before, and force accumulation dtype
+            Tac = cp.einsum('i,ip,ip->p',
+                            Ju0*cp.conj(u0g), gb.JUp, gb.UpH,
+                            optimize=False, dtype=cp.complex128)
 
-            Tad = (cp.abs(gb.JUp)**2).T @ (cp.abs(u0g)**2)
-            Tbc = gb.Up_abs2.T @ (cp.abs(Ju0)**2)
+            Tbd = cp.einsum('i,ip,ip->p',
+                            cp.conj(Ju0)*u0g, gb.Up, cp.conj(gb.JUp),
+                            optimize=False, dtype=cp.complex128)
 
-            # pair terms
-            Y = u0g[:, None] * gb.Up                        # (n,P)
-            Z = gb.J2 @ Y                                   # (n,P)
-            X = cp.conj(u0g)[:, None] * gb.UpH              # (n,P)
-            E_acbd = cp.sum(X * Z, axis=0)
+            Tad = cp.einsum('ip,i->p',
+                            cp.abs(gb.JUp)**2, cp.abs(u0g)**2,
+                            optimize=False, dtype=cp.float64)
 
-            t_b    = gb.J2 @ (cp.abs(u0g)**2)               # (n,)
-            E_adbc = gb.Up_abs2.T @ t_b
+            Tbc = cp.einsum('ip,i->p',
+                            gb.Up_abs2, cp.abs(Ju0)**2,
+                            optimize=False, dtype=cp.float64)
 
+            # 5) Pair terms — same pattern + dtype control
+            Y = u0g[:, None] * gb.Up             # (n,P)
+            Z = gb.J2 @ Y                        # (n,P)
+            X = cp.conj(u0g)[:, None] * gb.UpH   # (n,P)
+
+            E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=False, dtype=cp.complex128)
+
+            t_b    = gb.J2 @ (cp.abs(u0g)**2)    # (n,)
+            E_adbc = cp.einsum('ip,i->p', gb.Up_abs2, t_b, optimize=False, dtype=cp.float64)
+
+            # 6) Buckets and λ-contraction (bath rows already on host; upload small arrays)
             H2, Hm2 = E_acbd, E_adbc
             H1  = Tac + Tbd - 2.0*E_acbd
             Hm1 = Tad + Tbc - 2.0*E_adbc
 
-            # bath rows (small): upload once per call
             K_m2 = cp.asarray(bath_map[-2.0], dtype=cp.complex128)
             K_m1 = cp.asarray(bath_map[-1.0], dtype=cp.complex128)
             K0   = cp.asarray(bath_map[ 0.0], dtype=cp.complex128)
