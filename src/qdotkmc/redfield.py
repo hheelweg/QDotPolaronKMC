@@ -52,8 +52,6 @@ class Redfield():
         if self.use_gpu:
             pool = cp.cuda.MemoryPool()
             cp.cuda.set_allocator(pool.malloc)
-        # precision toggle (optional)
-        self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
 
     
     # bath half-Fourier Transforms
