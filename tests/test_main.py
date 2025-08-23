@@ -16,7 +16,7 @@ def main():
 
     # ---- QDLattice gometry ------
     ndim = 2                                    # number of dimensions
-    N = 20                                      # number of QDs in each dimension
+    N = 30                                      # number of QDs in each dimension
 
     # ---- system parameters ------
     inhomog_sd = 0.002                          # inhomogenous broadening (units?)
@@ -37,8 +37,8 @@ def main():
     # here we leave both 
 
     # (2) for "weight"
-    theta_site = 0.001#0.05
-    theta_pol = 0.001#0.05
+    theta_site = 0.01#0.05
+    theta_pol = 0.01#0.05
     
     #-------------------------------------------------------------------------
     # obtain max_workers from SLURM environment for parallelization of work
