@@ -37,8 +37,8 @@ def main():
     # here we leave both 
 
     # (2) for "weight"
-    theta_site = 0.05
-    theta_pol = 0.05
+    theta_site = 0.01#0.05
+    theta_pol = 0.01#0.05
     
     #-------------------------------------------------------------------------
     # obtain max_workers from SLURM environment for parallelization of work

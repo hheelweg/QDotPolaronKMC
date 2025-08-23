@@ -52,6 +52,8 @@ class Redfield():
         if self.use_gpu:
             pool = cp.cuda.MemoryPool()
             cp.cuda.set_allocator(pool.malloc)
+        
+        self._gpu_box = None                                # will hold per-box GPU arrays
 
     
     # bath half-Fourier Transforms
