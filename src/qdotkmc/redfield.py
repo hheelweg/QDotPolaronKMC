@@ -395,7 +395,8 @@ class Redfield():
             print('time(site→eig rows/cols)', time.time() - t1, flush=True)
 
         # function for computing 𝛾_+(𝜈') (exact, closed-form λ-contraction)
-        def _build_gamma_plus(J, J2, Up, u0, bath_map):
+        # (a) for execution on CPU (np-based)
+        def _build_gamma_plus_cpu(J, J2, Up, u0, bath_map):
             n, P = Up.shape
             Upc  = Up.conj()
 
@@ -454,7 +455,7 @@ class Redfield():
                     + bath_map[ 1.0] * H1
                     + bath_map[ 2.0] * H2)
 
-    
+        # (b) for execution on GPU (cp-based)
         def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
 
 
@@ -515,14 +516,12 @@ class Redfield():
 
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
-        # via GPU/cupy
         if self.use_gpu:
-            print('run on GPU')
+            # run on GPU
             gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
         else:
-            print('run on CPU')
-            gamma_plus = _build_gamma_plus(J, J2, Up, u0, bath_map)  
-        #gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
+            # run on CPU
+            gamma_plus = _build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
