@@ -519,7 +519,6 @@ class Redfield():
 
             return cp.asnumpy(gamma)
 
-
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
         if self.use_gpu:
