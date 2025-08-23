@@ -6,14 +6,23 @@ import time
 from typing import Optional, List
 import os
 
-# if available, load GPU
+# import cupy if GPU available
 try:
     import cupy as cp
-    _HAS_CUPY = True
-    cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
+    _HAS_CUPY_PKG = True
 except Exception:
-    _HAS_CUPY = False
     cp = None
+    _HAS_CUPY_PKG = False
+
+
+def _gpu_available() -> bool:
+    if not _HAS_CUPY_PKG:
+        return False
+    try:
+        # returns 0 on CPU-only nodes; raises on some setups without driver
+        return cp.cuda.runtime.getDeviceCount() > 0
+    except Exception:
+        return False
 
 
 class Redfield():
@@ -36,10 +45,16 @@ class Redfield():
         # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}                                 # key: tuple(site_g) -> J2 ndarray
 
-        # GPU
-        print('has cupy flag', _HAS_CUPY)
-        self.use_gpu = bool(int(os.getenv("QDOT_USE_GPU", "1"))) and _HAS_CUPY
-        self.gpu_use_c64 = bool(int(os.getenv("QDOT_GPU_USE_C64", "0")))  # default: complex128
+        # enable GPU only if user asked AND a device exists
+        env_wants_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
+        self.use_gpu = bool(env_wants_gpu and _gpu_available())
+        print('use GPU?', self.use_gpu)
+        # only set allocator if a device exists AND we're going to use it
+        if self.use_gpu:
+            pool = cp.cuda.MemoryPool()
+            cp.cuda.set_allocator(pool.malloc)
+        # precision toggle (optional)
+        self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
 
     
     # bath half-Fourier Transforms
@@ -445,8 +460,6 @@ class Redfield():
     
         def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
 
-            if not _HAS_CUPY:
-                raise RuntimeError("CuPy not available")
 
             # dtypes (stay in 128-bit by default for accuracy)
             cupy_c = cp.complex64 if use_c64 else cp.complex128
@@ -506,7 +519,7 @@ class Redfield():
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
         # via GPU/cupy
-        if _HAS_CUPY:
+        if self.use_gpu:
             print('run on GPU')
             gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
         else:
