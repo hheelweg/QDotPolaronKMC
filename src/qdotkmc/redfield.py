@@ -27,16 +27,11 @@ def _gpu_available() -> bool:
 
 
 class _GPUBox:
-    def __init__(self, cp, J, J2, Up, *, use_c64: bool):
-        cupy_c = cp.complex64 if use_c64 else cp.complex128
-        cupy_f = cp.float32   if use_c64 else cp.float64
-        self.J   = cp.asarray(J,  dtype=cupy_f)
-        self.J2  = cp.asarray(J2, dtype=cupy_f)
-        self.Up  = cp.asarray(Up, dtype=cupy_c)
-        # precompute center-invariant pieces
-        self.JUp = self.J @ self.Up                   # (n,P)
-        self.Up_abs2 = cp.abs(self.Up)**2             # (n,P)
-        self.UpH = cp.conj(self.Up)                   # (n,P)
+    def __init__(self, cp, J, J2, Up, *, cupy_f, cupy_c):
+        self.J  = cp.asarray(J,  dtype=cupy_f)   # float64 if strict
+        self.J2 = cp.asarray(J2, dtype=cupy_f)
+        self.Up = cp.asarray(Up, dtype=cupy_c)   # complex128 if strict
+        self.key = (J.shape, Up.shape, cupy_f, cupy_c)
 
 
 class Redfield():
@@ -72,16 +67,13 @@ class Redfield():
         
         self._gpu_box = None                                # will hold per-box GPU arrays
     
-    def _ensure_gpu_box(self, J, J2, Up):
-        # key by shapes or a stable box-id you already have
-        key = (J.shape, Up.shape)
-        gb = self._gpu_box
+    def _ensure_gpu_box(self, J, J2, Up, *, cupy_f, cupy_c):
+        gb = getattr(self, "_gpu_box", None)
+        key = (J.shape, Up.shape, cupy_f, cupy_c)
         if gb is None or getattr(gb, "key", None) != key:
-            import cupy as cp
-            gb = _GPUBox(cp, J, J2, Up, use_c64=self.gpu_use_c64)
-            gb.key = key
+            gb = _GPUBox(cp, J, J2, Up, cupy_f=cupy_f, cupy_c=cupy_c)
             self._gpu_box = gb
-        return self._gpu_box
+        return gb
 
     
     # bath half-Fourier Transforms
@@ -543,54 +535,42 @@ class Redfield():
 
         #     return cp.asnumpy(gamma)
 
-        def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
+        def _build_gamma_plus_gpu_strict(self, J, J2, Up, u0, bath_map, *, use_c64=False):
+            import cupy as cp
+            cupy_c = cp.complex64 if use_c64 else cp.complex128
+            cupy_f = cp.float32   if use_c64 else cp.float64
 
-            # 1) get (and reuse) cached device arrays for this box
-            gb = self._ensure_gpu_box(J, J2, Up)  # provides: gb.J, gb.J2, gb.Up, gb.JUp, gb.UpH, gb.Up_abs2
-            # Make sure your _GPUBox stores:
-            #   gb.J, gb.J2 : float64
-            #   gb.Up       : complex128
-            #   gb.JUp      : complex128  (= gb.J @ gb.Up, cached once per box)
-            #   gb.UpH      : complex128  (= cp.conj(gb.Up), cached once per box)
-            #   gb.Up_abs2  : float64     (= cp.abs(gb.Up)**2), cached once per box
+            # 1) Only cache base arrays; everything else computed per call (same as before)
+            gb = self._ensure_gpu_box(J, J2, Up, cupy_f=cupy_f, cupy_c=cupy_c)
 
-            # 2) per-center vectors on device (keep complex128)
-            u0g = cp.asarray(u0, dtype=cp.complex128)
-            Ju0 = gb.J @ u0g                     # (n,)
+            # 2) Per-center vectors (same dtype as before)
+            u0g = cp.asarray(u0, dtype=cupy_c)
 
-            # 3) T0 via two GEMV (unchanged)
-            sum_rowR = gb.JUp.T @ cp.conj(u0g)   # (P,)
-            sum_rowC = gb.UpH.T  @ Ju0           # (P,)
-            T0 = sum_rowR * sum_rowC             # (P,)
+            # 3) Shared matmuls (same order)
+            Ju0 = gb.J @ u0g           # (n,)
+            JUp = gb.J @ gb.Up         # (n,P)  <-- recomputed per call to preserve exact behavior
 
-            # 4) One-equality sums — use the SAME einsum forms as before, and force accumulation dtype
-            Tac = cp.einsum('i,ip,ip->p',
-                            Ju0*cp.conj(u0g), gb.JUp, gb.UpH,
-                            optimize=False, dtype=cp.complex128)
+            # 4) T0 exactly as before
+            sum_rowR = JUp.T @ cp.conj(u0g)
+            sum_rowC = cp.conj(gb.Up).T @ Ju0
+            T0 = sum_rowR * sum_rowC
 
-            Tbd = cp.einsum('i,ip,ip->p',
-                            cp.conj(Ju0)*u0g, gb.Up, cp.conj(gb.JUp),
-                            optimize=False, dtype=cp.complex128)
+            # 5) One-equality sums: same einsum calls/flags
+            Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(gb.Up), optimize=True)
+            Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g,   gb.Up, cp.conj(JUp), optimize=True)
+            Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
+            Tbc = (cp.abs(gb.Up)**2).T @ (cp.abs(Ju0)**2)
 
-            Tad = cp.einsum('ip,i->p',
-                            cp.abs(gb.JUp)**2, cp.abs(u0g)**2,
-                            optimize=False, dtype=cp.float64)
+            # 6) Pair terms: same sequence
+            Y = u0g[:, None] * gb.Up
+            Z = gb.J2 @ Y
+            X = cp.conj(u0g)[:, None] * cp.conj(gb.Up)
+            E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=True)
 
-            Tbc = cp.einsum('ip,i->p',
-                            gb.Up_abs2, cp.abs(Ju0)**2,
-                            optimize=False, dtype=cp.float64)
+            t_b    = gb.J2 @ (cp.abs(u0g)**2)
+            E_adbc = (cp.abs(gb.Up)**2).T @ t_b
 
-            # 5) Pair terms — same pattern + dtype control
-            Y = u0g[:, None] * gb.Up             # (n,P)
-            Z = gb.J2 @ Y                        # (n,P)
-            X = cp.conj(u0g)[:, None] * gb.UpH   # (n,P)
-
-            E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=False, dtype=cp.complex128)
-
-            t_b    = gb.J2 @ (cp.abs(u0g)**2)    # (n,)
-            E_adbc = cp.einsum('ip,i->p', gb.Up_abs2, t_b, optimize=False, dtype=cp.float64)
-
-            # 6) Buckets and λ-contraction (bath rows already on host; upload small arrays)
+            # 7) Buckets + bath rows (unchanged)
             H2, Hm2 = E_acbd, E_adbc
             H1  = Tac + Tbd - 2.0*E_acbd
             Hm1 = Tad + Tbc - 2.0*E_adbc
