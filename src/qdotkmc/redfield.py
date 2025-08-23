@@ -443,11 +443,7 @@ class Redfield():
 
     
         def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
-            """
-            Minimal CuPy mirror of your CPU gamma accumulation.
-            Inputs are NumPy arrays; this uploads them for the current call
-            and returns a NumPy array (gamma_plus).
-            """
+
             if not _HAS_CUPY:
                 raise RuntimeError("CuPy not available")
 
@@ -512,6 +508,7 @@ class Redfield():
         if _HAS_CUPY:
             gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
         else:
+            print('run on CPU')
             gamma_plus = _build_gamma_plus(J, J2, Up, u0, bath_map)  
         #gamma_plus = _build_gamma_plus_gpu(J, J2, Up, u0, bath_map)
         if time_verbose:
