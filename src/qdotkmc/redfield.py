@@ -9,6 +9,8 @@ import os
 # import cupy if GPU available
 try:
     import cupy as cp
+    from cupy.cuda import cublas
+    cublas.setMathMode(cp.cuda.Device().cublas_handle, cublas.CUBLAS_DEFAULT_MATH)
     _HAS_CUPY_PKG = True
 except Exception:
     cp = None
@@ -484,115 +486,49 @@ class Redfield():
                     + bath_map[ 2.0] * H2)
 
         # (b) for execution on GPU (cp-based)
-        def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
-
-            # dtypes (stay in 128-bit by default for accuracy)
-            cupy_c = cp.complex64 if use_c64 else cp.complex128
-            cupy_f = cp.float32   if use_c64 else cp.float64
-
-            # upload once per call (minimal change version)
-            Jg  = cp.asarray(J,  dtype=cupy_f)
-            J2g = cp.asarray(J2, dtype=cupy_f)
-            Upg = cp.asarray(Up, dtype=cupy_c)
-            u0g = cp.asarray(u0, dtype=cupy_c)
-
-            # shared matmuls
-            Ju0 = Jg @ u0g           # (n,)
-            JUp = Jg @ Upg           # (n,P)
-
-            # T0 via two GEMV
-            sum_rowR = JUp.T @ cp.conj(u0g)         # (P,)
-            sum_rowC = cp.conj(Upg).T @ Ju0         # (P,)
-            T0 = sum_rowR * sum_rowC
-
-            # one-equality sums (Hadamard + reductions)
-            Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
-            Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g, Upg, cp.conj(JUp), optimize=True)
-
-            Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
-            Tbc = (cp.abs(Upg)**2).T @ (cp.abs(Ju0)**2)
-
-            # pair terms
-            Y = u0g[:, None] * Upg                 # (n,P)
-            Z = J2g @ Y                            # (n,P)
-            X = cp.conj(u0g)[:, None] * cp.conj(Upg)
-            E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=True)
-
-            t_b    = J2g @ (cp.abs(u0g)**2)
-            E_adbc = (cp.abs(Upg)**2).T @ t_b
-
-            # H buckets
-            H2, Hm2 = E_acbd, E_adbc
-            H1  = Tac + Tbd - 2.0*E_acbd
-            Hm1 = Tad + Tbc - 2.0*E_adbc
-
-            # K rows: convert CPU bath_map -> device only (small)
-            K_m2 = cp.asarray(bath_map[-2.0], dtype=cp.complex128)
-            K_m1 = cp.asarray(bath_map[-1.0], dtype=cp.complex128)
-            K0   = cp.asarray(bath_map[ 0.0], dtype=cp.complex128)
-            K1   = cp.asarray(bath_map[ 1.0], dtype=cp.complex128)
-            K2   = cp.asarray(bath_map[ 2.0], dtype=cp.complex128)
-
-            if cp.allclose(K0, 0.0):
-                gamma = K_m2*Hm2 + K_m1*Hm1 + K1*H1 + K2*H2
-            else:
-                H0 = T0 - (H2 + Hm2 + H1 + Hm1)
-                gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
-
-            return cp.asnumpy(gamma)
-
         # def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
 
-        #     # 1) get (and reuse) cached device arrays for this box
-        #     gb = self._ensure_gpu_box(J, J2, Up)  # provides: gb.J, gb.J2, gb.Up, gb.JUp, gb.UpH, gb.Up_abs2
-        #     # Make sure your _GPUBox stores:
-        #     #   gb.J, gb.J2 : float64
-        #     #   gb.Up       : complex128
-        #     #   gb.JUp      : complex128  (= gb.J @ gb.Up, cached once per box)
-        #     #   gb.UpH      : complex128  (= cp.conj(gb.Up), cached once per box)
-        #     #   gb.Up_abs2  : float64     (= cp.abs(gb.Up)**2), cached once per box
+        #     # dtypes (stay in 128-bit by default for accuracy)
+        #     cupy_c = cp.complex64 if use_c64 else cp.complex128
+        #     cupy_f = cp.float32   if use_c64 else cp.float64
 
-        #     # 2) per-center vectors on device (keep complex128)
-        #     u0g = cp.asarray(u0, dtype=cp.complex128)
-        #     Ju0 = gb.J @ u0g                     # (n,)
+        #     # upload once per call (minimal change version)
+        #     Jg  = cp.asarray(J,  dtype=cupy_f)
+        #     J2g = cp.asarray(J2, dtype=cupy_f)
+        #     Upg = cp.asarray(Up, dtype=cupy_c)
+        #     u0g = cp.asarray(u0, dtype=cupy_c)
 
-        #     # 3) T0 via two GEMV (unchanged)
-        #     sum_rowR = gb.JUp.T @ cp.conj(u0g)   # (P,)
-        #     sum_rowC = gb.UpH.T  @ Ju0           # (P,)
-        #     T0 = sum_rowR * sum_rowC             # (P,)
+        #     # shared matmuls
+        #     Ju0 = Jg @ u0g           # (n,)
+        #     JUp = Jg @ Upg           # (n,P)
 
-        #     # 4) One-equality sums — use the SAME einsum forms as before, and force accumulation dtype
-        #     Tac = cp.einsum('i,ip,ip->p',
-        #                     Ju0*cp.conj(u0g), gb.JUp, gb.UpH,
-        #                     optimize=False, dtype=cp.complex128)
+        #     # T0 via two GEMV
+        #     sum_rowR = JUp.T @ cp.conj(u0g)         # (P,)
+        #     sum_rowC = cp.conj(Upg).T @ Ju0         # (P,)
+        #     T0 = sum_rowR * sum_rowC
 
-        #     Tbd = cp.einsum('i,ip,ip->p',
-        #                     cp.conj(Ju0)*u0g, gb.Up, cp.conj(gb.JUp),
-        #                     optimize=False, dtype=cp.complex128)
+        #     # one-equality sums (Hadamard + reductions)
+        #     Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
+        #     Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g, Upg, cp.conj(JUp), optimize=True)
 
-        #     Tad = cp.einsum('ip,i->p',
-        #                     cp.abs(gb.JUp)**2, cp.abs(u0g)**2,
-        #                     optimize=False, dtype=cp.float64)
+        #     Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
+        #     Tbc = (cp.abs(Upg)**2).T @ (cp.abs(Ju0)**2)
 
-        #     Tbc = cp.einsum('ip,i->p',
-        #                     gb.Up_abs2, cp.abs(Ju0)**2,
-        #                     optimize=False, dtype=cp.float64)
+        #     # pair terms
+        #     Y = u0g[:, None] * Upg                 # (n,P)
+        #     Z = J2g @ Y                            # (n,P)
+        #     X = cp.conj(u0g)[:, None] * cp.conj(Upg)
+        #     E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=True)
 
-        #     # 5) Pair terms — same pattern + dtype control
-        #     Y = u0g[:, None] * gb.Up             # (n,P)
-        #     Z = gb.J2 @ Y                        # (n,P)
-        #     X = cp.conj(u0g)[:, None] * gb.UpH   # (n,P)
+        #     t_b    = J2g @ (cp.abs(u0g)**2)
+        #     E_adbc = (cp.abs(Upg)**2).T @ t_b
 
-        #     E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=False, dtype=cp.complex128)
-
-        #     t_b    = gb.J2 @ (cp.abs(u0g)**2)    # (n,)
-        #     E_adbc = cp.einsum('ip,i->p', gb.Up_abs2, t_b, optimize=False, dtype=cp.float64)
-
-        #     # 6) Buckets and λ-contraction (bath rows already on host; upload small arrays)
+        #     # H buckets
         #     H2, Hm2 = E_acbd, E_adbc
         #     H1  = Tac + Tbd - 2.0*E_acbd
         #     Hm1 = Tad + Tbc - 2.0*E_adbc
 
+        #     # K rows: convert CPU bath_map -> device only (small)
         #     K_m2 = cp.asarray(bath_map[-2.0], dtype=cp.complex128)
         #     K_m1 = cp.asarray(bath_map[-1.0], dtype=cp.complex128)
         #     K0   = cp.asarray(bath_map[ 0.0], dtype=cp.complex128)
@@ -606,6 +542,72 @@ class Redfield():
         #         gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
 
         #     return cp.asnumpy(gamma)
+
+        def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
+
+            # 1) get (and reuse) cached device arrays for this box
+            gb = self._ensure_gpu_box(J, J2, Up)  # provides: gb.J, gb.J2, gb.Up, gb.JUp, gb.UpH, gb.Up_abs2
+            # Make sure your _GPUBox stores:
+            #   gb.J, gb.J2 : float64
+            #   gb.Up       : complex128
+            #   gb.JUp      : complex128  (= gb.J @ gb.Up, cached once per box)
+            #   gb.UpH      : complex128  (= cp.conj(gb.Up), cached once per box)
+            #   gb.Up_abs2  : float64     (= cp.abs(gb.Up)**2), cached once per box
+
+            # 2) per-center vectors on device (keep complex128)
+            u0g = cp.asarray(u0, dtype=cp.complex128)
+            Ju0 = gb.J @ u0g                     # (n,)
+
+            # 3) T0 via two GEMV (unchanged)
+            sum_rowR = gb.JUp.T @ cp.conj(u0g)   # (P,)
+            sum_rowC = gb.UpH.T  @ Ju0           # (P,)
+            T0 = sum_rowR * sum_rowC             # (P,)
+
+            # 4) One-equality sums — use the SAME einsum forms as before, and force accumulation dtype
+            Tac = cp.einsum('i,ip,ip->p',
+                            Ju0*cp.conj(u0g), gb.JUp, gb.UpH,
+                            optimize=False, dtype=cp.complex128)
+
+            Tbd = cp.einsum('i,ip,ip->p',
+                            cp.conj(Ju0)*u0g, gb.Up, cp.conj(gb.JUp),
+                            optimize=False, dtype=cp.complex128)
+
+            Tad = cp.einsum('ip,i->p',
+                            cp.abs(gb.JUp)**2, cp.abs(u0g)**2,
+                            optimize=False, dtype=cp.float64)
+
+            Tbc = cp.einsum('ip,i->p',
+                            gb.Up_abs2, cp.abs(Ju0)**2,
+                            optimize=False, dtype=cp.float64)
+
+            # 5) Pair terms — same pattern + dtype control
+            Y = u0g[:, None] * gb.Up             # (n,P)
+            Z = gb.J2 @ Y                        # (n,P)
+            X = cp.conj(u0g)[:, None] * gb.UpH   # (n,P)
+
+            E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=False, dtype=cp.complex128)
+
+            t_b    = gb.J2 @ (cp.abs(u0g)**2)    # (n,)
+            E_adbc = cp.einsum('ip,i->p', gb.Up_abs2, t_b, optimize=False, dtype=cp.float64)
+
+            # 6) Buckets and λ-contraction (bath rows already on host; upload small arrays)
+            H2, Hm2 = E_acbd, E_adbc
+            H1  = Tac + Tbd - 2.0*E_acbd
+            Hm1 = Tad + Tbc - 2.0*E_adbc
+
+            K_m2 = cp.asarray(bath_map[-2.0], dtype=cp.complex128)
+            K_m1 = cp.asarray(bath_map[-1.0], dtype=cp.complex128)
+            K0   = cp.asarray(bath_map[ 0.0], dtype=cp.complex128)
+            K1   = cp.asarray(bath_map[ 1.0], dtype=cp.complex128)
+            K2   = cp.asarray(bath_map[ 2.0], dtype=cp.complex128)
+
+            if cp.allclose(K0, 0.0):
+                gamma = K_m2*Hm2 + K_m1*Hm1 + K1*H1 + K2*H2
+            else:
+                H0 = T0 - (H2 + Hm2 + H1 + Hm1)
+                gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
+
+            return cp.asnumpy(gamma)
 
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
