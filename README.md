@@ -25,9 +25,9 @@ This should point into your local repo directory.
 
 All functionalities of the code can be loaded at the top of a python script by simply using `import qdotkmc`. Make sure the package is properly installed according to the installtion instructions above. 
 
-A sample script that runs KMC simulations with specified input parameters is given in `test/box_main.py` and a sample SLURM submit script is given by `qdot.sh` as well. The submit script is written to execute `test/box_main.py`. 
+A sample script that runs KMC simulations with specified input parameters is given in `test/test_main.py` and sample SLURM submit scripts are given by `cpu_sample.sh` (for CPU execution) and `gpu_sample.sh` (for GPU execution) in the `jobs` directories as well. The submit script is written to execute `test/test_main.py`. 
 
-Here is what to do: Copy the `.sh` script into the `cwd` (current working directory) where you want to execute a job. This can be anywhere on your local set-up, so using it outside of the code base is encouraged to keep things clean and separated. Also produce a local copy of `test/box_main.py` and put it into the same directory where you have the submit `.sh`script. Modify `box_main.py` desired to have the simulation parameters of choice. Change the path to the python script we want to execute in `.sh` to link the submit script to your version of `box_main.py`. Make sure your python environment is activated so that running `python ...` is not throwing an error. Then you should be all set to just run the job via
+Here is what to do: Copy the `.sh` script into the `cwd` (current working directory) where you want to execute a job. This can be anywhere on your local set-up, so using it outside of the code base is encouraged to keep things clean and separated. Also produce a local copy of `test/test_main.py` and put it into the same directory where you have the submit `.sh`script. Modify `test_main.py` desired to have the simulation parameters of choice. Change the path to the python script we want to execute in `.sh` to link the submit script to your version of `test_main.py`. Make sure your python environment is activated so that running `python ...` is not throwing an error. Then you should be all set to just run the job via
 
 ```
 sbatch <SUBMIT_NAME>.sh
