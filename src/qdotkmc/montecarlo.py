@@ -3,6 +3,7 @@ import os
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Optional
+import time
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
@@ -124,11 +125,14 @@ class KMCRunner():
         qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_site = theta_pol, theta_site
 
         # (1) select sites and polarons that ''matter'' for computing the rates
+        start = time.time()
         site_g, pol_g = qd_lattice.redfield.select_by_weight(center_global = center_global, 
                                                              theta_site = qd_lattice.redfield.theta_site, 
                                                              theta_pol = qd_lattice.redfield.theta_pol, 
                                                              verbose = False
                                                              )
+        end = time.time()
+        print(f'time for selection: {end-start:.2f}')
 
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield(
