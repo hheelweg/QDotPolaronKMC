@@ -55,8 +55,8 @@ class Redfield():
             pool = cp.cuda.MemoryPool()
             cp.cuda.set_allocator(pool.malloc)
         
-        # TODO : what is this for?
-        self.gpu_use_c64 = True# (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
+        # TODO : what is this for? add explanation
+        self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
         
 
     
