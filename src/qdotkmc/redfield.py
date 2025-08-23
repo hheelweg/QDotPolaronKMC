@@ -484,8 +484,12 @@ class Redfield():
             T0 = sum_rowR * sum_rowC
 
             # one-equality sums (Hadamard + reductions)
-            Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
-            Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g, Upg, cp.conj(JUp), optimize=True)
+            #Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
+            #Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g, Upg, cp.conj(JUp), optimize=True)
+
+            Tac = cp.sum((Ju0*cp.conj(u0g))[:, None] * JUp * cp.conj(Upg), axis=0)
+            Tbd = cp.sum((cp.conj(Ju0)*u0g)[:, None] * Upg * cp.conj(JUp), axis=0)
+
 
             Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
             Tbc = (cp.abs(Upg)**2).T @ (cp.abs(Ju0)**2)
@@ -494,7 +498,8 @@ class Redfield():
             Y = u0g[:, None] * Upg                 # (n,P)
             Z = J2g @ Y                            # (n,P)
             X = cp.conj(u0g)[:, None] * cp.conj(Upg)
-            E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=True)
+            #E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=True)
+            E_acbd = cp.sum(X * Z, axis=0)
 
             t_b    = J2g @ (cp.abs(u0g)**2)
             E_adbc = (cp.abs(Upg)**2).T @ t_b
