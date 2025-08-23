@@ -132,7 +132,7 @@ class KMCRunner():
                                                              verbose = False
                                                              )
         end = time.time()
-        print(f'time for selection: {end-start:.2f}')
+        print(f'time for selection: {end-start:.6f}')
 
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield(
