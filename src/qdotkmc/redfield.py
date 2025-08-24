@@ -20,11 +20,9 @@ except Exception:
 
 
 def _gpu_available() -> bool:
-    print('hasu cup', _HAS_CUPY_PKG)
     if not _HAS_CUPY_PKG:
         return False
     try:
-        print('has cupy', cp.cuda.runtime.getDeviceCount() > 0)
         return cp.cuda.runtime.getDeviceCount() > 0
     except Exception:
         return False
@@ -53,7 +51,6 @@ class Redfield():
         # enable GPU only if user asked and a device exists
         env_wants_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
         self.use_gpu = bool(env_wants_gpu and _gpu_available())
-        print('tests', env_wants_gpu, self.use_gpu)
         # allow memory allocator if GPU exists
         if self.use_gpu:
             pool = cp.cuda.MemoryPool()
