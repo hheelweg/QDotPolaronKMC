@@ -26,7 +26,9 @@ def _gpu_available() -> bool:
         return cp.cuda.runtime.getDeviceCount() > 0
     except Exception:
         return False
-    
+
+
+
 
 
 class Redfield():
@@ -35,19 +37,21 @@ class Redfield():
                 time_verbose = True):
 
         self.ham = hamiltonian
-        self.polaron_locations = polaron_locations          # polaron locations (global frame)
-        self.site_locations = site_locations                # site locations (global frame)
+        self.polaron_locations = polaron_locations                  # polaron locations (global frame)
+        self.site_locations = site_locations                        # site locations (global frame)
 
-        self.kappa = kappa                                    # kappa-polaron for polaron transformation
+        self.kappa = kappa                                          # kappa-polaron for polaron transformation
 
         # set to true only when time to compute rates is desired
         self.time_verbose = time_verbose
 
         # bath-correlation cache
-        self._corr_cache = {}                               # key: (lam, self.kappa, center_global) -> dict[int -> complex]
+        self._corr_cache = {}                                       # key: (lam, self.kappa, center_global) -> dict[int -> complex]
 
         # avoid recomputing J2 = J * J by caching
-        self._J2_cache = {}                                 # key: tuple(site_g) -> J2 ndarray
+        self._J2_cache = {}                                         # key: tuple(site_g) -> J2 ndarray
+
+        self._W_abs2_full = None                                    # cache |U|^2 (Ns, Np) float64, C-contig
 
         # enable GPU only if user asked and a device exists
         env_wants_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
@@ -61,6 +65,37 @@ class Redfield():
         self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
         
 
+    def _top_prefix_by_coverage(self, values: np.ndarray, keep_fraction: float) -> np.ndarray:
+        """
+        Minimal-size subset indices whose cumulative sum >= keep_fraction*sum(values),
+        prioritizing larger entries. Same result as full sort+prefix, but faster.
+        """
+        v = np.asarray(values, dtype=np.float64)
+        total = float(v.sum())
+        if total <= 0.0:
+            return np.empty(0, dtype=np.intp)
+        target = keep_fraction * total
+
+        vmax = float(v.max(initial=0.0))
+        if vmax <= 0.0:
+            return np.empty(0, dtype=np.intp)
+
+        # lower bound for k; grow geometrically until coverage reached
+        k = max(1, int(target / vmax))
+        k = min(k, v.size)
+
+        while True:
+            topk_idx = np.argpartition(v, v.size - k)[-k:]        # unsorted top-k
+            topk_vals = v[topk_idx]
+            order_local = np.argsort(-topk_vals)                  # sort only top-k
+            idx_sorted = topk_idx[order_local]
+            csum = np.cumsum(topk_vals[order_local])
+            pos = np.searchsorted(csum, target, side='left')
+            if pos < k:
+                return idx_sorted[:pos+1].astype(np.intp)
+            if k == v.size:
+                return idx_sorted.astype(np.intp)
+            k = min(v.size, int(k*1.8)+1)
     
     # bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
@@ -149,102 +184,182 @@ class Redfield():
         return pol_g, site_g
  
     # selection of sites, polarons for rates based on WEIGHT
+    # def select_by_weight(self, center_global: int, *,
+    #                       theta_site: float,                                # tighter -> more sites kept (higher cost, higher fidelity)
+    #                       theta_pol:   float,                               # tighter -> more ν' kept (linear cost, physics coverage)
+    #                       max_nuprime: Optional[int] = None,                # optional hard cap on # of ν' considered (after ranking)
+    #                       verbose: bool = False,
+    #                       ):
+    #     """
+    #     Physics-aware, two-parameter selector for a single center polaron ν.
+
+    #     What it does (in order):
+    #     1) Rank destination polarons ν' by the J-aware contact score
+    #             S_{ν→ν'} = w_ν^T |J|^2 w_{ν'} ,  with  w_α[m] = |U_{mα}|^2 .
+    #         Keep the smallest set whose cumulative S reaches (1 - theta_pol) of total S.
+    #         -> This defines pol_g = [ν] + kept ν'.
+
+    #     2) Build a site-importance (exchange) score relative to the kept destinations:
+    #             s_i = w_ν[i] * (|J|^2 w_D)[i] + w_D[i] * (|J|^2 w_ν)[i],
+    #         where w_D = sum_{ν' in kept} w_{ν'}.
+    #         Keep the smallest site set reaching (1 - theta_sites) of sum(s).
+    #         -> This defines site_g.
+
+    #     Notes:
+    #     - Uses a cached full L2 = |J|^2 via _get_J2_cached().
+    #     - No bath work here; _corr_row is only used later in make_redfield_box.
+    #     - As θ_* to 0, selection monotonically approaches the full Redfield result.
+
+    #     Parameters
+    #     ----------
+    #     theta_sites : float
+    #         Coverage tolerance for sites. Smaller values keep MORE sites (higher cost, higher fidelity).
+    #     theta_pol : float
+    #         Coverage tolerance for destination polarons. Smaller values keep MORE ν' (linear cost).
+    #     max_nuprime : Optional[int]
+    #         Optional hard cap on the number of ν' considered after ranking by S (useful for speed).
+    #     verbose : bool
+    #         Print small diagnostics.
+
+    #     Returns
+    #     -------
+    #     site_g : np.ndarray[int]
+    #         Global site indices selected by exchange-score coverage.
+    #     pol_g : np.ndarray[int]
+    #         Global polaron indices with the center FIRST, followed by kept destinations.
+    #     """
+    #     U  = self.ham.Umat
+    #     Ns, Np = U.shape                                                    # total number of sites, polarons
+    #     nu = int(center_global)
+
+    #     # (0) Precompute site weights |J|^2
+    #     W  = (np.abs(U)**2)                                                 # (Ns, Np)
+    #     w0 = W[:, nu].astype(np.float64, copy=False)                        # source mass vector
+    #     L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))           # get the full |J|^2 matrix                  
+
+
+    #     # (1) Destination selection by S-coverage (θ_pol) 
+    #     # S = w0^T |J|^2 W  implemented as  t0 = |J|^2 w0  then  S = W^T t0
+    #     t0 = L2 @ w0                                                        # (Ns,)
+    #     S  = (W.T @ t0).astype(np.float64, copy=False)                      # (Np,)
+    #     S[nu] = 0.0                                                         # exclude self
+
+    #     # rank once; optionally cap to the top max_nuprime for speed
+    #     order = np.argsort(-S)
+    #     if max_nuprime is not None:
+    #         order = order[:int(max_nuprime)]
+    #     S_desc = S[order]
+    #     totS   = float(S_desc.sum())
+
+    #     if totS <= 0.0:
+    #         # degenerate: no meaningful destinations; return a compact source-only site set
+    #         site_g = utils._mass_core_by_theta(w0, theta_site)
+    #         pol_g  = np.array([nu], dtype=np.intp)
+    #         if verbose:
+    #             print(f"[select] degenerate S: sites={site_g.size}")
+    #         return site_g, pol_g
+
+    #     # keep smallest prefix reaching (1 - θ_pol) coverage
+    #     csum_S = np.cumsum(S_desc)
+    #     k_pol  = int(np.searchsorted(csum_S, (1.0 - float(theta_pol)) * totS, side="left")) + 1
+    #     kept   = order[:k_pol].astype(np.intp)
+    #     pol_g  = np.concatenate(([nu], kept)).astype(np.intp)
+
+    #     if verbose:
+    #         cov_pol = csum_S[k_pol - 1] / (totS + 1e-300)
+    #         print(f"[select] nu' kept: {len(kept)}/{Np - 1}  S-coverage = {cov_pol:.3f}")
+
+    #     # (2) Site selection by exchange-score coverage (θ_sites) ---
+    #     # Aggregate destination mass and its |J|^2 image
+    #     wD = W[:, kept].sum(axis=1).astype(np.float64, copy=False)          # (Ns,)
+    #     tD = L2 @ wD                                                        # (Ns,)
+
+    #     # exchange score per site (s_i = w0[i]*(L2 wD)[i] + wD[i]*(L2 w0)[i]) :
+    #     s = w0 * tD + wD * t0
+    #     s_sum = float(s.sum())
+
+    #     if s_sum <= 0.0:
+    #         # conservative fallback: union of mass cores (rare, but safe)
+    #         site_set = set(utils._mass_core_by_theta(w0, theta_site).tolist())
+    #         for j in kept:
+    #             site_set |= set(utils._mass_core_by_theta(W[:, j], theta_site).tolist())
+    #         site_g = np.array(sorted(site_set), dtype=np.intp)
+    #         if verbose:
+    #             print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
+    #         return site_g, pol_g
+
+    #     # keep smallest prefix reaching (1 - θ_sites) coverage
+    #     order_s = np.argsort(-s)
+    #     csum_s  = np.cumsum(s[order_s])
+    #     k_sites = int(np.searchsorted(csum_s, (1.0 - float(theta_site)) * s_sum, side="left")) + 1
+    #     site_g  = np.sort(order_s[:k_sites]).astype(np.intp)
+
+    #     if verbose:
+    #         cov_sites = csum_s[k_sites - 1] / (s_sum + 1e-300)
+    #         print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage = {cov_sites:.3f}")
+
+    #     return site_g, pol_g
+
     def select_by_weight(self, center_global: int, *,
-                          theta_site: float,                                # tighter -> more sites kept (higher cost, higher fidelity)
-                          theta_pol:   float,                               # tighter -> more ν' kept (linear cost, physics coverage)
-                          max_nuprime: Optional[int] = None,                # optional hard cap on # of ν' considered (after ranking)
-                          verbose: bool = False,
-                          ):
-        """
-        Physics-aware, two-parameter selector for a single center polaron ν.
+                     theta_site: float,
+                     theta_pol: float,
+                     max_nuprime: Optional[int] = None,
+                     verbose: bool = False):
 
-        What it does (in order):
-        1) Rank destination polarons ν' by the J-aware contact score
-                S_{ν→ν'} = w_ν^T |J|^2 w_{ν'} ,  with  w_α[m] = |U_{mα}|^2 .
-            Keep the smallest set whose cumulative S reaches (1 - theta_pol) of total S.
-            -> This defines pol_g = [ν] + kept ν'.
-
-        2) Build a site-importance (exchange) score relative to the kept destinations:
-                s_i = w_ν[i] * (|J|^2 w_D)[i] + w_D[i] * (|J|^2 w_ν)[i],
-            where w_D = sum_{ν' in kept} w_{ν'}.
-            Keep the smallest site set reaching (1 - theta_sites) of sum(s).
-            -> This defines site_g.
-
-        Notes:
-        - Uses a cached full L2 = |J|^2 via _get_J2_cached().
-        - No bath work here; _corr_row is only used later in make_redfield_box.
-        - As θ_* to 0, selection monotonically approaches the full Redfield result.
-
-        Parameters
-        ----------
-        theta_sites : float
-            Coverage tolerance for sites. Smaller values keep MORE sites (higher cost, higher fidelity).
-        theta_pol : float
-            Coverage tolerance for destination polarons. Smaller values keep MORE ν' (linear cost).
-        max_nuprime : Optional[int]
-            Optional hard cap on the number of ν' considered after ranking by S (useful for speed).
-        verbose : bool
-            Print small diagnostics.
-
-        Returns
-        -------
-        site_g : np.ndarray[int]
-            Global site indices selected by exchange-score coverage.
-        pol_g : np.ndarray[int]
-            Global polaron indices with the center FIRST, followed by kept destinations.
-        """
-        U  = self.ham.Umat
-        Ns, Np = U.shape                                                    # total number of sites, polarons
         nu = int(center_global)
+        W  = self._get_W_abs2_full()                               # (Ns,Np) float64
+        Ns, Np = W.shape
 
-        # (0) Precompute site weights |J|^2
-        W  = (np.abs(U)**2)                                                 # (Ns, Np)
-        w0 = W[:, nu].astype(np.float64, copy=False)                        # source mass vector
-        L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))           # get the full |J|^2 matrix                  
+        # Full-system |J|^2 once (your existing cache); ensure float64, C-contig
+        L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))
+        L2 = np.asarray(L2, dtype=np.float64, order='C')
 
+        # (1) Destination selection by S-coverage
+        w0 = W[:, nu]                                              # (Ns,)
+        t0 = L2 @ w0                                               # (Ns,)
+        S  = W.T @ t0                                              # (Np,)
+        S[nu] = 0.0
 
-        # (1) Destination selection by S-coverage (θ_pol) 
-        # S = w0^T |J|^2 W  implemented as  t0 = |J|^2 w0  then  S = W^T t0
-        t0 = L2 @ w0                                                        # (Ns,)
-        S  = (W.T @ t0).astype(np.float64, copy=False)                      # (Np,)
-        S[nu] = 0.0                                                         # exclude self
-
-        # rank once; optionally cap to the top max_nuprime for speed
-        order = np.argsort(-S)
+        # Optionally pre-cap to top-K (fast) before coverage
         if max_nuprime is not None:
-            order = order[:int(max_nuprime)]
-        S_desc = S[order]
-        totS   = float(S_desc.sum())
+            K = int(max_nuprime)
+            if K < Np-1:
+                topK = np.argpartition(S, Np-1-K)[-(K+1):]
+                topK = topK[topK != nu]
+                topK = topK[np.argsort(-S[topK])]
+                S_view = S[topK]
+                totS = float(S_view.sum())
+                if totS > 0.0:
+                    csum = np.cumsum(S_view)
+                    k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol)) * totS, side='left')) + 1
+                    kept = topK[:k_pol]
+                else:
+                    kept = np.empty(0, dtype=np.intp)
+            else:
+                kept = self._top_prefix_by_coverage(S, 1.0 - float(theta_pol))
+                kept = kept[kept != nu]
+                kept = kept[np.argsort(-S[kept])]
+        else:
+            kept = self._top_prefix_by_coverage(S, 1.0 - float(theta_pol))
+            kept = kept[kept != nu]
+            kept = kept[np.argsort(-S[kept])]  # deterministic order
 
-        if totS <= 0.0:
-            # degenerate: no meaningful destinations; return a compact source-only site set
-            site_g = utils._mass_core_by_theta(w0, theta_site)
-            pol_g  = np.array([nu], dtype=np.intp)
-            if verbose:
-                print(f"[select] degenerate S: sites={site_g.size}")
-            return site_g, pol_g
-
-        # keep smallest prefix reaching (1 - θ_pol) coverage
-        csum_S = np.cumsum(S_desc)
-        k_pol  = int(np.searchsorted(csum_S, (1.0 - float(theta_pol)) * totS, side="left")) + 1
-        kept   = order[:k_pol].astype(np.intp)
-        pol_g  = np.concatenate(([nu], kept)).astype(np.intp)
-
+        pol_g = np.concatenate(([nu], kept)).astype(np.intp)
         if verbose:
-            cov_pol = csum_S[k_pol - 1] / (totS + 1e-300)
-            print(f"[select] nu' kept: {len(kept)}/{Np - 1}  S-coverage = {cov_pol:.3f}")
+            cov_pol = S[kept].sum() / (S.sum() + 1e-300)
+            print(f"[select] nu' kept: {len(kept)}/{Np-1}  S-coverage={cov_pol:.3f}")
 
-        # (2) Site selection by exchange-score coverage (θ_sites) ---
-        # Aggregate destination mass and its |J|^2 image
-        wD = W[:, kept].sum(axis=1).astype(np.float64, copy=False)          # (Ns,)
-        tD = L2 @ wD                                                        # (Ns,)
+        # (2) Site selection by s-coverage
+        if kept.size:
+            wD = W[:, kept].sum(axis=1)                            # (Ns,)
+            tD = L2 @ wD
+            s  = w0 * tD + wD * t0
+        else:
+            s  = np.zeros(Ns, dtype=np.float64)
 
-        # exchange score per site (s_i = w0[i]*(L2 wD)[i] + wD[i]*(L2 w0)[i]) :
-        s = w0 * tD + wD * t0
         s_sum = float(s.sum())
-
         if s_sum <= 0.0:
-            # conservative fallback: union of mass cores (rare, but safe)
+            # conservative fallback: union of mass cores
             site_set = set(utils._mass_core_by_theta(w0, theta_site).tolist())
             for j in kept:
                 site_set |= set(utils._mass_core_by_theta(W[:, j], theta_site).tolist())
@@ -253,15 +368,12 @@ class Redfield():
                 print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
             return site_g, pol_g
 
-        # keep smallest prefix reaching (1 - θ_sites) coverage
-        order_s = np.argsort(-s)
-        csum_s  = np.cumsum(s[order_s])
-        k_sites = int(np.searchsorted(csum_s, (1.0 - float(theta_site)) * s_sum, side="left")) + 1
-        site_g  = np.sort(order_s[:k_sites]).astype(np.intp)
+        kept_sites = self._top_prefix_by_coverage(s, 1.0 - float(theta_site))
+        site_g = np.sort(kept_sites.astype(np.intp))
 
         if verbose:
-            cov_sites = csum_s[k_sites - 1] / (s_sum + 1e-300)
-            print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage = {cov_sites:.3f}")
+            cov_sites = s[kept_sites].sum() / (s_sum + 1e-300)
+            print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage={cov_sites:.3f}")
 
         return site_g, pol_g
 
