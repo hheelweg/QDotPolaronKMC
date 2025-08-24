@@ -20,6 +20,7 @@ except Exception:
 
 
 def _gpu_available() -> bool:
+    print('hasu cup', _HAS_CUPY_PKG)
     if not _HAS_CUPY_PKG:
         return False
     try:
