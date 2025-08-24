@@ -28,138 +28,6 @@ def _gpu_available() -> bool:
         return False
     
 
-# complex128 / float64 variant
-_raw_k128 = r'''
-#include <cuComplex.h>
-extern "C" __global__
-void tac_tbd_tad_tbc_c128(
-    const cuDoubleComplex* __restrict__ JUp,  // (n,P)
-    const cuDoubleComplex* __restrict__ Up,   // (n,P)
-    const cuDoubleComplex* __restrict__ Ju0,  // (n,)
-    const cuDoubleComplex* __restrict__ u0,   // (n,)
-    const int n, const int P,
-    cuDoubleComplex* __restrict__ Tac,        // (P,)
-    cuDoubleComplex* __restrict__ Tbd,        // (P,)
-    double* __restrict__ Tad,                 // (P,) real
-    double* __restrict__ Tbc)                 // (P,) real
-{
-    int p = blockDim.x * blockIdx.x + threadIdx.x;
-    if (p >= P) return;
-
-    double Tac_r=0.0, Tac_i=0.0, Tbd_r=0.0, Tbd_i=0.0, Tad_v=0.0, Tbc_v=0.0;
-
-    for (int i=0; i<n; ++i) {
-        const cuDoubleComplex ji = JUp[i*P + p];
-        const cuDoubleComplex ui = Up [i*P + p];
-        const cuDoubleComplex ju = Ju0[i];
-        const cuDoubleComplex u  = u0[i];
-
-        // s_ac = Ju0 * conj(u0)
-        const double sac_r = cuCreal(ju)*cuCreal(u) + cuCimag(ju)*cuCimag(u);
-        const double sac_i = cuCimag(ju)*cuCreal(u) - cuCreal(ju)*cuCimag(u);
-
-        // s_bd = conj(Ju0) * u0
-        const double sbd_r = cuCreal(ju)*cuCreal(u) + cuCimag(ju)*cuCimag(u);
-        const double sbd_i = -cuCimag(ju)*cuCreal(u) + cuCreal(ju)*cuCimag(u);
-
-        // Ji * conj(Ui)
-        const double pr = cuCreal(ji)*cuCreal(ui) + cuCimag(ji)*cuCimag(ui);
-        const double pi = -cuCreal(ji)*cuCimag(ui) + cuCimag(ji)*cuCreal(ui);
-
-        // Ui * conj(Ji)
-        const double qr = cuCreal(ui)*cuCreal(ji) + cuCimag(ui)*cuCimag(ji);
-        const double qi = -cuCreal(ui)*cuCimag(ji) + cuCimag(ui)*cuCreal(ji);
-
-        Tac_r += sac_r*pr - sac_i*pi;
-        Tac_i += sac_r*pi + sac_i*pr;
-
-        Tbd_r += sbd_r*qr - sbd_i*qi;
-        Tbd_i += sbd_r*qi + sbd_i*qr;
-
-        const double ji2 = cuCreal(ji)*cuCreal(ji) + cuCimag(ji)*cuCimag(ji);
-        const double ui2 = cuCreal(ui)*cuCreal(ui) + cuCimag(ui)*cuCimag(ui);
-        const double ju2 = cuCreal(ju)*cuCreal(ju) + cuCimag(ju)*cuCimag(ju);
-        const double  u2 = cuCreal( u)*cuCreal( u) + cuCimag( u)*cuCimag( u);
-
-        Tad_v += ji2 * u2;
-        Tbc_v += ui2 * ju2;
-    }
-
-    Tac[p] = make_cuDoubleComplex(Tac_r, Tac_i);
-    Tbd[p] = make_cuDoubleComplex(Tbd_r, Tbd_i);
-    Tad[p] = Tad_v;
-    Tbc[p] = Tbc_v;
-}
-'''.strip()
-
-# complex64 / float32 variant
-_raw_k64 = r'''
-#include <cuComplex.h>
-extern "C" __global__
-void tac_tbd_tad_tbc_c64(
-    const cuFloatComplex* __restrict__ JUp,   // (n,P)
-    const cuFloatComplex* __restrict__ Up,    // (n,P)
-    const cuFloatComplex* __restrict__ Ju0,   // (n,)
-    const cuFloatComplex* __restrict__ u0,    // (n,)
-    const int n, const int P,
-    cuFloatComplex* __restrict__ Tac,         // (P,)
-    cuFloatComplex* __restrict__ Tbd,         // (P,)
-    float* __restrict__ Tad,                  // (P,) real
-    float* __restrict__ Tbc)                  // (P,) real
-{
-    int p = blockDim.x * blockIdx.x + threadIdx.x;
-    if (p >= P) return;
-
-    float Tac_r=0.f, Tac_i=0.f, Tbd_r=0.f, Tbd_i=0.f, Tad_v=0.f, Tbc_v=0.f;
-
-    for (int i=0; i<n; ++i) {
-        const cuFloatComplex ji = JUp[i*P + p];
-        const cuFloatComplex ui = Up [i*P + p];
-        const cuFloatComplex ju = Ju0[i];
-        const cuFloatComplex u  = u0[i];
-
-        // s_ac = Ju0 * conj(u0)
-        const float sac_r = cuCrealf(ju)*cuCrealf(u) + cuCimagf(ju)*cuCimagf(u);
-        const float sac_i = cuCimagf(ju)*cuCrealf(u) - cuCrealf(ju)*cuCimagf(u);
-
-        // s_bd = conj(Ju0) * u0
-        const float sbd_r = cuCrealf(ju)*cuCrealf(u) + cuCimagf(ju)*cuCimagf(u);
-        const float sbd_i = -cuCimagf(ju)*cuCrealf(u) + cuCrealf(ju)*cuCimagf(u);
-
-        // Ji * conj(Ui)
-        const float pr = cuCrealf(ji)*cuCrealf(ui) + cuCimagf(ji)*cuCimagf(ui);
-        const float pi = -cuCrealf(ji)*cuCimagf(ui) + cuCimagf(ji)*cuCrealf(ui);
-
-        // Ui * conj(Ji)
-        const float qr = cuCrealf(ui)*cuCrealf(ji) + cuCimagf(ui)*cuCimagf(ji);
-        const float qi = -cuCrealf(ui)*cuCimagf(ji) + cuCimagf(ui)*cuCrealf(ji);
-
-        Tac_r += sac_r*pr - sac_i*pi;
-        Tac_i += sac_r*pi + sac_i*pr;
-
-        Tbd_r += sbd_r*qr - sbd_i*qi;
-        Tbd_i += sbd_r*qi + sbd_i*qr;
-
-        const float ji2 = cuCrealf(ji)*cuCrealf(ji) + cuCimagf(ji)*cuCimagf(ji);
-        const float ui2 = cuCrealf(ui)*cuCrealf(ui) + cuCimagf(ui)*cuCimagf(ui);
-        const float ju2 = cuCrealf(ju)*cuCrealf(ju) + cuCimagf(ju)*cuCimagf(ju);
-        const float  u2 = cuCrealf( u)*cuCrealf( u) + cuCimagf( u)*cuCimagf( u);
-
-        Tad_v += ji2 * u2;
-        Tbc_v += ui2 * ju2;
-    }
-
-    Tac[p] = make_cuFloatComplex(Tac_r, Tac_i);
-    Tbd[p] = make_cuFloatComplex(Tbd_r, Tbd_i);
-    Tad[p] = Tad_v;
-    Tbc[p] = Tbc_v;
-}
-'''.strip()
-
-# build RawKernels
-TacTbdTadTbc_c128 = cp.RawKernel(_raw_k128, "tac_tbd_tad_tbc_c128")
-TacTbdTadTbc_c64  = cp.RawKernel(_raw_k64,  "tac_tbd_tad_tbc_c64")
-
 
 class Redfield():
 
@@ -617,35 +485,13 @@ class Redfield():
             sum_rowC = cp.conj(Upg).T @ Ju0         # (P,)
             T0 = sum_rowR * sum_rowC
 
-            # # one-equality sums (Hadamard + reductions)
-            # Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
-            # Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g, Upg, cp.conj(JUp), optimize=True)
+            # one-equality sums (Hadamard + reductions)
+            Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
+            Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g, Upg, cp.conj(JUp), optimize=True)
 
-            # Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
-            # Tbc = (cp.abs(Upg)**2).T @ (cp.abs(Ju0)**2)
+            Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
+            Tbc = (cp.abs(Upg)**2).T @ (cp.abs(Ju0)**2)
 
-            n, P = Upg.shape
-            threads = 256
-            blocks  = (P + threads - 1)//threads
-
-            if use_c64:
-                Tac_d = cp.empty(P, dtype=cp.complex64)
-                Tbd_d = cp.empty(P, dtype=cp.complex64)
-                Tad_d = cp.empty(P, dtype=cp.float32)
-                Tbc_d = cp.empty(P, dtype=cp.float32)
-                TacTbdTadTbc_c64((blocks,), (threads,),
-                    (JUp, Upg, Ju0, u0g, n, P, Tac_d, Tbd_d, Tad_d, Tbc_d))
-            else:
-                Tac_d = cp.empty(P, dtype=cp.complex128)
-                Tbd_d = cp.empty(P, dtype=cp.complex128)
-                Tad_d = cp.empty(P, dtype=cp.float64)
-                Tbc_d = cp.empty(P, dtype=cp.float64)
-                TacTbdTadTbc_c128((blocks,), (threads,),
-                    (JUp, Upg, Ju0, u0g, n, P, Tac_d, Tbd_d, Tad_d, Tbc_d))
-
-            cp.cuda.runtime.deviceSynchronize()
-
-            Tac, Tbd, Tad, Tbc = Tac_d, Tbd_d, Tad_d, Tbc_d
 
             # pair terms
             Y = u0g[:, None] * Upg                 # (n,P)
