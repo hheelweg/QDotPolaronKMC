@@ -24,6 +24,7 @@ def _gpu_available() -> bool:
     if not _HAS_CUPY_PKG:
         return False
     try:
+        print('has cupy', cp.cuda.runtime.getDeviceCount() > 0)
         return cp.cuda.runtime.getDeviceCount() > 0
     except Exception:
         return False
