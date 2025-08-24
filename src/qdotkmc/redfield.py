@@ -63,6 +63,16 @@ class Redfield():
         
         # TODO : what is this for? add explanation
         self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
+
+    
+    # --- helper methods in Redfield ---
+    def _get_W_abs2_full(self):
+        """Return cached W = |U|^2 as float64, C-contiguous."""
+        if self._W_abs2_full is None:
+            U = self.ham.Umat
+            W = np.abs(U)**2                 # real
+            self._W_abs2_full = np.asarray(W, dtype=np.float64, order='C')
+        return self._W_abs2_full
         
 
     def _top_prefix_by_coverage(self, values: np.ndarray, keep_fraction: float) -> np.ndarray:
