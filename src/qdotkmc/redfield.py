@@ -12,7 +12,7 @@ os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
 # import cupy if GPU available
 try:
     import cupy as cp
-    #import cupy_cutensor
+    import cupy_cutensor
     _HAS_CUPY_PKG = True
 except Exception:
     cp = None
