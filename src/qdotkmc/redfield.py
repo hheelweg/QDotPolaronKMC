@@ -463,54 +463,117 @@ class Redfield():
                     + bath_map[ 2.0] * H2)
 
         # (b) for execution on GPU (cp-based)
-        def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
+        # def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
 
-            # dtypes (stay in 128-bit by default for accuracy)
+        #     # dtypes (stay in 128-bit by default for accuracy)
+        #     cupy_c = cp.complex64 if use_c64 else cp.complex128
+        #     cupy_f = cp.float32   if use_c64 else cp.float64
+
+        #     # upload once per call (minimal change version)
+        #     Jg  = cp.asarray(J,  dtype=cupy_f)
+        #     J2g = cp.asarray(J2, dtype=cupy_f)
+        #     Upg = cp.asarray(Up, dtype=cupy_c)
+        #     u0g = cp.asarray(u0, dtype=cupy_c)
+
+        #     # shared matmuls
+        #     Ju0 = Jg @ u0g           # (n,)
+        #     JUp = Jg @ Upg           # (n,P)
+
+        #     # T0 via two GEMV
+        #     sum_rowR = JUp.T @ cp.conj(u0g)         # (P,)
+        #     sum_rowC = cp.conj(Upg).T @ Ju0         # (P,)
+        #     T0 = sum_rowR * sum_rowC
+
+        #     # one-equality sums (Hadamard + reductions)
+        #     Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
+        #     Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g, Upg, cp.conj(JUp), optimize=True)
+
+        #     Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
+        #     Tbc = (cp.abs(Upg)**2).T @ (cp.abs(Ju0)**2)
+
+        #     # pair terms
+        #     Y = u0g[:, None] * Upg                 # (n,P)
+        #     Z = J2g @ Y                            # (n,P)
+        #     X = cp.conj(u0g)[:, None] * cp.conj(Upg)
+        #     E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=True)
+
+        #     t_b    = J2g @ (cp.abs(u0g)**2)
+        #     E_adbc = (cp.abs(Upg)**2).T @ t_b
+
+        #     # H buckets
+        #     H2, Hm2 = E_acbd, E_adbc
+        #     H1  = Tac + Tbd - 2.0*E_acbd
+        #     Hm1 = Tad + Tbc - 2.0*E_adbc
+
+        #     # K rows: convert CPU bath_map -> device only (small)
+        #     K_m2 = cp.asarray(bath_map[-2.0], dtype=cp.complex128)
+        #     K_m1 = cp.asarray(bath_map[-1.0], dtype=cp.complex128)
+        #     K0   = cp.asarray(bath_map[ 0.0], dtype=cp.complex128)
+        #     K1   = cp.asarray(bath_map[ 1.0], dtype=cp.complex128)
+        #     K2   = cp.asarray(bath_map[ 2.0], dtype=cp.complex128)
+
+        #     if cp.allclose(K0, 0.0):
+        #         gamma = K_m2*Hm2 + K_m1*Hm1 + K1*H1 + K2*H2
+        #     else:
+        #         H0 = T0 - (H2 + Hm2 + H1 + Hm1)
+        #         gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
+
+        #     return cp.asnumpy(gamma)
+        def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
             cupy_c = cp.complex64 if use_c64 else cp.complex128
             cupy_f = cp.float32   if use_c64 else cp.float64
 
-            # upload once per call (minimal change version)
-            Jg  = cp.asarray(J,  dtype=cupy_f)
-            J2g = cp.asarray(J2, dtype=cupy_f)
-            Upg = cp.asarray(Up, dtype=cupy_c)
-            u0g = cp.asarray(u0, dtype=cupy_c)
+            # host→device copies for the BIG arrays (J,J2,Up) — do once per call
+            Jg  = cp.asarray(J,  dtype=cupy_f, order='C')
+            J2g = cp.asarray(J2, dtype=cupy_f, order='C')
+            Upg = cp.asarray(Up, dtype=cupy_c, order='C')
 
-            # shared matmuls
-            Ju0 = Jg @ u0g           # (n,)
-            JUp = Jg @ Upg           # (n,P)
+            # create two independent streams
+            s1 = cp.cuda.Stream(non_blocking=True)  # compute stream
+            s2 = cp.cuda.Stream(non_blocking=True)  # H2D stream
 
-            # T0 via two GEMV
-            sum_rowR = JUp.T @ cp.conj(u0g)         # (P,)
-            sum_rowC = cp.conj(Upg).T @ Ju0         # (P,)
+            # (A) kick off the big GEMM on s1
+            with s1:
+                JUp = Jg @ Upg  # (n,P)
+
+            # (B) in parallel, upload the small center-specific things on s2
+            with s2:
+                u0g  = cp.asarray(u0, dtype=cupy_c, order='C')
+                # bath rows are small, still overlap their upload
+                K_m2 = cp.asarray(bath_map[-2.0], dtype=cp.complex128)
+                K_m1 = cp.asarray(bath_map[-1.0], dtype=cp.complex128)
+                K0   = cp.asarray(bath_map[ 0.0], dtype=cp.complex128)
+                K1   = cp.asarray(bath_map[ 1.0], dtype=cp.complex128)
+                K2   = cp.asarray(bath_map[ 2.0], dtype=cp.complex128)
+
+            # make sure both branches are done before using the data
+            s1.synchronize()
+            s2.synchronize()
+
+            # now proceed as usual (you can keep your current math or the fused kernel from (4))
+            Ju0 = Jg @ u0g             # (n,)
+            sum_rowR = JUp.T @ cp.conj(u0g)
+            sum_rowC = cp.conj(Upg).T @ Ju0
             T0 = sum_rowR * sum_rowC
 
-            # one-equality sums (Hadamard + reductions)
-            Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
-            Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g, Upg, cp.conj(JUp), optimize=True)
-
+            # … (either your existing reductions or the fused kernel below)
+            # (for now, keep your simple fused-sum variant)
+            Tac = cp.sum((Ju0*cp.conj(u0g))[:, None] * JUp * cp.conj(Upg), axis=0)
+            Tbd = cp.sum((cp.conj(Ju0)*u0g)[:, None] * Upg * cp.conj(JUp), axis=0)
             Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
             Tbc = (cp.abs(Upg)**2).T @ (cp.abs(Ju0)**2)
 
-            # pair terms
-            Y = u0g[:, None] * Upg                 # (n,P)
-            Z = J2g @ Y                            # (n,P)
+            Y = u0g[:, None] * Upg
+            Z = J2g @ Y
             X = cp.conj(u0g)[:, None] * cp.conj(Upg)
-            E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=True)
+            E_acbd = cp.sum(X * Z, axis=0)
 
             t_b    = J2g @ (cp.abs(u0g)**2)
             E_adbc = (cp.abs(Upg)**2).T @ t_b
 
-            # H buckets
             H2, Hm2 = E_acbd, E_adbc
             H1  = Tac + Tbd - 2.0*E_acbd
             Hm1 = Tad + Tbc - 2.0*E_adbc
-
-            # K rows: convert CPU bath_map -> device only (small)
-            K_m2 = cp.asarray(bath_map[-2.0], dtype=cp.complex128)
-            K_m1 = cp.asarray(bath_map[-1.0], dtype=cp.complex128)
-            K0   = cp.asarray(bath_map[ 0.0], dtype=cp.complex128)
-            K1   = cp.asarray(bath_map[ 1.0], dtype=cp.complex128)
-            K2   = cp.asarray(bath_map[ 2.0], dtype=cp.complex128)
 
             if cp.allclose(K0, 0.0):
                 gamma = K_m2*Hm2 + K_m1*Hm1 + K1*H1 + K2*H2
