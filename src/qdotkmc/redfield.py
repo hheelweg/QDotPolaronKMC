@@ -512,115 +512,6 @@ class Redfield():
 
         return cp.asnumpy(gamma)
 
-    @staticmethod
-    def _build_gamma_plus_backend(J, J2, Up, u0, bath_map, *, prefer_gpu=True, use_c64=False, use_streams=True):
-
-        # Try GPU
-        if prefer_gpu:
-            try:
-                import cupy as cp
-                if cp.cuda.runtime.getDeviceCount() > 0:
-                    # ======= GPU: bit-for-bit same as your known-fast version =======
-                    cupy_c = cp.complex64 if use_c64 else cp.complex128
-                    cupy_f = cp.float32   if use_c64 else cp.float64
-
-                    Jg  = cp.asarray(J,  dtype=cupy_f)
-                    J2g = cp.asarray(J2, dtype=cupy_f)
-                    Upg = cp.asarray(Up, dtype=cupy_c)
-                    u0g = cp.asarray(u0, dtype=cupy_c)
-
-                    Ju0 = Jg @ u0g
-                    JUp = Jg @ Upg
-
-                    sum_rowR = JUp.T @ cp.conj(u0g)
-                    sum_rowC = cp.conj(Upg).T @ Ju0
-                    T0 = sum_rowR * sum_rowC
-
-                    # keep einsum (you found it faster for your sizes)
-                    Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
-                    Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g,   Upg, cp.conj(JUp),  optimize=True)
-
-                    Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
-                    Tbc = (cp.abs(Upg)**2).T @ (cp.abs(Ju0)**2)
-
-                    Y = u0g[:, None] * Upg
-                    Z = J2g @ Y
-                    X = cp.conj(u0g)[:, None] * cp.conj(Upg)
-                    E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=True)
-
-                    t_b    = J2g @ (cp.abs(u0g)**2)
-                    E_adbc = (cp.abs(Upg)**2).T @ t_b
-
-                    H2, Hm2 = E_acbd, E_adbc
-                    H1  = Tac + Tbd - 2.0*E_acbd
-                    Hm1 = Tad + Tbc - 2.0*E_adbc
-
-                    # Match your original dtype for K rows (you used complex128 unconditionally)
-                    K_m2 = cp.asarray(bath_map[-2.0], dtype=cp.complex128)
-                    K_m1 = cp.asarray(bath_map[-1.0], dtype=cp.complex128)
-                    K0   = cp.asarray(bath_map[ 0.0], dtype=cp.complex128)
-                    K1   = cp.asarray(bath_map[ 1.0], dtype=cp.complex128)
-                    K2   = cp.asarray(bath_map[ 2.0], dtype=cp.complex128)
-
-                    if cp.allclose(K0, 0.0):
-                        gamma = K_m2*Hm2 + K_m1*Hm1 + K1*H1 + K2*H2
-                    else:
-                        H0 = T0 - (H2 + Hm2 + H1 + Hm1)
-                        gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
-
-                    return cp.asnumpy(gamma)
-            except Exception:
-                pass  # fall back to CPU
-
-        # ======= CPU: optimized NumPy path (fused reductions) =======
-        import numpy as np
-        np_c = np.complex64 if use_c64 else np.complex128
-        np_f = np.float32   if use_c64 else np.float64
-
-        Jg  = np.asarray(J,  dtype=np_f, order='C')
-        J2g = np.asarray(J2, dtype=np_f, order='C')
-        Upg = np.asarray(Up, dtype=np_c, order='C')
-        u0g = np.asarray(u0, dtype=np_c, order='C')
-
-        Ju0 = Jg @ u0g
-        JUp = Jg @ Upg
-
-        sum_rowR = JUp.T.conj() @ u0g
-        sum_rowC = Upg.conj().T   @ Ju0
-        T0 = sum_rowR * sum_rowC
-
-        Tac = np.sum((Ju0*np.conj(u0g))[:, None] * JUp * np.conj(Upg), axis=0)
-        Tbd = np.sum((np.conj(Ju0)*u0g)[:, None] * Upg * np.conj(JUp), axis=0)
-        Tad = (np.abs(JUp)**2).T @ (np.abs(u0g)**2)
-        Tbc = (np.abs(Upg)**2).T @ (np.abs(Ju0)**2)
-
-        Y = u0g[:, None] * Upg
-        Z = J2g @ Y
-        X = np.conj(u0g)[:, None] * np.conj(Upg)
-        E_acbd = np.sum(X * Z, axis=0)
-
-        t_b    = J2g @ (np.abs(u0g)**2)
-        E_adbc = (np.abs(Upg)**2).T @ t_b
-
-        H2, Hm2 = E_acbd, E_adbc
-        H1  = Tac + Tbd - 2.0*E_acbd
-        Hm1 = Tad + Tbc - 2.0*E_adbc
-
-        # Keep dtype parity with GPU branch
-        K_m2 = np.asarray(bath_map[-2.0], dtype=np.complex128)
-        K_m1 = np.asarray(bath_map[-1.0], dtype=np.complex128)
-        K0   = np.asarray(bath_map[ 0.0], dtype=np.complex128)
-        K1   = np.asarray(bath_map[ 1.0], dtype=np.complex128)
-        K2   = np.asarray(bath_map[ 2.0], dtype=np.complex128)
-
-        if np.allclose(K0, 0.0):
-            gamma = K_m2*Hm2 + K_m1*Hm1 + K1*H1 + K2*H2
-        else:
-            H0 = T0 - (H2 + Hm2 + H1 + Hm1)
-            gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
-
-        return gamma
-
     # obtain redfield rates within box
     def make_redfield(self, *, pol_idxs_global, site_idxs_global, center_global, verbosity = False):
         """
@@ -760,22 +651,13 @@ class Redfield():
 
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
-        # # if loop GPU/CPU switch
-        # if self.use_gpu:
-        #     # run on GPU
-        #     gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
-        # else:
-        #     # run on CPU
-        #     gamma_plus = Redfield._build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
-        # generalized version
-        gamma_plus = Redfield._build_gamma_plus_backend(
-                    J, J2, Up, u0, bath_map,
-                    prefer_gpu=self.use_gpu,    # your flag
-                    use_c64=self.gpu_use_c64    # your flag
-                )
-        
-        #gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
-
+        # if loop GPU/CPU switch
+        if self.use_gpu:
+            # run on GPU
+            gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
+        else:
+            # run on CPU
+            gamma_plus = Redfield._build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
 
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
