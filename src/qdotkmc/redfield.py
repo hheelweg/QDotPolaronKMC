@@ -401,8 +401,8 @@ class Redfield():
 
         #cp = cp
         nu = int(center_global)
-        Wh = self._get_W_abs2_full(self)                  # host
-        L2h = self._ensure_L2_full(self)
+        Wh = self._get_W_abs2_full()                  
+        L2h = self._ensure_L2_full()
 
         # Upload just for this call (no persistent cache needed)
         W  = cp.asarray(Wh,  dtype=cp.float64, order="C")
