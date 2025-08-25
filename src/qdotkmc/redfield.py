@@ -54,6 +54,10 @@ class Redfield():
 
         self._W_abs2_full = None                                    # cache |U|^2 (Ns, Np) float64, C-contig
 
+        self._Wg = None
+        self._L2g = None
+        self._gpu_cache_key = None  # (Ns, Np, id(W_host), id(L2_host)) or a monotonic version
+
         # enable GPU only if user asked and a device exists
         env_wants_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
         self.use_gpu = bool(env_wants_gpu and _gpu_available())
@@ -79,7 +83,6 @@ class Redfield():
     
     def _ensure_WL2_gpu(self):
         """Upload/cached W and L2 on device; return (Wg, L2g, Ns, Np)."""
-        import cupy as cp
         Wh  = self._get_W_abs2_full()
         L2h = self._ensure_L2_full()
         Ns, Np = Wh.shape
