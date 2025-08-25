@@ -117,59 +117,67 @@ class Redfield():
     
     def _top_prefix_by_coverage_gpu(self, values_g, keep_fraction: float):
         #cp = cp
-        # 1) Normalize input
         v = values_g.ravel()
         n = int(v.size)
         if n == 0:
             return np.empty(0, dtype=np.intp)
 
-        # ensure real float dtype and handle NaNs
+        # ensure real float dtype and sanitize NaNs
         if v.dtype.kind != 'f':
             v = v.astype(cp.float64, copy=False)
         v = cp.nan_to_num(v, nan=0.0)
 
-        # 2) Totals & target
         tot = float(cp.sum(v).get())
         if tot <= 0.0:
             return np.empty(0, dtype=np.intp)
 
         keep_fraction = float(keep_fraction)
-        keep_fraction = 0.0 if keep_fraction < 0.0 else (1.0 if keep_fraction > 1.0 else keep_fraction)
+        if keep_fraction <= 0.0:
+            # minimal: take the single largest element
+            i_max = int(cp.argmax(v).get())
+            return np.asarray([i_max], dtype=np.intp)
+
+        if keep_fraction >= 1.0:
+            # everything, sorted descending for determinism
+            idx_all = cp.argsort(-v)
+            return np.asarray(idx_all.get(), dtype=np.intp)
+
         target = keep_fraction * tot
 
         vmax = float(cp.max(v).get())
         if vmax <= 0.0:
             return np.empty(0, dtype=np.intp)
 
-        # 3) Geometric growth on k with argpartition
+        # geometric growth on k
         k = max(1, int(target / vmax))
         k = min(k, n)
 
+        # pre-cast target to DEVICE dtype to satisfy cp.searchsorted
+        # (this avoids the "Only int or ndarray are supported for v" error)
+        target_dev = v.dtype.type(target)
+
         while True:
-            # unsorted top-k
+            # unsorted top-k subset
             idx_topk = cp.argpartition(v, n - k)[-k:]
-            vals_topk = v[idx_topk]
+            vals     = v[idx_topk]
 
-            # sort those descending (deterministic)
-            order_local = cp.argsort(-vals_topk)
-            idx_sorted = idx_topk[order_local]
-            vals_sorted = vals_topk[order_local]
+            # sort that subset descending (deterministic)
+            order    = cp.argsort(-vals)
+            idx_sorted  = idx_topk[order]
+            vals_sorted = vals[order]
 
-            # coverage position
+            # cumulative sum & coverage position
             csum = cp.cumsum(vals_sorted)
-            # cast target to device dtype to avoid fp comparison quirks
-            pos = int(cp.searchsorted(csum, csum.dtype.type(target), side="left").get())
+            pos  = int(cp.searchsorted(csum, target_dev, side="left").get())
 
             if pos < k:
-                # minimal prefix found
                 out = idx_sorted[:pos+1].get()
                 return np.asarray(out, dtype=np.intp)
 
             if k == n:
-                # everything; still return NumPy and deterministic (already sorted)
                 return np.asarray(idx_sorted.get(), dtype=np.intp)
 
-            k = min(n, int(k * 1.8) + 1)
+            k = min(n, int(k*1.8) + 1)
     
     # bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
