@@ -715,11 +715,14 @@ class Redfield():
         # else:
         #     # run on CPU
         #     gamma_plus = Redfield._build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
-        gamma_plus = Redfield._build_gamma_plus_backend(
-                    J, J2, Up, u0, bath_map,
-                    prefer_gpu=self.use_gpu,    # your flag
-                    use_c64=self.gpu_use_c64    # your flag
-                )
+        # generalized version
+        # gamma_plus = Redfield._build_gamma_plus_backend(
+        #             J, J2, Up, u0, bath_map,
+        #             prefer_gpu=self.use_gpu,    # your flag
+        #             use_c64=self.gpu_use_c64    # your flag
+        #         )
+        
+        gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
 
 
         if time_verbose:
