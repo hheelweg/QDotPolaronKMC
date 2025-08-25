@@ -76,6 +76,12 @@ class Redfield():
             W = np.abs(U)**2                 # real
             self._W_abs2_full = np.asarray(W, dtype=np.float64, order='C')
         return self._W_abs2_full
+    
+    def _ensure_L2_full(self):
+        # full-system |J|^2 (your existing cache already helps)
+        Ns = self.ham.Umat.shape[0]
+        L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))
+        return np.asarray(L2, dtype=np.float64, order="C")
         
 
     def _top_prefix_by_coverage_cpu(self, values: np.ndarray, keep_fraction: float) -> np.ndarray:
@@ -313,65 +319,38 @@ class Redfield():
     #     return site_g, pol_g
 
     def select_by_weight(self, center_global: int, *,
-                     theta_site: float,
-                     theta_pol: float,
-                     max_nuprime: Optional[int] = None,
-                     verbose: bool = False):
+                     theta_site: float, theta_pol: float,
+                     max_nuprime: int | None,
+                     verbose: bool):
 
         nu = int(center_global)
-        W  = self._get_W_abs2_full()                               # (Ns,Np) float64
+        W  = self._get_W_abs2_full(self)          # (Ns,Np) float64
+        L2 = self._ensure_L2_full(self)              # (Ns,Ns) float64, C-contig
         Ns, Np = W.shape
 
-        # Full-system |J|^2 once (your existing cache); ensure float64, C-contig
-        L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))
-        L2 = np.asarray(L2, dtype=np.float64, order='C')
-
-        # (1) Destination selection by S-coverage
-        w0 = W[:, nu]                                              # (Ns,)
-        t0 = L2 @ w0                                               # (Ns,)
-        S  = W.T @ t0                                              # (Np,)
+        # (1) ν' selection by S coverage
+        w0 = W[:, nu]                           # (Ns,)
+        t0 = L2 @ w0                            # (Ns,)
+        S  = W.T @ t0                           # (Np,)
         S[nu] = 0.0
 
-        # Optionally pre-cap to top-K (fast) before coverage
-        if max_nuprime is not None:
-            K = int(max_nuprime)
-            if K < Np-1:
-                topK = np.argpartition(S, Np-1-K)[-(K+1):]
-                topK = topK[topK != nu]
-                topK = topK[np.argsort(-S[topK])]
-                S_view = S[topK]
-                totS = float(S_view.sum())
-                if totS > 0.0:
-                    csum = np.cumsum(S_view)
-                    k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol)) * totS, side='left')) + 1
-                    kept = topK[:k_pol]
-                else:
-                    kept = np.empty(0, dtype=np.intp)
-            else:
-                kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
-                kept = kept[kept != nu]
-                kept = kept[np.argsort(-S[kept])]
-        else:
-            kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
-            kept = kept[kept != nu]
-            kept = kept[np.argsort(-S[kept])]  # deterministic order
-
+        kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
+        kept = kept[kept != nu]
+        if max_nuprime is not None and kept.size > max_nuprime:
+            kept = kept[np.argsort(-S[kept])[:max_nuprime]]
+        # keep descending order for determinism
+        kept = kept[np.argsort(-S[kept])]
         pol_g = np.concatenate(([nu], kept)).astype(np.intp)
-        if verbose:
-            cov_pol = S[kept].sum() / (S.sum() + 1e-300)
-            print(f"[select] nu' kept: {len(kept)}/{Np-1}  S-coverage={cov_pol:.3f}")
 
-        # (2) Site selection by s-coverage
+        # (2) site selection by s coverage
         if kept.size:
-            wD = W[:, kept].sum(axis=1)                            # (Ns,)
+            wD = W[:, kept].sum(axis=1)         # (Ns,)
             tD = L2 @ wD
             s  = w0 * tD + wD * t0
         else:
             s  = np.zeros(Ns, dtype=np.float64)
 
-        s_sum = float(s.sum())
-        if s_sum <= 0.0:
-            # conservative fallback: union of mass cores
+        if float(s.sum()) <= 0.0:
             site_set = set(utils._mass_core_by_theta(w0, theta_site).tolist())
             for j in kept:
                 site_set |= set(utils._mass_core_by_theta(W[:, j], theta_site).tolist())
@@ -381,10 +360,12 @@ class Redfield():
             return site_g, pol_g
 
         kept_sites = self._top_prefix_by_coverage_cpu(s, 1.0 - float(theta_site))
-        site_g = np.sort(kept_sites.astype(np.intp))
+        site_g = np.sort(kept_sites.astype(_np.intp))
 
         if verbose:
-            cov_sites = s[kept_sites].sum() / (s_sum + 1e-300)
+            cov_pol   = S[kept].sum() / (S.sum() + 1e-300)
+            cov_sites = s[site_g].sum() / (s.sum() + 1e-300)
+            print(f"[select] nu' kept: {len(kept)}/{Np-1}  S-coverage={cov_pol:.3f}")
             print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage={cov_sites:.3f}")
 
         return site_g, pol_g
