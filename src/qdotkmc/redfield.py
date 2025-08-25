@@ -517,47 +517,58 @@ class Redfield():
         bx = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
         xp = bx.xp
 
-        # Upload/convert with correct dtypes & layout
+        # dtypes & contiguous uploads
         Jg  = bx.asarray_f(J)
         J2g = bx.asarray_f(J2)
         Upg = bx.asarray_c(Up)
-        # overlapped copy for u0 + bath rows if GPU streams are enabled
-        s1 = bx.Stream()
-        s2 = bx.Stream()
-        with s1:
-            JUp = bx.matmul(Jg, Upg)       # (n,P)
-        with s2:
-            u0g  = bx.asarray_c(u0)
-            K_m2 = bx.asarray_c(bath_map[-2.0])
-            K_m1 = bx.asarray_c(bath_map[-1.0])
-            K0   = bx.asarray_c(bath_map[ 0.0])
-            K1   = bx.asarray_c(bath_map[ 1.0])
-            K2   = bx.asarray_c(bath_map[ 2.0])
-        s1.synchronize(); s2.synchronize()
+        u0g = bx.asarray_c(u0)
 
-        Ju0 = bx.matmul(Jg, u0g)           # (n,)
-        sum_rowR = bx.matmul(JUp.T, bx.conj(u0g))     # (P,)
-        sum_rowC = bx.matmul(bx.conj(Upg).T, Ju0)     # (P,)
+        # shared matmuls
+        Ju0 = Jg @ u0g            # (n,)
+        JUp = Jg @ Upg            # (n,P)
+
+        # T0 via two GEMV
+        sum_rowR = JUp.T @ xp.conj(u0g)      # (P,)
+        sum_rowC = xp.conj(Upg).T @ Ju0      # (P,)
         T0 = sum_rowR * sum_rowC
 
-        # fused reductions (works on CPU or GPU)
-        Tac = bx.sum_axis0( (Ju0*bx.conj(u0g))[:,None] * JUp * bx.conj(Upg) )
-        Tbd = bx.sum_axis0( (bx.conj(Ju0)*u0g)[:,None] * Upg * bx.conj(JUp) )
-        Tad = bx.matmul( (xp.abs(JUp)**2).T, (xp.abs(u0g)**2) )
-        Tbc = bx.matmul( (xp.abs(Upg)**2).T, (xp.abs(Ju0)**2) )
+        # -------- differences here ----------
+        if bx.is_gpu:
+            # Use einsum on GPU (faster for your sizes even without cuTENSOR)
+            Tac = xp.einsum('i,ip,ip->p', Ju0*xp.conj(u0g), JUp, xp.conj(Upg), optimize=True)
+            Tbd = xp.einsum('i,ip,ip->p', xp.conj(Ju0)*u0g,  Upg, xp.conj(JUp), optimize=True)
+        else:
+            # Fused elementwise is faster on CPU
+            Tac = xp.sum((Ju0*xp.conj(u0g))[:, None] * JUp * xp.conj(Upg), axis=0)
+            Tbd = xp.sum((xp.conj(Ju0)*u0g)[:, None] * Upg * xp.conj(JUp), axis=0)
+
+        # Tad/Tbc as GEMV/GEMM (good on both)
+        Tad = (xp.abs(JUp)**2).T @ (xp.abs(u0g)**2)
+        Tbc = (xp.abs(Upg)**2).T @ (xp.abs(Ju0)**2)
 
         # pair terms
-        Y = u0g[:, None] * Upg
-        Z = bx.matmul(J2g, Y)
-        X = bx.conj(u0g)[:, None] * bx.conj(Upg)
-        E_acbd = bx.sum_axis0(X * Z)
+        Y = u0g[:, None] * Upg                # (n,P)
+        Z = J2g @ Y                           # (n,P)
+        X = xp.conj(u0g)[:, None] * xp.conj(Upg)
 
-        t_b    = bx.matmul(J2g, (xp.abs(u0g)**2))
-        E_adbc = bx.matmul((xp.abs(Upg)**2).T, t_b)
+        if bx.is_gpu:
+            E_acbd = xp.einsum('ip,ip->p', X, Z, optimize=True)
+        else:
+            E_acbd = xp.sum(X * Z, axis=0)
 
+        t_b    = J2g @ (xp.abs(u0g)**2)
+        E_adbc = (xp.abs(Upg)**2).T @ t_b
+
+        # H buckets and K rows
         H2, Hm2 = E_acbd, E_adbc
         H1  = Tac + Tbd - 2.0*E_acbd
         Hm1 = Tad + Tbc - 2.0*E_adbc
+
+        K_m2 = bx.asarray_c(bath_map[-2.0])
+        K_m1 = bx.asarray_c(bath_map[-1.0])
+        K0   = bx.asarray_c(bath_map[ 0.0])
+        K1   = bx.asarray_c(bath_map[ 1.0])
+        K2   = bx.asarray_c(bath_map[ 2.0])
 
         if xp.allclose(K0, 0.0):
             gamma = K_m2*Hm2 + K_m1*Hm1 + K1*H1 + K2*H2
@@ -565,8 +576,6 @@ class Redfield():
             H0 = T0 - (H2 + Hm2 + H1 + Hm1)
             gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
 
-        bx.sync()
-        # return to host ndarray (np)
         return bx.to_host(gamma)
 
     # obtain redfield rates within box
@@ -716,13 +725,13 @@ class Redfield():
         #     # run on CPU
         #     gamma_plus = Redfield._build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
         # generalized version
-        # gamma_plus = Redfield._build_gamma_plus_backend(
-        #             J, J2, Up, u0, bath_map,
-        #             prefer_gpu=self.use_gpu,    # your flag
-        #             use_c64=self.gpu_use_c64    # your flag
-        #         )
+        gamma_plus = Redfield._build_gamma_plus_backend(
+                    J, J2, Up, u0, bath_map,
+                    prefer_gpu=self.use_gpu,    # your flag
+                    use_c64=self.gpu_use_c64    # your flag
+                )
         
-        gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
+        #gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
 
 
         if time_verbose:
