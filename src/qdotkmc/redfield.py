@@ -77,6 +77,25 @@ class Redfield():
             self._W_abs2_full = np.asarray(W, dtype=np.float64, order='C')
         return self._W_abs2_full
     
+    def _ensure_WL2_gpu(self):
+        """Upload/cached W and L2 on device; return (Wg, L2g, Ns, Np)."""
+        import cupy as cp
+        Wh  = self._get_W_abs2_full()
+        L2h = self._ensure_L2_full()
+        Ns, Np = Wh.shape
+        key = (Ns, Np, int(Wh.__array_interface__['data'][0]), int(L2h.__array_interface__['data'][0]))
+        if self._gpu_cache_key != key:
+            # one-time pool setup is cheap but you can move to module init
+            try:
+                cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
+                cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+            except Exception:
+                pass
+            self._Wg = cp.asarray(Wh,  dtype=cp.float64, order="C")
+            self._L2g = cp.asarray(L2h, dtype=cp.float64, order="C")
+            self._gpu_cache_key = key
+        return self._Wg, self._L2g, Ns, Np
+    
     def _ensure_L2_full(self):
         # full-system |J|^2 (your existing cache already helps)
         Ns = self.ham.Umat.shape[0]
@@ -411,15 +430,8 @@ class Redfield():
                      max_nuprime: Optional[int] = None,
                      verbose: bool):
 
-        #cp = cp
         nu = int(center_global)
-        Wh = self._get_W_abs2_full()                  
-        L2h = self._ensure_L2_full()
-
-        # Upload just for this call (no persistent cache needed)
-        W  = cp.asarray(Wh,  dtype=cp.float64, order="C")
-        L2 = cp.asarray(L2h, dtype=cp.float64, order="C")
-        Ns, Np = Wh.shape
+        W, L2, Ns, Np = self._ensure_WL2_gpu()   # <-- cached device arrays
 
         # (1) ν' selection
         w0 = W[:, nu]
@@ -427,28 +439,44 @@ class Redfield():
         S  = W.T @ t0
         S[nu] = 0.0
 
-        kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
-        kept = kept[kept != nu]
-        if max_nuprime is not None and kept.size > max_nuprime:
-            # rank within kept by S (device→host copy only for the small slice)
-            ord2 = np.argsort(-np.asarray(S.get())[kept])[:max_nuprime]
-            kept = kept[ord2]
+        S_host = cp.asnumpy(S)  # one host copy for ordering/diagnostics
+        # Pre-cap if max_nuprime set to shrink coverage work
+        if max_nuprime is not None and max_nuprime < Np-1:
+            cand = cp.argpartition(S, -(max_nuprime+1))[-(max_nuprime+1):]
+            cand = cp.asnumpy(cand)
+            cand = cand[cand != nu]
+            cand = cand[np.argsort(-S_host[cand])]
+            S_view = S_host[cand]
+            csum = np.cumsum(S_view)
+            k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol))*S_view.sum(), 'left')) + 1
+            kept = cand[:k_pol]
+        else:
+            kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
+            kept = kept[kept != nu]
+
         # deterministic order
-        kept = kept[np.argsort(-np.asarray(S.get())[kept])]
+        kept = kept[np.argsort(-S_host[kept])]
         pol_g = np.concatenate(([nu], kept)).astype(np.intp)
 
-        # (2) sites
-        if kept.size:
-            wD = cp.sum(W[:, kept], axis=1)
-            tD = L2 @ wD
-            s  = w0 * tD + wD * t0
+        # (2) sites: choose sum strategy based on kept size
+        k = kept.size
+        if k == 0:
+            wD = cp.zeros(Ns, dtype=cp.float64)
+        elif k < (Np // 16):
+            wD = W[:, kept].sum(axis=1)          # small gather is fine
         else:
-            s  = cp.zeros(Ns, dtype=cp.float64)
+            mask = cp.zeros((Np,), dtype=cp.float64)
+            mask[kept] = 1.0
+            wD = W @ mask                        # coalesced GEMV
 
-        if float(cp.sum(s).get()) <= 0.0:
-            site_set = set(utils._mass_core_by_theta(Wh[:, nu], theta_site).tolist())
+        tD = L2 @ wD
+        s  = w0 * tD + wD * t0
+
+        s_host = cp.asnumpy(s)
+        if float(s_host.sum()) <= 0.0:
+            site_set = set(utils._mass_core_by_theta(cp.asnumpy(W)[:, nu], theta_site).tolist())
             for j in kept:
-                site_set |= set(utils._mass_core_by_theta(Wh[:, j], theta_site).tolist())
+                site_set |= set(utils._mass_core_by_theta(cp.asnumpy(W)[:, j], theta_site).tolist())
             site_g = np.array(sorted(site_set), dtype=np.intp)
             if verbose:
                 print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
@@ -458,8 +486,6 @@ class Redfield():
         site_g = np.sort(kept_sites.astype(np.intp))
 
         if verbose:
-            S_host = np.asarray(S.get())
-            s_host = np.asarray(s.get())
             cov_pol   = S_host[kept].sum() / (S_host.sum() + 1e-300)
             cov_sites = s_host[site_g].sum() / (s_host.sum() + 1e-300)
             print(f"[select] nu' kept: {len(kept)}/{Np-1}  S-coverage={cov_pol:.3f}")
