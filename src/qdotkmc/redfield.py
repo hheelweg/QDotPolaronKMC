@@ -116,68 +116,39 @@ class Redfield():
             k = min(v.size, int(k*1.8)+1)
     
     def _top_prefix_by_coverage_gpu(self, values_g, keep_fraction: float):
-        #cp = cp
-        v = values_g.ravel()
-        n = int(v.size)
-        if n == 0:
-            return np.empty(0, dtype=np.intp)
-
-        # ensure real float dtype and sanitize NaNs
+        # --- change #1: normalize to 1D CuPy float array ---
+        v = cp.asarray(values_g).ravel()
         if v.dtype.kind != 'f':
             v = v.astype(cp.float64, copy=False)
-        v = cp.nan_to_num(v, nan=0.0)
+        v = cp.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
 
         tot = float(cp.sum(v).get())
         if tot <= 0.0:
             return np.empty(0, dtype=np.intp)
 
-        keep_fraction = float(keep_fraction)
-        if keep_fraction <= 0.0:
-            # minimal: take the single largest element
-            i_max = int(cp.argmax(v).get())
-            return np.asarray([i_max], dtype=np.intp)
-
-        if keep_fraction >= 1.0:
-            # everything, sorted descending for determinism
-            idx_all = cp.argsort(-v)
-            return np.asarray(idx_all.get(), dtype=np.intp)
-
-        target = keep_fraction * tot
-
+        target = float(keep_fraction) * tot
         vmax = float(cp.max(v).get())
         if vmax <= 0.0:
             return np.empty(0, dtype=np.intp)
 
-        # geometric growth on k
-        k = max(1, int(target / vmax))
-        k = min(k, n)
-
-        # pre-cast target to DEVICE dtype to satisfy cp.searchsorted
-        # (this avoids the "Only int or ndarray are supported for v" error)
-        target_dev = v.dtype.type(target)
+        n = int(v.size)
+        k = max(1, int(target / vmax)); k = min(k, n)
 
         while True:
-            # unsorted top-k subset
             idx_topk = cp.argpartition(v, n - k)[-k:]
             vals     = v[idx_topk]
-
-            # sort that subset descending (deterministic)
             order    = cp.argsort(-vals)
-            idx_sorted  = idx_topk[order]
-            vals_sorted = vals[order]
+            idx_sorted = idx_topk[order]
+            csum = cp.cumsum(vals[order])
 
-            # cumulative sum & coverage position
-            csum = cp.cumsum(vals_sorted)
-            pos  = int(cp.searchsorted(csum, target_dev, side="left").get())
+            # --- change #2: pass a CuPy array to searchsorted ---
+            target_dev = cp.asarray([target], dtype=csum.dtype)   # shape (1,)
+            pos_dev = cp.searchsorted(csum, target_dev, side="left")  # shape (1,)
+            pos = int(pos_dev.get()[0])
 
-            if pos < k:
-                out = idx_sorted[:pos+1].get()
-                return np.asarray(out, dtype=np.intp)
-
-            if k == n:
-                return np.asarray(idx_sorted.get(), dtype=np.intp)
-
-            k = min(n, int(k*1.8) + 1)
+            if pos < k or k == n:
+                return np.asarray(idx_sorted[:pos+1].get(), dtype=np.intp)
+            k = min(n, int(k*1.8)+1)
     
     # bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
