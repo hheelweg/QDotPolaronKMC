@@ -115,6 +115,29 @@ class Redfield():
                 return idx_sorted.astype(np.intp)
             k = min(v.size, int(k*1.8)+1)
     
+    def _top_prefix_by_coverage_gpu(self, values_g, keep_fraction: float):
+        cp = cp
+        v = values_g
+        tot = float(cp.sum(v).get())
+        if tot <= 0.0:
+            return np.empty(0, dtype=np.intp)
+        target = keep_fraction * tot
+        vmax = float(cp.max(v).get())
+        if vmax <= 0.0:
+            return np.empty(0, dtype=np.intp)
+        n = v.size
+        k = max(1, int(target / vmax)); k = min(k, n)
+        while True:
+            idx_topk = cp.argpartition(v, n - k)[-k:]
+            vals     = v[idx_topk]
+            order    = cp.argsort(-vals)
+            idx_sorted = idx_topk[order]
+            csum = cp.cumsum(vals[order])
+            pos  = int(cp.searchsorted(csum, target, side="left").get())
+            if pos < k or k == n:
+                return np.asarray(idx_sorted[:pos+1].get(), dtype=np.intp)
+            k = min(n, int(k*1.8)+1)
+    
     # bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
     def _corr_row(self, lam, center_global, pol_g):
@@ -318,14 +341,14 @@ class Redfield():
 
     #     return site_g, pol_g
 
-    def select_by_weight(self, center_global: int, *,
+    def select_by_weight_cpu(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
                      max_nuprime: Optional[int] = None,
                      verbose: bool):
 
         nu = int(center_global)
-        W  = self._get_W_abs2_full()          # (Ns,Np) float64
-        L2 = self._ensure_L2_full()              # (Ns,Ns) float64, C-contig
+        W  = self._get_W_abs2_full()            # (Ns,Np) float64
+        L2 = self._ensure_L2_full()             # (Ns,Ns) float64, C-contig
         Ns, Np = W.shape
 
         # (1) ν' selection by S coverage
@@ -365,6 +388,68 @@ class Redfield():
         if verbose:
             cov_pol   = S[kept].sum() / (S.sum() + 1e-300)
             cov_sites = s[site_g].sum() / (s.sum() + 1e-300)
+            print(f"[select] nu' kept: {len(kept)}/{Np-1}  S-coverage={cov_pol:.3f}")
+            print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage={cov_sites:.3f}")
+
+        return site_g, pol_g
+
+
+    def select_by_weight_gpu(self, center_global: int, *,
+                     theta_site: float, theta_pol: float,
+                     max_nuprime: int | None,
+                     verbose: bool):
+
+        cp = cp
+        nu = int(center_global)
+        Wh = self._get_W_abs2_full(self)                  # host
+        L2h = self._ensure_L2_full(self)
+
+        # Upload just for this call (no persistent cache needed)
+        W  = cp.asarray(Wh,  dtype=cp.float64, order="C")
+        L2 = cp.asarray(L2h, dtype=cp.float64, order="C")
+        Ns, Np = Wh.shape
+
+        # (1) ν' selection
+        w0 = W[:, nu]
+        t0 = L2 @ w0
+        S  = W.T @ t0
+        S[nu] = 0.0
+
+        kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
+        kept = kept[kept != nu]
+        if max_nuprime is not None and kept.size > max_nuprime:
+            # rank within kept by S (device→host copy only for the small slice)
+            ord2 = np.argsort(-np.asarray(S.get())[kept])[:max_nuprime]
+            kept = kept[ord2]
+        # deterministic order
+        kept = kept[np.argsort(-np.asarray(S.get())[kept])]
+        pol_g = np.concatenate(([nu], kept)).astype(np.intp)
+
+        # (2) sites
+        if kept.size:
+            wD = cp.sum(W[:, kept], axis=1)
+            tD = L2 @ wD
+            s  = w0 * tD + wD * t0
+        else:
+            s  = cp.zeros(Ns, dtype=cp.float64)
+
+        if float(cp.sum(s).get()) <= 0.0:
+            site_set = set(utils._mass_core_by_theta(Wh[:, nu], theta_site).tolist())
+            for j in kept:
+                site_set |= set(utils._mass_core_by_theta(Wh[:, j], theta_site).tolist())
+            site_g = np.array(sorted(site_set), dtype=np.intp)
+            if verbose:
+                print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
+            return site_g, pol_g
+
+        kept_sites = self._top_prefix_by_coverage_gpu(s, 1.0 - float(theta_site))
+        site_g = np.sort(kept_sites.astype(np.intp))
+
+        if verbose:
+            S_host = np.asarray(S.get())
+            s_host = np.asarray(s.get())
+            cov_pol   = S_host[kept].sum() / (S_host.sum() + 1e-300)
+            cov_sites = s_host[site_g].sum() / (s_host.sum() + 1e-300)
             print(f"[select] nu' kept: {len(kept)}/{Np-1}  S-coverage={cov_pol:.3f}")
             print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage={cov_sites:.3f}")
 
