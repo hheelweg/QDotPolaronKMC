@@ -117,7 +117,7 @@ class Redfield():
     
     def _top_prefix_by_coverage_gpu(self, values_g, keep_fraction: float):
         #cp = cp
-        v = values_g
+        v = values_g.ravel()
         tot = float(cp.sum(v).get())
         if tot <= 0.0:
             return np.empty(0, dtype=np.intp)
