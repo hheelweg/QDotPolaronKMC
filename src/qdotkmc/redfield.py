@@ -324,8 +324,8 @@ class Redfield():
                      verbose: bool):
 
         nu = int(center_global)
-        W  = self._get_W_abs2_full(self)          # (Ns,Np) float64
-        L2 = self._ensure_L2_full(self)              # (Ns,Ns) float64, C-contig
+        W  = self._get_W_abs2_full()          # (Ns,Np) float64
+        L2 = self._ensure_L2_full()              # (Ns,Ns) float64, C-contig
         Ns, Np = W.shape
 
         # (1) ν' selection by S coverage
@@ -360,7 +360,7 @@ class Redfield():
             return site_g, pol_g
 
         kept_sites = self._top_prefix_by_coverage_cpu(s, 1.0 - float(theta_site))
-        site_g = np.sort(kept_sites.astype(_np.intp))
+        site_g = np.sort(kept_sites.astype(np.intp))
 
         if verbose:
             cov_pol   = S[kept].sum() / (S.sum() + 1e-300)
