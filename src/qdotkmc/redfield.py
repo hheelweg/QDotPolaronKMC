@@ -387,8 +387,71 @@ class Redfield():
 
         return site_g, pol_g
 
+    # function for computing 𝛾_+(𝜈') (exact, closed-form λ-contraction)
+    # (a) for execution on CPU (np-based)
+    @staticmethod
+    def _build_gamma_plus_cpu(J, J2, Up, u0, bath_map):
+        n, P = Up.shape
+        Upc  = Up.conj()
+
+        # shared matmuls
+        Ju0 = J @ u0            # (n,)
+        JUp = J @ Up            # (n,P)
+
+        # row/col sums
+        rowR = (u0.conj()[:, None]) * JUp          # (n,P)
+        colR = (Ju0.conj()[:, None]) * Up          # (n,P)
+        rowC = Upc * Ju0[:, None]                  # (n,P)
+        colC = (u0[:, None]) * JUp.conj()          # (n,P)  # uses conj(JUp), avoids JUpc matmul
+
+        # this builds R_{ab,𝜈'} = J_{ab} conj(U_{a𝜈}) U_{b𝜈'}
+        # and C_{ab,𝜈'} = J_{ab} conj(U_{a𝜈'}) U_{b𝜈}
+
+        # compute the full unconstrained sum T0
+        sum_rowR = rowR.sum(axis=0)                # (P,)
+        sum_rowC = rowC.sum(axis=0)                # (P,)
+        T0  = sum_rowR * sum_rowC
+        # sums with one equality enforced (i.e. Tac has a=c, etc.)
+        Tac = (rowR * rowC).sum(axis=0)            # ac
+        Tbd = (colR * colC).sum(axis=0)            # bd
+        Tad = (rowR * colC).sum(axis=0)            # ad
+        Tbc = (colR * rowC).sum(axis=0)            # bc
+
+        # build Tpair (a = c & b = d) and (a = d & c = b)
+        # pair buckets via one matmul + a couple of elementwise ops
+        U0Up = u0[None, :] * Up.T                   # (P,n)   target vector batch (per p)
+        Z    = (J2 @ U0Up.T)                        # (n,P)
+        V    = u0.conj()[:, None] * Upc             # (n,P)
+        Tpair  = (V * Z).sum(axis=0)                # (P,)  -> ac & bd
+
+        Au0    = np.abs(u0)**2                      # (n,)
+        AUp    = (np.abs(Up)**2)                    # (n,P)
+        t_b    = J2 @ Au0                           # (n,)
+        Tcross = (AUp.T @ t_b)                      # (P,)  -> ad & bc
+
+        # renaming
+        E_ac, E_bd, E_ad, E_bc = Tac, Tbd, Tad, Tbc
+        E_acbd  = Tpair
+        E_adbc  = Tcross
+        # compute terms H_λ(𝜈') that are contracted with each K_λ(ω_{𝜈'𝜈}), i.e.
+        # one term for each λ ∈ {-2,-1,0,1,2}, included Möbius inclusion-exclusion
+        H2   = E_acbd
+        Hm2  = E_adbc
+        H1   = E_ac + E_bd - 2.0 * E_acbd
+        Hm1  = E_ad + E_bc - 2.0 * E_adbc
+        H0   = T0 - (H2 + Hm2 + H1 + Hm1)
+
+        # compute 𝛾_+(𝜈') = ∑_λ K_λ(ω_{𝜈'𝜈})H_λ(𝜈') based on Eq. (14)
+        # with ∑ over λ. 
+        return (bath_map[-2.0] * Hm2
+                + bath_map[-1.0] * Hm1
+                + bath_map[ 0.0] * H0
+                + bath_map[ 1.0] * H1
+                + bath_map[ 2.0] * H2)
+
     # (b) for execution on GPU (cp-based)
-    def _build_gamma_plus_gpu(self, J, J2, Up, u0, bath_map, *, use_c64=False):
+    @staticmethod
+    def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
 
         # dtypes (stay in 128-bit by default for accuracy)
         cupy_c = cp.complex64 if use_c64 else cp.complex128
@@ -582,76 +645,15 @@ class Redfield():
         if time_verbose:
             print('time(site→eig rows/cols)', time.time() - t1, flush=True)
 
-        # function for computing 𝛾_+(𝜈') (exact, closed-form λ-contraction)
-        # (a) for execution on CPU (np-based)
-        def _build_gamma_plus_cpu(J, J2, Up, u0, bath_map):
-            n, P = Up.shape
-            Upc  = Up.conj()
 
-            # shared matmuls
-            Ju0 = J @ u0            # (n,)
-            JUp = J @ Up            # (n,P)
-
-            # row/col sums
-            rowR = (u0.conj()[:, None]) * JUp          # (n,P)
-            colR = (Ju0.conj()[:, None]) * Up          # (n,P)
-            rowC = Upc * Ju0[:, None]                  # (n,P)
-            colC = (u0[:, None]) * JUp.conj()          # (n,P)  # uses conj(JUp), avoids JUpc matmul
-
-            # this builds R_{ab,𝜈'} = J_{ab} conj(U_{a𝜈}) U_{b𝜈'}
-            # and C_{ab,𝜈'} = J_{ab} conj(U_{a𝜈'}) U_{b𝜈}
-
-            # compute the full unconstrained sum T0
-            sum_rowR = rowR.sum(axis=0)                # (P,)
-            sum_rowC = rowC.sum(axis=0)                # (P,)
-            T0  = sum_rowR * sum_rowC
-            # sums with one equality enforced (i.e. Tac has a=c, etc.)
-            Tac = (rowR * rowC).sum(axis=0)            # ac
-            Tbd = (colR * colC).sum(axis=0)            # bd
-            Tad = (rowR * colC).sum(axis=0)            # ad
-            Tbc = (colR * rowC).sum(axis=0)            # bc
-
-            # build Tpair (a = c & b = d) and (a = d & c = b)
-            # pair buckets via one matmul + a couple of elementwise ops
-            U0Up = u0[None, :] * Up.T                   # (P,n)   target vector batch (per p)
-            Z    = (J2 @ U0Up.T)                        # (n,P)
-            V    = u0.conj()[:, None] * Upc             # (n,P)
-            Tpair  = (V * Z).sum(axis=0)                # (P,)  -> ac & bd
-
-            Au0    = np.abs(u0)**2                      # (n,)
-            AUp    = (np.abs(Up)**2)                    # (n,P)
-            t_b    = J2 @ Au0                           # (n,)
-            Tcross = (AUp.T @ t_b)                      # (P,)  -> ad & bc
-
-            # renaming
-            E_ac, E_bd, E_ad, E_bc = Tac, Tbd, Tad, Tbc
-            E_acbd  = Tpair
-            E_adbc  = Tcross
-            # compute terms H_λ(𝜈') that are contracted with each K_λ(ω_{𝜈'𝜈}), i.e.
-            # one term for each λ ∈ {-2,-1,0,1,2}, included Möbius inclusion-exclusion
-            H2   = E_acbd
-            Hm2  = E_adbc
-            H1   = E_ac + E_bd - 2.0 * E_acbd
-            Hm1  = E_ad + E_bc - 2.0 * E_adbc
-            H0   = T0 - (H2 + Hm2 + H1 + Hm1)
-
-            # compute 𝛾_+(𝜈') = ∑_λ K_λ(ω_{𝜈'𝜈})H_λ(𝜈') based on Eq. (14)
-            # with ∑ over λ. 
-            return (bath_map[-2.0] * Hm2
-                    + bath_map[-1.0] * Hm1
-                    + bath_map[ 0.0] * H0
-                    + bath_map[ 1.0] * H1
-                    + bath_map[ 2.0] * H2)
-
-        
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
         if self.use_gpu:
             # run on GPU
-            gamma_plus = self._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
+            gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
         else:
             # run on CPU
-            gamma_plus = _build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
+            gamma_plus = Redfield._build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
         if time_verbose:
             print('time(gamma accumulation)', time.time() - t2, flush=True)
 
