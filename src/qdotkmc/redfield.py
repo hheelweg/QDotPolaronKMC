@@ -117,26 +117,59 @@ class Redfield():
     
     def _top_prefix_by_coverage_gpu(self, values_g, keep_fraction: float):
         #cp = cp
+        # 1) Normalize input
         v = values_g.ravel()
+        n = int(v.size)
+        if n == 0:
+            return np.empty(0, dtype=np.intp)
+
+        # ensure real float dtype and handle NaNs
+        if v.dtype.kind != 'f':
+            v = v.astype(cp.float64, copy=False)
+        v = cp.nan_to_num(v, nan=0.0)
+
+        # 2) Totals & target
         tot = float(cp.sum(v).get())
         if tot <= 0.0:
             return np.empty(0, dtype=np.intp)
+
+        keep_fraction = float(keep_fraction)
+        keep_fraction = 0.0 if keep_fraction < 0.0 else (1.0 if keep_fraction > 1.0 else keep_fraction)
         target = keep_fraction * tot
+
         vmax = float(cp.max(v).get())
         if vmax <= 0.0:
             return np.empty(0, dtype=np.intp)
-        n = v.size
-        k = max(1, int(target / vmax)); k = min(k, n)
+
+        # 3) Geometric growth on k with argpartition
+        k = max(1, int(target / vmax))
+        k = min(k, n)
+
         while True:
+            # unsorted top-k
             idx_topk = cp.argpartition(v, n - k)[-k:]
-            vals     = v[idx_topk]
-            order    = cp.argsort(-vals)
-            idx_sorted = idx_topk[order]
-            csum = cp.cumsum(vals[order])
-            pos  = int(cp.searchsorted(csum, target, side="left").get())
-            if pos < k or k == n:
-                return np.asarray(idx_sorted[:pos+1].get(), dtype=np.intp)
-            k = min(n, int(k*1.8)+1)
+            vals_topk = v[idx_topk]
+
+            # sort those descending (deterministic)
+            order_local = cp.argsort(-vals_topk)
+            idx_sorted = idx_topk[order_local]
+            vals_sorted = vals_topk[order_local]
+
+            # coverage position
+            csum = cp.cumsum(vals_sorted)
+            # cast target to device dtype to avoid fp comparison quirks
+            pos = int(cp.searchsorted(csum, csum.dtype.type(target), side="left").get())
+
+            if pos < k:
+                # minimal prefix found
+                out = idx_sorted[:pos+1].get()
+                return np.asarray(out, dtype=np.intp)
+
+            if k == n:
+                # everything; still return NumPy and deterministic (already sorted)
+                return np.asarray(idx_sorted.get(), dtype=np.intp)
+
+            k = min(n, int(k * 1.8) + 1)
     
     # bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
