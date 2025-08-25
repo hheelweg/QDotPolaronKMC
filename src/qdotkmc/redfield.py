@@ -396,7 +396,7 @@ class Redfield():
 
     def select_by_weight_gpu(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
-                     max_nuprime: int | None,
+                     max_nuprime: Optional[int] = None,
                      verbose: bool):
 
         cp = cp
