@@ -64,7 +64,7 @@ class Redfield():
             cp.cuda.set_allocator(pool.malloc)
         
         # TODO : what is this for? add explanation
-        self.gpu_use_c64 = False # (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
+        self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
         print('use GPU64:', self.gpu_use_c64)
 
     
