@@ -320,7 +320,7 @@ class Redfield():
 
     def select_by_weight(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
-                     max_nuprime: int | None,
+                     max_nuprime: Optional[int] = None,
                      verbose: bool):
 
         nu = int(center_global)
