@@ -78,10 +78,9 @@ class Redfield():
         return self._W_abs2_full
         
 
-    def _top_prefix_by_coverage(self, values: np.ndarray, keep_fraction: float) -> np.ndarray:
+    def _top_prefix_by_coverage_cpu(self, values: np.ndarray, keep_fraction: float) -> np.ndarray:
         """
-        Minimal-size subset indices whose cumulative sum >= keep_fraction*sum(values),
-        prioritizing larger entries. Same result as full sort+prefix, but faster.
+        Add explanation
         """
         v = np.asarray(values, dtype=np.float64)
         total = float(v.sum())
@@ -190,8 +189,8 @@ class Redfield():
 
         # center must remain inside pol_g (since it came from the box)
         assert center_global in pol_g, (
-            "center_global not in pol_idxs_global after box selection; "
-            "ensure the box always includes the center polaron."
+            "Center_global not in pol_idxs_global after box selection. "
+            "Ensure the box always includes the center polaron."
         )
 
         return pol_g, site_g
@@ -349,11 +348,11 @@ class Redfield():
                 else:
                     kept = np.empty(0, dtype=np.intp)
             else:
-                kept = self._top_prefix_by_coverage(S, 1.0 - float(theta_pol))
+                kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
                 kept = kept[kept != nu]
                 kept = kept[np.argsort(-S[kept])]
         else:
-            kept = self._top_prefix_by_coverage(S, 1.0 - float(theta_pol))
+            kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
             kept = kept[kept != nu]
             kept = kept[np.argsort(-S[kept])]  # deterministic order
 
@@ -452,6 +451,7 @@ class Redfield():
                 + bath_map[ 1.0] * H1
                 + bath_map[ 2.0] * H2)
 
+    # function for computing 𝛾_+(𝜈') (exact, closed-form λ-contraction)
     # (b) for execution on GPU (cp-based)
     @staticmethod
     def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
