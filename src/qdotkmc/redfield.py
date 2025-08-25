@@ -380,7 +380,7 @@ class Redfield():
                 print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
             return site_g, pol_g
 
-        kept_sites = self._top_prefix_by_coverage(s, 1.0 - float(theta_site))
+        kept_sites = self._top_prefix_by_coverage_cpu(s, 1.0 - float(theta_site))
         site_g = np.sort(kept_sites.astype(np.intp))
 
         if verbose:
