@@ -124,7 +124,7 @@ class KMCRunner():
         qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_site = theta_pol, theta_site
 
         # (1) select sites and polarons that ''matter'' for computing the rates
-        site_g, pol_g = qd_lattice.redfield.select_by_weight_gpu(center_global = center_global, 
+        site_g, pol_g = qd_lattice.redfield.select_by_weight_cpu(center_global = center_global, 
                                                              theta_site = qd_lattice.redfield.theta_site, 
                                                              theta_pol = qd_lattice.redfield.theta_pol, 
                                                              verbose = False
