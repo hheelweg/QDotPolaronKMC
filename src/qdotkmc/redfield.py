@@ -2,6 +2,7 @@
 import numpy as np
 from . import const
 from . import utils
+from .backend import get_backend
 import time
 from typing import Optional, List
 import os
@@ -508,6 +509,63 @@ class Redfield():
             gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
 
         return cp.asnumpy(gamma)
+
+    @staticmethod
+    def _build_gamma_plus_backend(J, J2, Up, u0, bath_map, *, prefer_gpu=True, use_c64=False, use_streams=True):
+        bx = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
+        xp = bx.xp
+
+        # Upload/convert with correct dtypes & layout
+        Jg  = bx.asarray_f(J)
+        J2g = bx.asarray_f(J2)
+        Upg = bx.asarray_c(Up)
+        # overlapped copy for u0 + bath rows if GPU streams are enabled
+        s1 = bx.Stream()
+        s2 = bx.Stream()
+        with s1:
+            JUp = bx.matmul(Jg, Upg)       # (n,P)
+        with s2:
+            u0g  = bx.asarray_c(u0)
+            K_m2 = bx.asarray_c(bath_map[-2.0])
+            K_m1 = bx.asarray_c(bath_map[-1.0])
+            K0   = bx.asarray_c(bath_map[ 0.0])
+            K1   = bx.asarray_c(bath_map[ 1.0])
+            K2   = bx.asarray_c(bath_map[ 2.0])
+        s1.synchronize(); s2.synchronize()
+
+        Ju0 = bx.matmul(Jg, u0g)           # (n,)
+        sum_rowR = bx.matmul(JUp.T, bx.conj(u0g))     # (P,)
+        sum_rowC = bx.matmul(bx.conj(Upg).T, Ju0)     # (P,)
+        T0 = sum_rowR * sum_rowC
+
+        # fused reductions (works on CPU or GPU)
+        Tac = bx.sum_axis0( (Ju0*bx.conj(u0g))[:,None] * JUp * bx.conj(Upg) )
+        Tbd = bx.sum_axis0( (bx.conj(Ju0)*u0g)[:,None] * Upg * bx.conj(JUp) )
+        Tad = bx.matmul( (xp.abs(JUp)**2).T, (xp.abs(u0g)**2) )
+        Tbc = bx.matmul( (xp.abs(Upg)**2).T, (xp.abs(Ju0)**2) )
+
+        # pair terms
+        Y = u0g[:, None] * Upg
+        Z = bx.matmul(J2g, Y)
+        X = bx.conj(u0g)[:, None] * bx.conj(Upg)
+        E_acbd = bx.sum_axis0(X * Z)
+
+        t_b    = bx.matmul(J2g, (xp.abs(u0g)**2))
+        E_adbc = bx.matmul((xp.abs(Upg)**2).T, t_b)
+
+        H2, Hm2 = E_acbd, E_adbc
+        H1  = Tac + Tbd - 2.0*E_acbd
+        Hm1 = Tad + Tbc - 2.0*E_adbc
+
+        if xp.allclose(K0, 0.0):
+            gamma = K_m2*Hm2 + K_m1*Hm1 + K1*H1 + K2*H2
+        else:
+            H0 = T0 - (H2 + Hm2 + H1 + Hm1)
+            gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
+
+        bx.sync()
+        # return to host ndarray (np)
+        return bx.to_host(gamma)
 
     # obtain redfield rates within box
     def make_redfield(self, *, pol_idxs_global, site_idxs_global, center_global, verbosity = False):
