@@ -116,7 +116,7 @@ class Redfield():
             k = min(v.size, int(k*1.8)+1)
     
     def _top_prefix_by_coverage_gpu(self, values_g, keep_fraction: float):
-        cp = cp
+        #cp = cp
         v = values_g
         tot = float(cp.sum(v).get())
         if tot <= 0.0:
@@ -399,7 +399,7 @@ class Redfield():
                      max_nuprime: Optional[int] = None,
                      verbose: bool):
 
-        cp = cp
+        #cp = cp
         nu = int(center_global)
         Wh = self._get_W_abs2_full(self)                  # host
         L2h = self._ensure_L2_full(self)
