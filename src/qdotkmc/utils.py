@@ -8,7 +8,7 @@ from . import lattice
 # diagonalize Hamiltonian
 # NOTE : might want to make this more efficient with GPU/torch etc.
 def diagonalize(H, S=None, 
-                cpu_threads: int = 16,
+                cpu_threads: int = 8,
                 cpu_driver: str = "evr",
                 uplo: str = "L"):
     """
