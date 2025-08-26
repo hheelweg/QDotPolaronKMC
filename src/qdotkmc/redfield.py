@@ -10,23 +10,23 @@ import os
 os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
 
-# import cupy if GPU available
-try:
-    import cupy as cp
-    #import cupy_cutensor
-    _HAS_CUPY_PKG = True
-except Exception:
-    cp = None
-    _HAS_CUPY_PKG = False
+# # import cupy if GPU available
+# try:
+#     import cupy as cp
+#     #import cupy_cutensor
+#     _HAS_CUPY_PKG = True
+# except Exception:
+#     cp = None
+#     _HAS_CUPY_PKG = False
 
 
-def _gpu_available() -> bool:
-    if not _HAS_CUPY_PKG:
-        return False
-    try:
-        return cp.cuda.runtime.getDeviceCount() > 0
-    except Exception:
-        return False
+# def _gpu_available() -> bool:
+#     if not _HAS_CUPY_PKG:
+#         return False
+#     try:
+#         return cp.cuda.runtime.getDeviceCount() > 0
+#     except Exception:
+#         return False
 
 
 class Redfield():
@@ -37,38 +37,53 @@ class Redfield():
         self.ham = hamiltonian
         self.polaron_locations = polaron_locations                  # polaron locations (global frame)
         self.site_locations = site_locations                        # site locations (global frame)
-
         self.kappa = kappa                                          # kappa-polaron for polaron transformation
+        self.time_verbose = time_verbose                            # set to true only when time to compute rates is desired
 
-        # set to true only when time to compute rates is desired
-        self.time_verbose = time_verbose
-
+        # ---- physics caches -----
         # bath-correlation cache
         self._corr_cache = {}                                       # key: (lam, self.kappa, center_global) -> dict[int -> complex]
-
         # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}                                         # key: tuple(site_g) -> J2 ndarray
-
-        # cache for 
+        # cache for |U|^2
         self._W_abs2 = None                                         # cache |U|^2 (n, P) float64, C-contig
 
-        # caches for GPU execution of select_by_weight
+        # ----- GPU cache slots (for select_by_weight) -----
         self._Wg = None
         self._L2g = None
-        self._gpu_cache_key = None                                  # (Ns, Np, id(W_host), id(L2_host)) or a monotonic version
+        self._gpu_cache_key = None                                  # (n, P, id(W_host), id(L2_host))
 
-        # enable GPU only if user asked and a device exists
-        env_wants_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
-        self.use_gpu = bool(env_wants_gpu and _gpu_available())
-        print('use GPU:', self.use_gpu)
-        # allow memory allocator if GPU exists
-        if self.use_gpu:
-            pool = cp.cuda.MemoryPool()
-            cp.cuda.set_allocator(pool.malloc)
+        # # enable GPU only if user asked and a device exists
+        # env_wants_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
+        # self.use_gpu = bool(env_wants_gpu and _gpu_available())
+        # print('use GPU:', self.use_gpu)
+        # # allow memory allocator if GPU exists
+        # if self.use_gpu:
+        #     pool = cp.cuda.MemoryPool()
+        #     cp.cuda.set_allocator(pool.malloc)
         
-        # TODO : what is this for? add explanation
-        self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
-        print('use GPU64:', self.gpu_use_c64)
+        # # TODO : what is this for? add explanation
+        # self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
+        # print('use GPU64:', self.gpu_use_c64)
+
+        # --- Backend selection (single source of truth) ---
+        # Users choose via env, but feel free to plumb through RunConfig instead
+        prefer_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
+        use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
+
+        bx = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
+        self.backend = bx            # keep the handle if you want helper methods later
+        self.xp = bx.xp              # numpy or cupy
+        self.use_gpu = bool(bx.is_gpu)
+        self.gpu_use_c64 = bool(use_c64)  # keep your flag for gamma if you like
+
+        # Configure CuPy memory pools (no-op on CPU)
+        if hasattr(bx, "setup_pools"):
+            bx.setup_pools()
+
+        if self.time_verbose:
+            mode = "GPU" if self.use_gpu else "CPU"
+            print(f"[Redfield] backend: {mode}  (use_c64={self.gpu_use_c64})")
 
     
     def _get_W_abs2(self):
