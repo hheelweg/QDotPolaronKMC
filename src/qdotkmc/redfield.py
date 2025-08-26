@@ -803,26 +803,26 @@ class Redfield():
         JUp = Jg @ Upg           # (n,P)
 
         # T0 via two GEMV
-        sum_rowR = JUp.T @ cp.conj(u0g)         # (P,)
-        sum_rowC = cp.conj(Upg).T @ Ju0         # (P,)
+        sum_rowR = JUp.T @ xp.conj(u0g)         # (P,)
+        sum_rowC = xp.conj(Upg).T @ Ju0         # (P,)
         T0 = sum_rowR * sum_rowC
 
         # one-equality sums (Hadamard + reductions)
-        Tac = cp.einsum('i,ip,ip->p', Ju0*cp.conj(u0g), JUp, cp.conj(Upg), optimize=True)
-        Tbd = cp.einsum('i,ip,ip->p', cp.conj(Ju0)*u0g, Upg, cp.conj(JUp), optimize=True)
+        Tac = xp.einsum('i,ip,ip->p', Ju0*xp.conj(u0g), JUp, xp.conj(Upg), optimize=True)
+        Tbd = xp.einsum('i,ip,ip->p', xp.conj(Ju0)*u0g, Upg, xp.conj(JUp), optimize=True)
 
-        Tad = (cp.abs(JUp)**2).T @ (cp.abs(u0g)**2)
-        Tbc = (cp.abs(Upg)**2).T @ (cp.abs(Ju0)**2)
+        Tad = (xp.abs(JUp)**2).T @ (xp.abs(u0g)**2)
+        Tbc = (xp.abs(Upg)**2).T @ (xp.abs(Ju0)**2)
 
 
         # pair terms
         Y = u0g[:, None] * Upg                 # (n,P)
         Z = J2g @ Y                            # (n,P)
-        X = cp.conj(u0g)[:, None] * cp.conj(Upg)
-        E_acbd = cp.einsum('ip,ip->p', X, Z, optimize=True)
+        X = xp.conj(u0g)[:, None] * xp.conj(Upg)
+        E_acbd = xp.einsum('ip,ip->p', X, Z, optimize=True)
 
-        t_b    = J2g @ (cp.abs(u0g)**2)
-        E_adbc = (cp.abs(Upg)**2).T @ t_b
+        t_b    = J2g @ (xp.abs(u0g)**2)
+        E_adbc = (xp.abs(Upg)**2).T @ t_b
 
         # H buckets
         H2, Hm2 = E_acbd, E_adbc
@@ -830,19 +830,19 @@ class Redfield():
         Hm1 = Tad + Tbc - 2.0*E_adbc
 
         # K rows: convert CPU bath_map -> device only (small)
-        K_m2 = cp.asarray(bath_map[-2.0], dtype=cp.complex128)
-        K_m1 = cp.asarray(bath_map[-1.0], dtype=cp.complex128)
-        K0   = cp.asarray(bath_map[ 0.0], dtype=cp.complex128)
-        K1   = cp.asarray(bath_map[ 1.0], dtype=cp.complex128)
-        K2   = cp.asarray(bath_map[ 2.0], dtype=cp.complex128)
+        K_m2 = xp.asarray(bath_map[-2.0], dtype=xp.complex128)
+        K_m1 = xp.asarray(bath_map[-1.0], dtype=xp.complex128)
+        K0   = xp.asarray(bath_map[ 0.0], dtype=xp.complex128)
+        K1   = xp.asarray(bath_map[ 1.0], dtype=xp.complex128)
+        K2   = xp.asarray(bath_map[ 2.0], dtype=xp.complex128)
 
-        if cp.allclose(K0, 0.0):
+        if xp.allclose(K0, 0.0):
             gamma = K_m2*Hm2 + K_m1*Hm1 + K1*H1 + K2*H2
         else:
             H0 = T0 - (H2 + Hm2 + H1 + Hm1)
             gamma = K_m2*Hm2 + K_m1*Hm1 + K0*H0 + K1*H1 + K2*H2
 
-        return cp.asnumpy(gamma)
+        return xp.asnumpy(gamma)
 
     # obtain redfield rates within box
     def make_redfield(self, *, pol_idxs_global, site_idxs_global, center_global, verbosity = False):
