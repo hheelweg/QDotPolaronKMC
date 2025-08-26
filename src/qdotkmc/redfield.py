@@ -387,129 +387,49 @@ class Redfield():
 
         return pol_g, site_g
  
-    # selection of sites, polarons for rates based on WEIGHT
-    # def select_by_weight(self, center_global: int, *,
-    #                       theta_site: float,                                # tighter -> more sites kept (higher cost, higher fidelity)
-    #                       theta_pol:   float,                               # tighter -> more ν' kept (linear cost, physics coverage)
-    #                       max_nuprime: Optional[int] = None,                # optional hard cap on # of ν' considered (after ranking)
-    #                       verbose: bool = False,
-    #                       ):
-    #     """
-    #     Physics-aware, two-parameter selector for a single center polaron ν.
-
-    #     What it does (in order):
-    #     1) Rank destination polarons ν' by the J-aware contact score
-    #             S_{ν→ν'} = w_ν^T |J|^2 w_{ν'} ,  with  w_α[m] = |U_{mα}|^2 .
-    #         Keep the smallest set whose cumulative S reaches (1 - theta_pol) of total S.
-    #         -> This defines pol_g = [ν] + kept ν'.
-
-    #     2) Build a site-importance (exchange) score relative to the kept destinations:
-    #             s_i = w_ν[i] * (|J|^2 w_D)[i] + w_D[i] * (|J|^2 w_ν)[i],
-    #         where w_D = sum_{ν' in kept} w_{ν'}.
-    #         Keep the smallest site set reaching (1 - theta_sites) of sum(s).
-    #         -> This defines site_g.
-
-    #     Notes:
-    #     - Uses a cached full L2 = |J|^2 via _get_J2_cached().
-    #     - No bath work here; _corr_row is only used later in make_redfield_box.
-    #     - As θ_* to 0, selection monotonically approaches the full Redfield result.
-
-    #     Parameters
-    #     ----------
-    #     theta_sites : float
-    #         Coverage tolerance for sites. Smaller values keep MORE sites (higher cost, higher fidelity).
-    #     theta_pol : float
-    #         Coverage tolerance for destination polarons. Smaller values keep MORE ν' (linear cost).
-    #     max_nuprime : Optional[int]
-    #         Optional hard cap on the number of ν' considered after ranking by S (useful for speed).
-    #     verbose : bool
-    #         Print small diagnostics.
-
-    #     Returns
-    #     -------
-    #     site_g : np.ndarray[int]
-    #         Global site indices selected by exchange-score coverage.
-    #     pol_g : np.ndarray[int]
-    #         Global polaron indices with the center FIRST, followed by kept destinations.
-    #     """
-    #     U  = self.ham.Umat
-    #     Ns, Np = U.shape                                                    # total number of sites, polarons
-    #     nu = int(center_global)
-
-    #     # (0) Precompute site weights |J|^2
-    #     W  = (np.abs(U)**2)                                                 # (Ns, Np)
-    #     w0 = W[:, nu].astype(np.float64, copy=False)                        # source mass vector
-    #     L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))           # get the full |J|^2 matrix                  
-
-
-    #     # (1) Destination selection by S-coverage (θ_pol) 
-    #     # S = w0^T |J|^2 W  implemented as  t0 = |J|^2 w0  then  S = W^T t0
-    #     t0 = L2 @ w0                                                        # (Ns,)
-    #     S  = (W.T @ t0).astype(np.float64, copy=False)                      # (Np,)
-    #     S[nu] = 0.0                                                         # exclude self
-
-    #     # rank once; optionally cap to the top max_nuprime for speed
-    #     order = np.argsort(-S)
-    #     if max_nuprime is not None:
-    #         order = order[:int(max_nuprime)]
-    #     S_desc = S[order]
-    #     totS   = float(S_desc.sum())
-
-    #     if totS <= 0.0:
-    #         # degenerate: no meaningful destinations; return a compact source-only site set
-    #         site_g = utils._mass_core_by_theta(w0, theta_site)
-    #         pol_g  = np.array([nu], dtype=np.intp)
-    #         if verbose:
-    #             print(f"[select] degenerate S: sites={site_g.size}")
-    #         return site_g, pol_g
-
-    #     # keep smallest prefix reaching (1 - θ_pol) coverage
-    #     csum_S = np.cumsum(S_desc)
-    #     k_pol  = int(np.searchsorted(csum_S, (1.0 - float(theta_pol)) * totS, side="left")) + 1
-    #     kept   = order[:k_pol].astype(np.intp)
-    #     pol_g  = np.concatenate(([nu], kept)).astype(np.intp)
-
-    #     if verbose:
-    #         cov_pol = csum_S[k_pol - 1] / (totS + 1e-300)
-    #         print(f"[select] nu' kept: {len(kept)}/{Np - 1}  S-coverage = {cov_pol:.3f}")
-
-    #     # (2) Site selection by exchange-score coverage (θ_sites) ---
-    #     # Aggregate destination mass and its |J|^2 image
-    #     wD = W[:, kept].sum(axis=1).astype(np.float64, copy=False)          # (Ns,)
-    #     tD = L2 @ wD                                                        # (Ns,)
-
-    #     # exchange score per site (s_i = w0[i]*(L2 wD)[i] + wD[i]*(L2 w0)[i]) :
-    #     s = w0 * tD + wD * t0
-    #     s_sum = float(s.sum())
-
-    #     if s_sum <= 0.0:
-    #         # conservative fallback: union of mass cores (rare, but safe)
-    #         site_set = set(utils._mass_core_by_theta(w0, theta_site).tolist())
-    #         for j in kept:
-    #             site_set |= set(utils._mass_core_by_theta(W[:, j], theta_site).tolist())
-    #         site_g = np.array(sorted(site_set), dtype=np.intp)
-    #         if verbose:
-    #             print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
-    #         return site_g, pol_g
-
-    #     # keep smallest prefix reaching (1 - θ_sites) coverage
-    #     order_s = np.argsort(-s)
-    #     csum_s  = np.cumsum(s[order_s])
-    #     k_sites = int(np.searchsorted(csum_s, (1.0 - float(theta_site)) * s_sum, side="left")) + 1
-    #     site_g  = np.sort(order_s[:k_sites]).astype(np.intp)
-
-    #     if verbose:
-    #         cov_sites = csum_s[k_sites - 1] / (s_sum + 1e-300)
-    #         print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage = {cov_sites:.3f}")
-
-    #     return site_g, pol_g
 
     def select_by_weight(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
                      max_nuprime: Optional[int] = None,
                      verbose: bool = False):
         """
-        Choose between CPU and GPU implementations depending only on self.use_gpu.
+        Physics-aware, two-parameter selector for a single center polaron ν.
+        Automatically switched between GPU and CPU executaion based on resources and backend
+
+        What it does (in order):
+        1) Rank destination polarons ν' by the J-aware contact score
+                S_{ν→ν'} = w_ν^T |J|^2 w_{ν'} ,  with  w_α[m] = |U_{mα}|^2 .
+            Keep the smallest set whose cumulative S reaches (1 - theta_pol) of total S.
+            -> This defines pol_g = [ν] + kept ν'.
+
+        2) Build a site-importance (exchange) score relative to the kept destinations:
+                s_i = w_ν[i] * (|J|^2 w_D)[i] + w_D[i] * (|J|^2 w_ν)[i],
+            where w_D = sum_{ν' in kept} w_{ν'}.
+            Keep the smallest site set reaching (1 - theta_sites) of sum(s).
+            -> This defines site_g.
+
+        Notes:
+        - Uses a cached full L2 = |J|^2 via _get_J2_cached().
+        - No bath work here; _corr_row is only used later in make_redfield_box.
+        - As θ_* to 0, selection monotonically approaches the full Redfield result.
+
+        Parameters
+        ----------
+        theta_sites : float
+            Coverage tolerance for sites. Smaller values keep MORE sites (higher cost, higher fidelity).
+        theta_pol : float
+            Coverage tolerance for destination polarons. Smaller values keep MORE ν' (linear cost).
+        max_nuprime : Optional[int]
+            Optional hard cap on the number of ν' considered after ranking by S (useful for speed).
+        verbose : bool
+            Print small diagnostics.
+
+        Returns
+        -------
+        site_g : np.ndarray[int]
+            Global site indices selected by exchange-score coverage.
+        pol_g : np.ndarray[int]
+            Global polaron indices with the center FIRST, followed by kept destinations.
         """
         if self.use_gpu:
             return self.select_by_weight_gpu(center_global,
@@ -620,7 +540,6 @@ class Redfield():
             print(f"[select] sites kept: {site_g.size}/{n}  s-coverage={cov_sites:.3f}")
 
         return site_g, pol_g
-
 
     # GPU version to select weights
     def select_by_weight_gpu(self, center_global: int, *,
