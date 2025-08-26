@@ -7,17 +7,16 @@ from . import lattice
 
 
 # diagonalize Hamiltonian
-# NOTE : might want to make this more efficient with GPU/torch etc.
-def diagonalize_backend(
-    H: np.ndarray,
-    #*,
-    backend,                 # your backend.get_backend(...) return value
-    uplo: str = "L",         # which triangle holds data
-    cpu_driver: str = "evr", # 'evr' (MRRR) or 'evd' (divide&conquer)
-    cpu_threads: int = 8,    # temporary BLAS thread cap for this call
-    dtype = np.float64,      # keep FP64 for reproducibility (recommended)
-    force_cpu_if_n_smaller_than: int = 1500,  # avoid GPU for small N
-    ) -> Tuple[np.ndarray, np.ndarray]:
+def diagonalize(
+                H: np.ndarray,
+                backend,                 
+                *,
+                uplo: str = "L",                            # which triangle holds data
+                cpu_driver: str = "evr",                    # 'evr' (MRRR) or 'evd' (divide&conquer)
+                cpu_threads: int = 8,                       # temporary BLAS thread cap for this call
+                dtype = np.float64,                         # keep FP64 for reproducibility (recommended)
+                force_cpu_if_n_smaller_than: int = 1500,    # avoid GPU for small N
+                ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Symmetric eigendecomposition with automatic CPU/GPU dispatch.
 
@@ -29,7 +28,8 @@ def diagonalize_backend(
     """
     N = int(H.shape[0])
 
-    # Small matrices: CPU often wins (copy/launch overhead dominates).
+    # small matrices: CPU often wins (copy/launch overhead dominates).
+    # (a) CPU path
     if (not getattr(backend, "use_gpu", False)) or (
         force_cpu_if_n_smaller_than is not None and N < force_cpu_if_n_smaller_than
         ):
@@ -42,21 +42,21 @@ def diagonalize_backend(
         C = np.asarray(C[:, idx], dtype=np.float64, order="F")  # Fortran (cols contiguous)
         return E, C
 
-    # -------- GPU path (cuSolver via CuPy) --------
+    # (b) GPU path (cuSolver via CuPy) 
     print('use GPU diagonalization')
-    xp = backend.xp  # cupy
-    Hg = backend.from_host(H, dtype=dtype, order="C")  # host→device
+    xp = backend.xp                                         # cupy
+    Hg = backend.from_host(H, dtype=dtype, order="C")       # host→device
     # UPLO controls which triangle is read (match CPU behavior)
     Eg, Cg = xp.linalg.eigh(Hg, UPLO=uplo)
 
-    # Back to host
+    # back to host
     E = backend.to_host(Eg)
     C = backend.to_host(Cg)
 
-    # Sort explicitly (should already be ascending)
+    # sort explicitly (should already be ascending)
     idx = np.argsort(E)
     E = np.asarray(E[idx], dtype=np.float64, order="C")
-    C = np.asarray(C[:, idx], dtype=np.float64, order="F")      # Fortran (cols contiguous)
+    C = np.asarray(C[:, idx], dtype=np.float64, order="F")    
 
     return E, C
 
