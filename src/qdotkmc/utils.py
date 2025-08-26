@@ -30,7 +30,7 @@ def diagonalize_backend(
     N = int(H.shape[0])
 
     # Small matrices: CPU often wins (copy/launch overhead dominates).
-    if (not getattr(backend, "is_gpu", False)) or (
+    if (not getattr(backend, "use_gpu", False)) or (
         force_cpu_if_n_smaller_than is not None and N < force_cpu_if_n_smaller_than
     ):
         with threadpool_limits(limits=cpu_threads):
@@ -42,6 +42,7 @@ def diagonalize_backend(
         return E, C
 
     # -------- GPU path (cuSolver via CuPy) --------
+    print('use GPU diagonalization')
     xp = backend.xp  # cupy
     Hg = backend.from_host(H, dtype=dtype, order="C")  # host→device
     # UPLO controls which triangle is read (match CPU behavior)
