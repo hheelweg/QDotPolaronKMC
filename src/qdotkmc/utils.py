@@ -16,7 +16,7 @@ def diagonalize_backend(
     cpu_driver: str = "evr", # 'evr' (MRRR) or 'evd' (divide&conquer)
     cpu_threads: int = 8,    # temporary BLAS thread cap for this call
     dtype = np.float64,      # keep FP64 for reproducibility (recommended)
-    force_cpu_if_n_smaller_than: int | None = 1500,  # avoid GPU for small N
+    force_cpu_if_n_smaller_than: int = 1500,  # avoid GPU for small N
     ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Symmetric eigendecomposition with automatic CPU/GPU dispatch.
