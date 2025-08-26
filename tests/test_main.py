@@ -31,6 +31,7 @@ def main():
     # ---- KMC parameters ---------
     ntrajs = 5                                 # number of trajectories to compute MSDs over
     nrealizations = 1                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    t_final = 1
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
@@ -54,7 +55,7 @@ def main():
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations,
                                     rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 
-                                    max_workers = max_workers
+                                    max_workers = max_workers, t_final = t_final
                                     )
     
     # set up KMC simulation
