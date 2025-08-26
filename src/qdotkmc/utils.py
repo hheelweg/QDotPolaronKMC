@@ -32,7 +32,8 @@ def diagonalize_backend(
     # Small matrices: CPU often wins (copy/launch overhead dominates).
     if (not getattr(backend, "use_gpu", False)) or (
         force_cpu_if_n_smaller_than is not None and N < force_cpu_if_n_smaller_than
-    ):
+        ):
+        print("use CPU diagonalization")
         with threadpool_limits(limits=cpu_threads):
             E, C = la.eigh(H, driver=cpu_driver, lower=(uplo == "L"))
         # eigh usually returns ascending already; enforce & standardize layout
