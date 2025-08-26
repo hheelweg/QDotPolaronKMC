@@ -59,8 +59,10 @@ class Backend:
         import numpy as _np
         return _np.asarray(a).dtype.kind == 'c'
 
+
+
 def get_backend(*, prefer_gpu=True, use_c64=False):
-    """Return a Backend instance for GPU if available, else CPU."""
+    """return a Backend instance for GPU if available, else CPU."""
     if prefer_gpu:
         try:
             import cupy as cp
