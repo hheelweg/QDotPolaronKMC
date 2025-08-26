@@ -6,10 +6,6 @@ from qdotkmc.backend import get_backend
 import time
 from typing import Optional, List
 import os
-# TODO : what is this for
-# os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")         # tells cuBLAS to use **deterministic** algorithms that require a certain internal workspace.
-# os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")                  # "0" disables TF32, i.e. true FP32 (more accurate, slightly slower)
-
 
 class Redfield():
 

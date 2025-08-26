@@ -66,11 +66,10 @@ def _configure_cublas_env(*, deterministic: Optional[bool] = None,
                           allow_tf32: Optional[bool] = None):
     """
     Configure cuBLAS behavior via environment variables.
-
     deterministic=True  -> set CUBLAS_WORKSPACE_CONFIG for deterministic kernels
     deterministic=False -> leave unset (max speed)
-    allow_tf32=True     -> enable TF32 on Ampere+ for FP32 GEMM (faster)
-    allow_tf32=False    -> disable TF32, keep true FP32 (more accurate)
+    allow_tf32=True     -> enable TF32 (faster, less accurate)
+    allow_tf32=False    -> disable TF32, keep true FP32 (slower, more accurate)
     """
     if deterministic is True:
         # A common deterministic setting; tweak if you benchmark a better one.
