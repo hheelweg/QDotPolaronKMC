@@ -55,6 +55,10 @@ class Redfield():
         self._L2g = None
         self._gpu_cache_key = None  # (Ns, Np, id(W_host), id(L2_host)) or a monotonic version
 
+        self._Wg_sel = None
+        self._L2g_sel = None
+        self._gpu_sel_key = None
+
         # enable GPU only if user asked and a device exists
         env_wants_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
         self.use_gpu = bool(env_wants_gpu and _gpu_available())
