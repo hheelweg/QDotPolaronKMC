@@ -47,7 +47,7 @@ def diagonalize(H,
     """
     N = H.shape[0]
 
-    if getattr(backend, "is_gpu", False):
+    if getattr(backend, "use_gpu", False):
         xp = backend.xp
         # H -> device
         Hg = backend.from_host(H, dtype=dtype, order="C")
