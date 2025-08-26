@@ -49,15 +49,13 @@ class Redfield():
         # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}                                         # key: tuple(site_g) -> J2 ndarray
 
-        self._W_abs2 = None                                    # cache |U|^2 (n, P) float64, C-contig
+        # cache for 
+        self._W_abs2 = None                                         # cache |U|^2 (n, P) float64, C-contig
 
+        # caches for GPU execution of select_by_weight
         self._Wg = None
         self._L2g = None
-        self._gpu_cache_key = None  # (Ns, Np, id(W_host), id(L2_host)) or a monotonic version
-
-        self._Wg_sel = None
-        self._L2g_sel = None
-        self._gpu_sel_key = None
+        self._gpu_cache_key = None                                  # (Ns, Np, id(W_host), id(L2_host)) or a monotonic version
 
         # enable GPU only if user asked and a device exists
         env_wants_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
