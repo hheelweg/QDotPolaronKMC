@@ -532,11 +532,13 @@ class Redfield():
         S[nu] = 0.0                 # exclude self
 
         # one host copy for ordering/diagnostics; heavy math remains on device
-        S_host = self.xp.asnumpy(S)  
+        #S_host = self.xp.asnumpy(S)  
+        S_host = self.backend.to_host(S)
         # optional: pre-cap by max_nuprime to reduce coverage work on long tails
         if max_nuprime is not None and max_nuprime < Np-1:
             cand = self.xp.argpartition(S, -(max_nuprime+1))[-(max_nuprime+1):]
-            cand = self.xp.asnumpy(cand)
+            #cand = self.xp.asnumpy(cand)
+            cand = self.backend.to_host(cand)
             cand = cand[cand != nu]
             cand = cand[np.argsort(-S_host[cand])]
             S_view = S_host[cand]
@@ -568,11 +570,12 @@ class Redfield():
         tD = L2 @ wD
         s  = w0 * tD + wD * t0
 
-        s_host = self.xp.asnumpy(s)
+        #s_host = self.xp.asnumpy(s)
+        s_host = self.backend.to_host(s)
         if float(s_host.sum()) <= 0.0:
-            site_set = set(utils._mass_core_by_theta(self.xp.asnumpy(W)[:, nu], theta_site).tolist())
+            site_set = set(utils._mass_core_by_theta(self.backend.to_host(W)[:, nu], theta_site).tolist())
             for j in kept:
-                site_set |= set(utils._mass_core_by_theta(self.xp.asnumpy(W)[:, j], theta_site).tolist())
+                site_set |= set(utils._mass_core_by_theta(self.backend.to_host(W)[:, j], theta_site).tolist())
             site_g = np.array(sorted(site_set), dtype=np.intp)
             if verbose:
                 print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
