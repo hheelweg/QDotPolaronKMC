@@ -35,9 +35,9 @@ class Redfield():
         self.backend = backend                                       # keep the handle if you want helper methods later
         self.xp = backend.xp                                         # numpy or cupy                  
 
-        # Configure cupy memory pools (no-op on CPU)
-        if hasattr(self.backend, "setup_pools"):
-            self.backend.setup_pools()
+        # # configure cupy memory pools (no-op on CPU)
+        # if hasattr(self.backend, "setup_pools"):
+        #     self.backend.setup_pools()
 
         # print which backend we end up using
         if self.time_verbose:
