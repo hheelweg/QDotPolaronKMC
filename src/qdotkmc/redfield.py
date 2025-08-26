@@ -72,10 +72,10 @@ class Redfield():
         use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
 
         bx = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
-        self.backend = bx            # keep the handle if you want helper methods later
-        self.xp = bx.xp              # numpy or cupy
+        self.backend = bx                   # keep the handle if you want helper methods later
+        self.xp = bx.xp                     # numpy or cupy
         self.use_gpu = bool(bx.is_gpu)
-        self.gpu_use_c64 = bool(use_c64)  # keep your flag for gamma if you like
+        self.gpu_use_c64 = bool(use_c64)    # keep your flag for gamma if you like
 
         # Configure CuPy memory pools (no-op on CPU)
         if hasattr(bx, "setup_pools"):
@@ -137,13 +137,13 @@ class Redfield():
         if self._gpu_cache_key != key:
             # set allocators once (safe to re-call)
             try:
-                cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
-                cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+                self.xp.cuda.set_allocator(self.xp.cuda.MemoryPool().malloc)
+                self.xp.cuda.set_pinned_memory_allocator(self.xp.cuda.PinnedMemoryPool().malloc)
             except Exception:
                 pass
             # upload fresh copies to device
-            self._Wg = cp.asarray(Wh,  dtype=cp.float64, order="C")
-            self._L2g = cp.asarray(L2h, dtype=cp.float64, order="C")
+            self._Wg = self.xp.asarray(Wh,  dtype=self.xp.float64, order="C")
+            self._L2g = self.xp.asarray(L2h, dtype=self.xp.float64, order="C")
             self._gpu_cache_key = key
 
         return self._Wg, self._L2g, Ns, Np
