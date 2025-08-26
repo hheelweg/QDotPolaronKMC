@@ -1,5 +1,6 @@
 from contextlib import nullcontext
 import os
+from typing import Optional
 
 class CPUStreams:
     def __enter__(self): return self
@@ -61,8 +62,8 @@ class Backend:
         return _np.asarray(a).dtype.kind == 'c'
 
 
-def _configure_cublas_env(*, deterministic: bool | None = None,
-                          allow_tf32: bool | None = None):
+def _configure_cublas_env(*, deterministic: Optional[bool] = None,
+                          allow_tf32: Optional[bool] = None):
     """
     Configure cuBLAS behavior via environment variables.
 
