@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+import os
 
 class CPUStreams:
     def __enter__(self): return self
@@ -60,11 +61,35 @@ class Backend:
         return _np.asarray(a).dtype.kind == 'c'
 
 
+def _configure_cublas_env(*, deterministic: bool | None = None,
+                          allow_tf32: bool | None = None):
+    """
+    Configure cuBLAS behavior via environment variables.
+
+    deterministic=True  -> set CUBLAS_WORKSPACE_CONFIG for deterministic kernels
+    deterministic=False -> leave unset (max speed)
+    allow_tf32=True     -> enable TF32 on Ampere+ for FP32 GEMM (faster)
+    allow_tf32=False    -> disable TF32, keep true FP32 (more accurate)
+    """
+    if deterministic is True:
+        # A common deterministic setting; tweak if you benchmark a better one.
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    elif deterministic is False:
+        # Leave unset or explicitly clear (optional):
+        # os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)
+        pass
+
+    if allow_tf32 is True:
+        os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "1")
+    elif allow_tf32 is False:
+        os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
+
 
 def get_backend(*, prefer_gpu=True, use_c64=False):
     """return a Backend instance for GPU if available, else CPU."""
     if prefer_gpu:
         try:
+            _configure_cublas_env(deterministic=True, allow_tf32=False)
             import cupy as cp
             # try a cheap CUDA call
             ndev = cp.cuda.runtime.getDeviceCount()
