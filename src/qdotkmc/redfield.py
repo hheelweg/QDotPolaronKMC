@@ -9,7 +9,7 @@ import os
 
 class Redfield():
 
-    def __init__(self, hamiltonian, polaron_locations, site_locations, kappa, backend
+    def __init__(self, hamiltonian, polaron_locations, site_locations, kappa, backend,
                 time_verbose = True):
 
         self.ham = hamiltonian
