@@ -10,24 +10,6 @@ import os
 os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
 
-# # import cupy if GPU available
-# try:
-#     import cupy as cp
-#     #import cupy_cutensor
-#     _HAS_CUPY_PKG = True
-# except Exception:
-#     cp = None
-#     _HAS_CUPY_PKG = False
-
-
-# def _gpu_available() -> bool:
-#     if not _HAS_CUPY_PKG:
-#         return False
-#     try:
-#         return cp.cuda.runtime.getDeviceCount() > 0
-#     except Exception:
-#         return False
-
 
 class Redfield():
 
@@ -53,34 +35,22 @@ class Redfield():
         self._L2g = None
         self._gpu_cache_key = None                                  # (n, P, id(W_host), id(L2_host))
 
-        # # enable GPU only if user asked and a device exists
-        # env_wants_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
-        # self.use_gpu = bool(env_wants_gpu and _gpu_available())
-        # print('use GPU:', self.use_gpu)
-        # # allow memory allocator if GPU exists
-        # if self.use_gpu:
-        #     pool = cp.cuda.MemoryPool()
-        #     cp.cuda.set_allocator(pool.malloc)
-        
-        # # TODO : what is this for? add explanation
-        # self.gpu_use_c64 = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
-        # print('use GPU64:', self.gpu_use_c64)
-
-        # --- Backend selection (single source of truth) ---
-        # Users choose via env, but feel free to plumb through RunConfig instead
+        # --- backend selection (GPU/CPU) ---
+        # TODO : users choose via env, but feel free to plumb through RunConfig instead ?
         prefer_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
         use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
 
         bx = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
-        self.backend = bx                   # keep the handle if you want helper methods later
-        self.xp = bx.xp                     # numpy or cupy
+        self.backend = bx                                       # keep the handle if you want helper methods later
+        self.xp = bx.xp                                         # numpy or cupy 
         self.use_gpu = bool(bx.is_gpu)
-        self.gpu_use_c64 = bool(use_c64)    # keep your flag for gamma if you like
+        self.gpu_use_c64 = bool(use_c64)                        
 
-        # Configure CuPy memory pools (no-op on CPU)
+        # Configure cupy memory pools (no-op on CPU)
         if hasattr(bx, "setup_pools"):
             bx.setup_pools()
 
+        # print which backend we end up using
         if self.time_verbose:
             mode = "GPU" if self.use_gpu else "CPU"
             print(f"[Redfield] backend: {mode}  (use_c64={self.gpu_use_c64})")
@@ -107,48 +77,6 @@ class Redfield():
             self._W_abs2 = np.asarray(W, dtype=np.float64, order='C')
         return self._W_abs2
     
-    def _ensure_WL2_gpu(self):
-        """
-        Ensure W and L2 are uploaded and cached on the GPU.
-
-        - Converts host-side W = |U|^2 and L2 = |J|^2 (float64, C-contig) to CuPy,
-        caching device arrays to avoid re-uploading every call.
-        - A cache key based on shapes and host buffer addresses is used to detect
-        when the lattice has changed and a refresh is needed.
-
-        Returns
-        -------
-        Wg : cupy.ndarray, shape (n, P), float64, C-contiguous
-            Device-resident |U|^2.
-        L2g : cupy.ndarray, shape (n, P), float64, C-contiguous
-            Device-resident |J|^2.
-        n, P : int
-            Dimensions of the weights matrix.
-        """
-        # NOTE: this should call your *existing* cached provider:
-        Wh  = self._get_W_abs2()
-        L2h = self._get_L2()
-
-        Ns, Np = Wh.shape
-        key = (Ns, Np, 
-               int(Wh.__array_interface__['data'][0]), 
-               int(L2h.__array_interface__['data'][0]))
-        
-        if self._gpu_cache_key != key:
-            # set allocators once (safe to re-call)
-            try:
-                self.xp.cuda.set_allocator(self.xp.cuda.MemoryPool().malloc)
-                self.xp.cuda.set_pinned_memory_allocator(self.xp.cuda.PinnedMemoryPool().malloc)
-            except Exception:
-                pass
-            # upload fresh copies to device
-            self._Wg = self.xp.asarray(Wh,  dtype=self.xp.float64, order="C")
-            self._L2g = self.xp.asarray(L2h, dtype=self.xp.float64, order="C")
-            self._gpu_cache_key = key
-
-        return self._Wg, self._L2g, Ns, Np
-    
-
     def _get_L2(self):
         """
         Return cached full-system |J|^2 matrix (site-site couplings squared).
@@ -169,6 +97,47 @@ class Redfield():
         L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))
         return np.asarray(L2, dtype=np.float64, order="C")
         
+    def _ensure_WL2_gpu(self):
+            """
+            Ensure W and L2 are uploaded and cached on the GPU.
+
+            - Converts host-side W = |U|^2 and L2 = |J|^2 (float64, C-contig) to CuPy,
+            caching device arrays to avoid re-uploading every call.
+            - A cache key based on shapes and host buffer addresses is used to detect
+            when the lattice has changed and a refresh is needed.
+
+            Returns
+            -------
+            Wg : cupy.ndarray, shape (n, P), float64, C-contiguous
+                Device-resident |U|^2.
+            L2g : cupy.ndarray, shape (n, P), float64, C-contiguous
+                Device-resident |J|^2.
+            n, P : int
+                Dimensions of the weights matrix.
+            """
+            # NOTE: this should call your *existing* cached provider:
+            Wh  = self._get_W_abs2()
+            L2h = self._get_L2()
+
+            Ns, Np = Wh.shape
+            key = (Ns, Np, 
+                int(Wh.__array_interface__['data'][0]), 
+                int(L2h.__array_interface__['data'][0]))
+            
+            if self._gpu_cache_key != key:
+                # set allocators once (safe to re-call)
+                try:
+                    self.xp.cuda.set_allocator(self.xp.cuda.MemoryPool().malloc)
+                    self.xp.cuda.set_pinned_memory_allocator(self.xp.cuda.PinnedMemoryPool().malloc)
+                except Exception:
+                    pass
+                # upload fresh copies to device
+                self._Wg = self.xp.asarray(Wh,  dtype=self.xp.float64, order="C")
+                self._L2g = self.xp.asarray(L2h, dtype=self.xp.float64, order="C")
+                self._gpu_cache_key = key
+
+            return self._Wg, self._L2g, Ns, Np
+    
 
     def _top_prefix_by_coverage_cpu(self, 
                                     values: np.ndarray, 
@@ -300,7 +269,6 @@ class Redfield():
             k = min(n, int(k*1.8)+1)
     
 
-
     # bath half-Fourier Transforms
     # K_λ(ω) in Eq. (15)
     def _corr_row(self, lam, center_global, pol_g):
@@ -387,9 +355,10 @@ class Redfield():
 
         return pol_g, site_g
  
-
+    # selection of sites, polarons for rates based on WEIGHT
     def select_by_weight(self, center_global: int, *,
-                     theta_site: float, theta_pol: float,
+                     theta_site: float, 
+                     theta_pol: float,
                      max_nuprime: Optional[int] = None,
                      verbose: bool = False):
         """
@@ -639,6 +608,7 @@ class Redfield():
             print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage={cov_sites:.3f}")
 
         return site_g, pol_g
+
 
     # function for computing 𝛾_+(𝜈') (exact, closed-form λ-contraction)
     # (a) for execution on CPU (np-based)
