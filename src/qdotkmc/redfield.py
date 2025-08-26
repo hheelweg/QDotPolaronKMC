@@ -260,17 +260,17 @@ class Redfield():
             downstream indexing typically expects NumPy indices.
         """
         # normalize to 1D, float, sanitize NaNs/Infs so cumsum is well-defined
-        v = cp.asarray(values).ravel()
+        v = self.xp.asarray(values).ravel()
         if v.dtype.kind != 'f':
-            v = v.astype(cp.float64, copy=False)
-        v = cp.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
+            v = v.astype(self.xp.float64, copy=False)
+        v = self.xp.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
 
-        tot = float(cp.sum(v).get())
+        tot = float(self.xp.sum(v).get())
         if tot <= 0.0:
             return np.empty(0, dtype=np.intp)
 
         target = float(keep_fraction) * tot
-        vmax = float(cp.max(v).get())
+        vmax = float(self.xp.max(v).get())
         if vmax <= 0.0:
             return np.empty(0, dtype=np.intp)
 
@@ -279,17 +279,17 @@ class Redfield():
 
         while True:
             # unsorted top-k on device
-            idx_topk = cp.argpartition(v, n - k)[-k:]
+            idx_topk = self.xp.argpartition(v, n - k)[-k:]
             vals     = v[idx_topk]
 
             # sort only the candidate set (deterministic descending)
-            order    = cp.argsort(-vals)
+            order    = self.xp.argsort(-vals)
             idx_sorted = idx_topk[order]
-            csum = cp.cumsum(vals[order])
+            csum = self.xp.cumsum(vals[order])
 
             # cp.searchsorted expects a device array 'v', not a python scalar
-            target_dev = cp.asarray([target], dtype=csum.dtype)   
-            pos_dev = cp.searchsorted(csum, target_dev, side="left") 
+            target_dev = self.xp.asarray([target], dtype=csum.dtype)   
+            pos_dev = self.xp.searchsorted(csum, target_dev, side="left") 
             pos = int(pos_dev.get()[0])
 
             # minimal prefix found, or we've already taken all
@@ -664,11 +664,11 @@ class Redfield():
         S[nu] = 0.0                 # exclude self
 
         # one host copy for ordering/diagnostics; heavy math remains on device
-        S_host = cp.asnumpy(S)  
+        S_host = self.xp.asnumpy(S)  
         # optional: pre-cap by max_nuprime to reduce coverage work on long tails
         if max_nuprime is not None and max_nuprime < Np-1:
-            cand = cp.argpartition(S, -(max_nuprime+1))[-(max_nuprime+1):]
-            cand = cp.asnumpy(cand)
+            cand = self.xp.argpartition(S, -(max_nuprime+1))[-(max_nuprime+1):]
+            cand = self.xp.asnumpy(cand)
             cand = cand[cand != nu]
             cand = cand[np.argsort(-S_host[cand])]
             S_view = S_host[cand]
@@ -687,24 +687,24 @@ class Redfield():
         # (2) site selection on device
         k = kept.size
         if k == 0:
-            wD = cp.zeros(Ns, dtype=cp.float64)                 # (n,)
+            wD = self.xp.zeros(Ns, dtype=self.xp.float64)                 # (n,)
         elif k < (Np // 16):
             # for a small kept set, gathering columns is efficient
             wD = W[:, kept].sum(axis=1)                         # (n,)     
         else:
             # for a large kept set, masked GEMV is more coalesced/faster
-            mask = cp.zeros((Np,), dtype=cp.float64)
+            mask = self.xp.zeros((Np,), dtype=self.xp.float64)
             mask[kept] = 1.0
             wD = W @ mask                                       # (n,)            
 
         tD = L2 @ wD
         s  = w0 * tD + wD * t0
 
-        s_host = cp.asnumpy(s)
+        s_host = self.xp.asnumpy(s)
         if float(s_host.sum()) <= 0.0:
-            site_set = set(utils._mass_core_by_theta(cp.asnumpy(W)[:, nu], theta_site).tolist())
+            site_set = set(utils._mass_core_by_theta(self.xp.asnumpy(W)[:, nu], theta_site).tolist())
             for j in kept:
-                site_set |= set(utils._mass_core_by_theta(cp.asnumpy(W)[:, j], theta_site).tolist())
+                site_set |= set(utils._mass_core_by_theta(self.xp.asnumpy(W)[:, j], theta_site).tolist())
             site_g = np.array(sorted(site_set), dtype=np.intp)
             if verbose:
                 print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
