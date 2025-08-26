@@ -1,74 +1,61 @@
 import numpy as np
 import scipy.linalg as la
 import pandas as pd
+from typing import Tuple
 from threadpoolctl import threadpool_limits
 from . import lattice
 
 
 # diagonalize Hamiltonian
 # NOTE : might want to make this more efficient with GPU/torch etc.
-def diagonalize(H, 
-                backend, 
-                cpu_threads: int = 8,
-                cpu_driver: str = "evr",
-                uplo: str = "L",
-                dtype=np.float64):
+def diagonalize_backend(
+    H: np.ndarray,
+    *,
+    backend,                 # your backend.get_backend(...) return value
+    uplo: str = "L",         # which triangle holds data
+    cpu_driver: str = "evr", # 'evr' (MRRR) or 'evd' (divide&conquer)
+    cpu_threads: int = 8,    # temporary BLAS thread cap for this call
+    dtype = np.float64,      # keep FP64 for reproducibility (recommended)
+    force_cpu_if_n_smaller_than: int | None = 1500,  # avoid GPU for small N
+    ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Backend-aware symmetric eigendecomposition.
+    Symmetric eigendecomposition with automatic CPU/GPU dispatch.
 
-    If backend.is_gpu is True:
-        Uses CuPy/cuSolver via xp.linalg.eigh on device.
-    Else:
-        Uses SciPy LAPACK driver (default 'evr' = MRRR) on CPU.
+    If backend.is_gpu is True (CuPy available), runs on GPU via cuSolver
+    (through xp.linalg.eigh). Otherwise falls back to SciPy LAPACK.
 
-    Parameters
-    ----------
-    H : (N,N) ndarray (float64)
-        Real symmetric Hamiltonian (host memory).
-    backend : object
-        From backend.get_backend(...). Must expose:
-            - is_gpu (bool), xp (numpy or cupy)
-            - from_host(a, dtype, order), to_host(a)
-    uplo : {'L','U'}
-        Which triangle of H is valid (forwarded to eigh).
-    cpu_driver : {'evr','evd','evx'} 
-        SciPy LAPACK driver (MRRR, divide&conquer, QR). Try 'evr' or 'evd'.
-    cpu_threads : int
-        Temporary BLAS thread cap during the call.
-    dtype : np.dtype
-        Working dtype (float64 recommended for reproducibility).
-
-    Returns
-    -------
-    E : (N,) float64
-        Eigenvalues in ascending order.
-    C : (N,N) float64
-        Eigenvectors as columns, sorted to match E.
+    Returns eigenvalues E (ascending) and eigenvectors C (columns) on HOST
+    memory as float64. C is returned Fortran-ordered to speed downstream GEMMs.
     """
-    N = H.shape[0]
+    N = int(H.shape[0])
 
-    if getattr(backend, "use_gpu", False):
-        xp = backend.xp
-        # H -> device
-        Hg = backend.from_host(H, dtype=dtype, order="C")
-        # cuSolver path via CuPy
-        Eg, Cg = xp.linalg.eigh(Hg, UPLO=uplo)
-        # back to host
-        E = backend.to_host(Eg)
-        C = backend.to_host(Cg)
-    else:
-        # CPU path (MKL/OpenBLAS). Pin to a reasonable #threads just for this call.
+    # Small matrices: CPU often wins (copy/launch overhead dominates).
+    if (not getattr(backend, "is_gpu", False)) or (
+        force_cpu_if_n_smaller_than is not None and N < force_cpu_if_n_smaller_than
+    ):
         with threadpool_limits(limits=cpu_threads):
-            # SciPy ≥1.10 lets you pick driver; 'evr' (MRRR) often fastest & stable.
             E, C = la.eigh(H, driver=cpu_driver, lower=(uplo == "L"))
+        # eigh usually returns ascending already; enforce & standardize layout
+        idx = np.argsort(E)
+        E = np.asarray(E[idx], dtype=np.float64, order="C")
+        C = np.asarray(C[:, idx], dtype=np.float64, order="F")  # Fortran (cols contiguous)
+        return E, C
 
-    # Ascending sort (eigh() already returns ascending on most drivers, but be explicit)
+    # -------- GPU path (cuSolver via CuPy) --------
+    xp = backend.xp  # cupy
+    Hg = backend.from_host(H, dtype=dtype, order="C")  # host→device
+    # UPLO controls which triangle is read (match CPU behavior)
+    Eg, Cg = xp.linalg.eigh(Hg, UPLO=uplo)
+
+    # Back to host
+    E = backend.to_host(Eg)
+    C = backend.to_host(Cg)
+
+    # Sort explicitly (should already be ascending)
     idx = np.argsort(E)
-    E = E[idx]
-    C = C[:, idx]
-    # Ensure float64 host arrays (important if GPU used complex64/float32 elsewhere)
-    E = np.asarray(E, dtype=np.float64, order="C")
-    C = np.asarray(C, dtype=np.float64, order="F")  # column-major helps downstream GEMMs
+    E = np.asarray(E[idx], dtype=np.float64, order="C")
+    C = np.asarray(C[:, idx], dtype=np.float64, order="F")      # Fortran (cols contiguous)
+
     return E, C
 
 
