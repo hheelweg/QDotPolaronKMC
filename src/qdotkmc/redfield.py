@@ -33,9 +33,7 @@ class Redfield():
 
         # --- load backend (GPU/CPU) ---
         self.backend = backend                                       # keep the handle if you want helper methods later
-        self.xp = backend.xp                                         # numpy or cupy 
-        self.use_gpu = self.backend.use_gpu #bool(backend.is_gpu)
-        self.gpu_use_c64 = self.backend.gpu_use_c64#bool(backend.use_c64)                        
+        self.xp = backend.xp                                         # numpy or cupy                  
 
         # Configure cupy memory pools (no-op on CPU)
         if hasattr(self.backend, "setup_pools"):
@@ -43,8 +41,8 @@ class Redfield():
 
         # print which backend we end up using
         if self.time_verbose:
-            mode = "GPU" if self.use_gpu else "CPU"
-            print(f"[Redfield] backend: {mode}  (use_c64={self.gpu_use_c64})")
+            mode = "GPU" if self.backend.use_gpu else "CPU"
+            print(f"[Redfield] backend: {mode}  (use_c64={self.backend.gpu_use_c64})")
 
     
     def _get_W_abs2(self):
@@ -391,7 +389,7 @@ class Redfield():
         pol_g : np.ndarray[int]
             Global polaron indices with the center FIRST, followed by kept destinations.
         """
-        if self.use_gpu:
+        if self.backend.use_gpu:
             return self.select_by_weight_gpu(center_global,
                                             theta_site=theta_site,
                                             theta_pol=theta_pol,
@@ -864,9 +862,9 @@ class Redfield():
         # (4) build 𝛾_+(𝜈')
         t2 = time.time()
         # if loop GPU/CPU switch
-        if self.use_gpu:
+        if self.backend.use_gpu:
             # run on GPU
-            gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, xp=self.xp, use_c64=self.gpu_use_c64)
+            gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, xp=self.xp, use_c64=self.backend.gpu_use_c64)
         else:
             # run on CPU
             gamma_plus = Redfield._build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
