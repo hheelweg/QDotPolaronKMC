@@ -40,20 +40,12 @@ class KMCRunner():
         self._ss_root = SeedSequence(self.dis.seed_base)
 
 
-        # --- backend selection (GPU/CPU) ---
+        # backend selection (GPU/CPU)
         # TODO : users choose via env, but feel free to plumb through RunConfig instead ?
         prefer_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
         use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
 
-        bx = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
-        self.backend = bx                                       # keep the handle if you want helper methods later
-        # self.xp = bx.xp                                         # numpy or cupy 
-        # self.use_gpu = bool(bx.is_gpu)
-        # self.gpu_use_c64 = bool(use_c64)                        
-
-        # # Configure cupy memory pools (no-op on CPU)
-        # if hasattr(bx, "setup_pools"):
-        #     bx.setup_pools()
+        self.backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)                                   
 
     
 
