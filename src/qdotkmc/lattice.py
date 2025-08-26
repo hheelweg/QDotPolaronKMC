@@ -173,7 +173,6 @@ class QDLattice():
 
 
         # (2) keep original diagonalization routine
-        # NOTE : can we improve this function somehow? (maybe torch/GPU/cupy?)
         import time
         start = time.time()
         self.eignrgs, self.eigstates = utils.diagonalize(self.hamil, self.backend)

@@ -6,7 +6,7 @@ from threadpoolctl import threadpool_limits
 from . import lattice
 
 
-# diagonalize Hamiltonian
+# diagonalize Hamiltonian (GPU/CPU switch implemented)
 def diagonalize(
                 H: np.ndarray,
                 backend,                 
@@ -18,13 +18,13 @@ def diagonalize(
                 force_cpu_if_n_smaller_than: int = 1500,    # avoid GPU for small N
                 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Symmetric eigendecomposition with automatic CPU/GPU dispatch.
+    symmetric eigendecomposition with automatic CPU/GPU dispatch.
 
     If backend.is_gpu is True (CuPy available), runs on GPU via cuSolver
     (through xp.linalg.eigh). Otherwise falls back to SciPy LAPACK.
 
     Returns eigenvalues E (ascending) and eigenvectors C (columns) on HOST
-    memory as float64. C is returned Fortran-ordered to speed downstream GEMMs.
+    memory as float64. C is returned Fortran-ordered (to speed downstream GEMMs).
     """
     N = int(H.shape[0])
 
@@ -33,7 +33,6 @@ def diagonalize(
     if (not getattr(backend, "use_gpu", False)) or (
         force_cpu_if_n_smaller_than is not None and N < force_cpu_if_n_smaller_than
         ):
-        print("use CPU diagonalization")
         with threadpool_limits(limits=cpu_threads):
             E, C = la.eigh(H, driver=cpu_driver, lower=(uplo == "L"))
         # eigh usually returns ascending already; enforce & standardize layout
@@ -43,7 +42,6 @@ def diagonalize(
         return E, C
 
     # (b) GPU path (cuSolver via CuPy) 
-    print('use GPU diagonalization')
     xp = backend.xp                                         # cupy
     Hg = backend.from_host(H, dtype=dtype, order="C")       # host→device
     # UPLO controls which triangle is read (match CPU behavior)
