@@ -49,7 +49,7 @@ class Redfield():
         # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}                                         # key: tuple(site_g) -> J2 ndarray
 
-        self._W_abs2 = None                                    # cache |U|^2 (Ns, Np) float64, C-contig
+        self._W_abs2 = None                                    # cache |U|^2 (n, P) float64, C-contig
 
         self._Wg = None
         self._L2g = None
@@ -95,24 +95,48 @@ class Redfield():
         return self._W_abs2
     
     def _ensure_WL2_gpu(self):
-        """Upload/cached W and L2 on device; return (Wg, L2g, Ns, Np)."""
+        """
+        Ensure W and L2 are uploaded and cached on the GPU.
+
+        - Converts host-side W = |U|^2 and L2 = |J|^2 (float64, C-contig) to CuPy,
+        caching device arrays to avoid re-uploading every call.
+        - A cache key based on shapes and host buffer addresses is used to detect
+        when the lattice has changed and a refresh is needed.
+
+        Returns
+        -------
+        Wg : cupy.ndarray, shape (n, P), float64, C-contiguous
+            Device-resident |U|^2.
+        L2g : cupy.ndarray, shape (n, P), float64, C-contiguous
+            Device-resident |J|^2.
+        n, P : int
+            Dimensions of the weights matrix.
+        """
+        # NOTE: this should call your *existing* cached provider:
         Wh  = self._get_W_abs2()
-        L2h = self._ensure_L2_full()
+        L2h = self._get_L2()
+
         Ns, Np = Wh.shape
-        key = (Ns, Np, int(Wh.__array_interface__['data'][0]), int(L2h.__array_interface__['data'][0]))
+        key = (Ns, Np, 
+               int(Wh.__array_interface__['data'][0]), 
+               int(L2h.__array_interface__['data'][0]))
+        
         if self._gpu_cache_key != key:
-            # one-time pool setup is cheap but you can move to module init
+            # set allocators once (safe to re-call)
             try:
                 cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
                 cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
             except Exception:
                 pass
+            # upload fresh copies to device
             self._Wg = cp.asarray(Wh,  dtype=cp.float64, order="C")
             self._L2g = cp.asarray(L2h, dtype=cp.float64, order="C")
             self._gpu_cache_key = key
+
         return self._Wg, self._L2g, Ns, Np
     
-    def _ensure_L2_full(self):
+
+    def _get_L2(self):
         """
         Return cached full-system |J|^2 matrix (site-site couplings squared).
 
@@ -201,7 +225,28 @@ class Redfield():
     
     def _top_prefix_by_coverage_gpu(self, values : np.ndarray,
                                     keep_fraction: float):
-        # --- change #1: normalize to 1D CuPy float array ---
+        """
+        Greedy coverage selector (GPU/CuPy version).
+
+        Same semantics as _top_prefix_by_coverage_cpu, but keeps all math on device:
+        - Grow a candidate top-k using argpartition.
+        - Sort only that subset.
+        - Return the minimal prefix whose cumulative sum reaches target coverage.
+
+        Parameters
+        ----------
+        values : array_like (CuPy or NumPy)
+            Score vector (1D). Will be converted to a CuPy float array.
+        keep_fraction : float
+            Fraction of total sum to cover, in [0, 1].
+
+        Returns
+        -------
+        indices : np.ndarray[int]
+            Selected indices (NumPy intp). We convert to host at the end because
+            downstream indexing typically expects NumPy indices.
+        """
+        # normalize to 1D, float, sanitize NaNs/Infs so cumsum is well-defined
         v = cp.asarray(values).ravel()
         if v.dtype.kind != 'f':
             v = v.astype(cp.float64, copy=False)
@@ -220,19 +265,25 @@ class Redfield():
         k = max(1, int(target / vmax)); k = min(k, n)
 
         while True:
+            # unsorted top-k on device
             idx_topk = cp.argpartition(v, n - k)[-k:]
             vals     = v[idx_topk]
+
+            # sort only the candidate set (deterministic descending)
             order    = cp.argsort(-vals)
             idx_sorted = idx_topk[order]
             csum = cp.cumsum(vals[order])
 
-            # --- change #2: pass a CuPy array to searchsorted ---
-            target_dev = cp.asarray([target], dtype=csum.dtype)   # shape (1,)
-            pos_dev = cp.searchsorted(csum, target_dev, side="left")  # shape (1,)
+            # cp.searchsorted expects a device array 'v', not a python scalar
+            target_dev = cp.asarray([target], dtype=csum.dtype)   
+            pos_dev = cp.searchsorted(csum, target_dev, side="left") 
             pos = int(pos_dev.get()[0])
 
+            # minimal prefix found, or we've already taken all
             if pos < k or k == n:
                 return np.asarray(idx_sorted[:pos+1].get(), dtype=np.intp)
+            
+            # otherwise enlarge k geometrically and retry
             k = min(n, int(k*1.8)+1)
     
 
@@ -511,7 +562,7 @@ class Redfield():
 
         nu = int(center_global)
         W  = self._get_W_abs2()                 # (n, P) float64
-        L2 = self._ensure_L2_full()             # (n, n) float64, C-contig
+        L2 = self._get_L2()                     # (n, n) float64, C-contig
         n, P = W.shape
 
         # (1) ν' selection by S coverage
@@ -522,6 +573,7 @@ class Redfield():
 
         kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
         kept = kept[kept != nu]
+        # optional: pre-cap by max_nuprime to reduce coverage work on long tails
         if max_nuprime is not None and kept.size > max_nuprime:
             kept = kept[np.argsort(-S[kept])[:max_nuprime]]
         # keep descending order for determinism
@@ -601,36 +653,36 @@ class Redfield():
         # one host copy for ordering/diagnostics; heavy math remains on device
         S_host = cp.asnumpy(S)  
         # optional: pre-cap by max_nuprime to reduce coverage work on long tails
-        # if max_nuprime is not None and max_nuprime < Np-1:
-        #     cand = cp.argpartition(S, -(max_nuprime+1))[-(max_nuprime+1):]
-        #     cand = cp.asnumpy(cand)
-        #     cand = cand[cand != nu]
-        #     cand = cand[np.argsort(-S_host[cand])]
-        #     S_view = S_host[cand]
-        #     csum = np.cumsum(S_view)
-        #     k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol))*S_view.sum(), 'left')) + 1
-        #     kept = cand[:k_pol]
-        # else:
-        #     kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
-        #     kept = kept[kept != nu]
+        if max_nuprime is not None and max_nuprime < Np-1:
+            cand = cp.argpartition(S, -(max_nuprime+1))[-(max_nuprime+1):]
+            cand = cp.asnumpy(cand)
+            cand = cand[cand != nu]
+            cand = cand[np.argsort(-S_host[cand])]
+            S_view = S_host[cand]
+            csum = np.cumsum(S_view)
+            k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol))*S_view.sum(), 'left')) + 1
+            kept = cand[:k_pol]
+        else:
+            # device-side coverage (returns np indices), then drop self if present
+            kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
+            kept = kept[kept != nu]
 
-        kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
-        kept = kept[kept != nu]
-
-        # deterministic order
+        # deterministic descending order by S (host)
         kept = kept[np.argsort(-S_host[kept])]
         pol_g = np.concatenate(([nu], kept)).astype(np.intp)
 
-        # (2) sites: choose sum strategy based on kept size
+        # (2) site selection on device
         k = kept.size
         if k == 0:
-            wD = cp.zeros(Ns, dtype=cp.float64)
+            wD = cp.zeros(Ns, dtype=cp.float64)                 # (n,)
         elif k < (Np // 16):
-            wD = W[:, kept].sum(axis=1)          
+            # for a small kept set, gathering columns is efficient
+            wD = W[:, kept].sum(axis=1)                         # (n,)     
         else:
+            # for a large kept set, masked GEMV is more coalesced/faster
             mask = cp.zeros((Np,), dtype=cp.float64)
             mask[kept] = 1.0
-            wD = W @ mask                       
+            wD = W @ mask                                       # (n,)            
 
         tD = L2 @ wD
         s  = w0 * tD + wD * t0
