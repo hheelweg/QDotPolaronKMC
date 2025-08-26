@@ -49,7 +49,7 @@ class Redfield():
         # avoid recomputing J2 = J * J by caching
         self._J2_cache = {}                                         # key: tuple(site_g) -> J2 ndarray
 
-        self._W_abs2_full = None                                    # cache |U|^2 (Ns, Np) float64, C-contig
+        self._W_abs2 = None                                    # cache |U|^2 (Ns, Np) float64, C-contig
 
         self._Wg = None
         self._L2g = None
@@ -73,18 +73,30 @@ class Redfield():
         print('use GPU64:', self.gpu_use_c64)
 
     
-    # --- helper methods in Redfield ---
-    def _get_W_abs2_full(self):
-        """Return cached W = |U|^2 as float64, C-contiguous."""
-        if self._W_abs2_full is None:
+    def _get_W_abs2(self):
+        """
+        Return cached matrix W = |U|^2 (site × polaron weights).
+
+        -   U is the site2polaron transformation matrix (Ns × Np).
+        -   Each entry W[m,ν] = |U[m,ν]|^2 gives the probability
+            weight of polaron ν on site m.
+        -   This is reused in many selections, so we cache it in
+            self._W_abs2 after first computation.
+
+        Returns
+        -------
+        W : ndarray, shape (Ns, Np), float64, C-contiguous
+            Cached weights matrix.
+        """
+        if self._W_abs2 is None:
             U = self.ham.Umat
             W = np.abs(U)**2                 # real
-            self._W_abs2_full = np.asarray(W, dtype=np.float64, order='C')
-        return self._W_abs2_full
+            self._W_abs2 = np.asarray(W, dtype=np.float64, order='C')
+        return self._W_abs2
     
     def _ensure_WL2_gpu(self):
         """Upload/cached W and L2 on device; return (Wg, L2g, Ns, Np)."""
-        Wh  = self._get_W_abs2_full()
+        Wh  = self._get_W_abs2()
         L2h = self._ensure_L2_full()
         Ns, Np = Wh.shape
         key = (Ns, Np, int(Wh.__array_interface__['data'][0]), int(L2h.__array_interface__['data'][0]))
@@ -101,15 +113,53 @@ class Redfield():
         return self._Wg, self._L2g, Ns, Np
     
     def _ensure_L2_full(self):
-        # full-system |J|^2 (your existing cache already helps)
+        """
+        Return cached full-system |J|^2 matrix (site-site couplings squared).
+
+        - J is the inter-site coupling matrix (n × n).
+        - L2 = |J|^2 (elementwise squared coupling strengths).
+        - This is used to propagate site weights into effective
+        contact scores (S) and exchange scores (s).
+        - Heavy to compute repeatedly, so we call through
+        self._get_J2_cached(...) and cache the result.
+
+        Returns
+        -------
+        L2 : ndarray, shape (n, n), float64, C-contiguous
+            squared coupling matrix.
+        """
         Ns = self.ham.Umat.shape[0]
         L2 = self._get_J2_cached(self.ham.J_dense, np.arange(Ns))
         return np.asarray(L2, dtype=np.float64, order="C")
         
 
-    def _top_prefix_by_coverage_cpu(self, values: np.ndarray, keep_fraction: float) -> np.ndarray:
+    def _top_prefix_by_coverage_cpu(self, 
+                                    values: np.ndarray, 
+                                    keep_fraction: float) -> np.ndarray:
         """
-        Add explanation
+        greedy coverage selector (CPU version).
+
+        Given a vector of nonnegative scores v, return the smallest
+        prefix set of indices such that the cumulative sum reaches
+        'keep_fraction' of the total sum.
+
+        - Used in select_by_weight to:
+            (1) pick the minimal set of destination polarons (θ_pol),
+            (2) pick the minimal set of important sites (θ_site).
+        - Avoids full sort: grows candidate set geometrically and
+        refines until target coverage is reached.
+
+        Parameters
+        ----------
+        values : ndarray
+            Input score vector (1D, nonnegative).
+        keep_fraction : float
+            Fraction of total sum to cover, in [0,1].
+
+        Returns
+        -------
+        indices : ndarray[int]
+            Indices of selected entries (order determined by descending scores).
         """
         v = np.asarray(values, dtype=np.float64)
         total = float(v.sum())
@@ -126,21 +176,33 @@ class Redfield():
         k = min(k, v.size)
 
         while True:
-            topk_idx = np.argpartition(v, v.size - k)[-k:]        # unsorted top-k
+            # select top-k by value (unsorted)
+            topk_idx = np.argpartition(v, v.size - k)[-k:]        
             topk_vals = v[topk_idx]
-            order_local = np.argsort(-topk_vals)                  # sort only top-k
+
+            # sort that small subset descending
+            order_local = np.argsort(-topk_vals)                  
             idx_sorted = topk_idx[order_local]
+
+            # cumulative coverage
             csum = np.cumsum(topk_vals[order_local])
             pos = np.searchsorted(csum, target, side='left')
+
+            # if target covered, return minimal prefix
             if pos < k:
                 return idx_sorted[:pos+1].astype(np.intp)
+            
+            # if we already considered everything, just return all
             if k == v.size:
                 return idx_sorted.astype(np.intp)
+            
+            # otherwise grow k geometrically and retry
             k = min(v.size, int(k*1.8)+1)
     
-    def _top_prefix_by_coverage_gpu(self, values_g, keep_fraction: float):
+    def _top_prefix_by_coverage_gpu(self, values : np.ndarray,
+                                    keep_fraction: float):
         # --- change #1: normalize to 1D CuPy float array ---
-        v = cp.asarray(values_g).ravel()
+        v = cp.asarray(values).ravel()
         if v.dtype.kind != 'f':
             v = v.astype(cp.float64, copy=False)
         v = cp.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
@@ -398,20 +460,64 @@ class Redfield():
                                             max_nuprime=max_nuprime,
                                             verbose=verbose)
 
+    # CPU version to select weights
     def select_by_weight_cpu(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
                      max_nuprime: Optional[int] = None,
                      verbose: bool):
+        """
+        CPU version of weight-based selection.
+
+        Steps:
+        ------
+        1. Destination polaron selection (θ_pol):
+        - Define contact scores S_{ν→ν'} = w_ν^T |J|^2 w_{ν'}.
+        - Use greedy coverage (_top_prefix_by_coverage_cpu) to
+            keep just enough ν' to reach (1 - θ_pol) of total S.
+        - Ensure center ν is always included.
+
+        2. Site selection (θ_site):
+        - Aggregate destination weight w_D = Σ_{ν'∈ kept} w_{ν'}.
+        - Compute exchange score per site:
+            s_i = w_ν[i]*(L2 w_D)[i] + w_D[i]*(L2 w_ν)[i]
+        - Again use greedy coverage to keep minimal set reaching
+            (1 - θ_site) of total s.
+
+        Notes:
+        ------
+        - Uses cached W = |U|^2 and L2 = |J|^2 for efficiency.
+        - As θ_pol, θ_site to 0, this approaches the full Redfield set.
+
+        Parameters
+        ----------
+        center_global : int
+            Index of source polaron ν.
+        theta_site : float
+            Site coverage tolerance (smaller = more sites kept).
+        theta_pol : float
+            Destination coverage tolerance (smaller = more ν' kept).
+        max_nuprime : int, optional
+            Hard cap on number of ν' considered (after ranking).
+        verbose : bool
+            Print diagnostic info.
+
+        Returns
+        -------
+        site_g : ndarray[int]
+            Selected site indices.
+        pol_g : ndarray[int]
+            Selected polaron indices, with center first.
+        """
 
         nu = int(center_global)
-        W  = self._get_W_abs2_full()            # (Ns,Np) float64
-        L2 = self._ensure_L2_full()             # (Ns,Ns) float64, C-contig
-        Ns, Np = W.shape
+        W  = self._get_W_abs2()                 # (n, P) float64
+        L2 = self._ensure_L2_full()             # (n, n) float64, C-contig
+        n, P = W.shape
 
         # (1) ν' selection by S coverage
-        w0 = W[:, nu]                           # (Ns,)
-        t0 = L2 @ w0                            # (Ns,)
-        S  = W.T @ t0                           # (Np,)
+        w0 = W[:, nu]                           # (n,)
+        t0 = L2 @ w0                            # (n,)
+        S  = W.T @ t0                           # (P,)
         S[nu] = 0.0
 
         kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
@@ -424,11 +530,11 @@ class Redfield():
 
         # (2) site selection by s coverage
         if kept.size:
-            wD = W[:, kept].sum(axis=1)         # (Ns,)
+            wD = W[:, kept].sum(axis=1)         # (n,)
             tD = L2 @ wD
             s  = w0 * tD + wD * t0
         else:
-            s  = np.zeros(Ns, dtype=np.float64)
+            s  = np.zeros(n, dtype=np.float64)
 
         if float(s.sum()) <= 0.0:
             site_set = set(utils._mass_core_by_theta(w0, theta_site).tolist())
@@ -445,12 +551,13 @@ class Redfield():
         if verbose:
             cov_pol   = S[kept].sum() / (S.sum() + 1e-300)
             cov_sites = s[site_g].sum() / (s.sum() + 1e-300)
-            print(f"[select] nu' kept: {len(kept)}/{Np-1}  S-coverage={cov_pol:.3f}")
-            print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage={cov_sites:.3f}")
+            print(f"[select] nu' kept: {len(kept)}/{P-1}  S-coverage={cov_pol:.3f}")
+            print(f"[select] sites kept: {site_g.size}/{n}  s-coverage={cov_sites:.3f}")
 
         return site_g, pol_g
 
 
+    # GPU version to select weights
     def select_by_weight_gpu(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
                      max_nuprime: Optional[int] = None,
@@ -489,11 +596,11 @@ class Redfield():
         if k == 0:
             wD = cp.zeros(Ns, dtype=cp.float64)
         elif k < (Np // 16):
-            wD = W[:, kept].sum(axis=1)          # small gather is fine
+            wD = W[:, kept].sum(axis=1)          
         else:
             mask = cp.zeros((Np,), dtype=cp.float64)
             mask[kept] = 1.0
-            wD = W @ mask                        # coalesced GEMV
+            wD = W @ mask                       
 
         tD = L2 @ wD
         s  = w0 * tD + wD * t0
@@ -706,8 +813,8 @@ class Redfield():
 
         Internal shapes (after slicing)
         -------------------------------
-        n  := len(site_idxs_global)      # sites in box
-        P  := len(pol_idxs_global)       # polarons in box
+        n  := len(site_idxs_global)      # sites
+        P  := len(pol_idxs_global)       # polarons
         J      : (n, n)   real, diag(J)=0
         u0     : (n,)     complex  (column of U for ν)
         Up     : (n, P)   complex  (columns of U for ν' ∈ pol_g)
