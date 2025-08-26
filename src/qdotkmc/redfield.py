@@ -786,17 +786,17 @@ class Redfield():
     # function for computing 𝛾_+(𝜈') (exact, closed-form λ-contraction)
     # (b) for execution on GPU (cp-based)
     @staticmethod
-    def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, *, use_c64=False):
+    def _build_gamma_plus_gpu(J, J2, Up, u0, bath_map, xp, *, use_c64=False):
 
         # dtypes (stay in 128-bit by default for accuracy)
-        cupy_c = cp.complex64 if use_c64 else cp.complex128
-        cupy_f = cp.float32   if use_c64 else cp.float64
+        cupy_c = xp.complex64 if use_c64 else xp.complex128
+        cupy_f = xp.float32   if use_c64 else xp.float64
 
         # upload once per call (minimal change version)
-        Jg  = cp.asarray(J,  dtype=cupy_f)
-        J2g = cp.asarray(J2, dtype=cupy_f)
-        Upg = cp.asarray(Up, dtype=cupy_c)
-        u0g = cp.asarray(u0, dtype=cupy_c)
+        Jg  = xp.asarray(J,  dtype=cupy_f)
+        J2g = xp.asarray(J2, dtype=cupy_f)
+        Upg = xp.asarray(Up, dtype=cupy_c)
+        u0g = xp.asarray(u0, dtype=cupy_c)
 
         # shared matmuls
         Ju0 = Jg @ u0g           # (n,)
@@ -986,7 +986,7 @@ class Redfield():
         # if loop GPU/CPU switch
         if self.use_gpu:
             # run on GPU
-            gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, use_c64=self.gpu_use_c64)
+            gamma_plus = Redfield._build_gamma_plus_gpu(J, J2, Up, u0, bath_map, xp=self.xp, use_c64=self.gpu_use_c64)
         else:
             # run on CPU
             gamma_plus = Redfield._build_gamma_plus_cpu(J, J2, Up, u0, bath_map)  
