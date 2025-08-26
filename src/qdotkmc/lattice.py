@@ -22,6 +22,9 @@ class QDLattice():
         # initialize lattice
         self._make_lattice()
 
+        # computing backend for QDLattice (GPU/CPU)
+        self.backend = None
+
         
     # NOTE: old make_qd_array method (basically unchanged)
     def _make_lattice(self):    
@@ -210,6 +213,7 @@ class QDLattice():
 
         self.redfield = redfield.Redfield(
             self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron,
+            self.backend,
             time_verbose=True
         )
 

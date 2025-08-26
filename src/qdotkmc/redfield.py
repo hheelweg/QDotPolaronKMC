@@ -9,7 +9,7 @@ import os
 
 class Redfield():
 
-    def __init__(self, hamiltonian, polaron_locations, site_locations, kappa,
+    def __init__(self, hamiltonian, polaron_locations, site_locations, kappa, backend
                 time_verbose = True):
 
         self.ham = hamiltonian
@@ -37,9 +37,9 @@ class Redfield():
         use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
 
         bx = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
-        self.backend = bx                                       # keep the handle if you want helper methods later
-        self.xp = bx.xp                                         # numpy or cupy 
-        self.use_gpu = bool(bx.is_gpu)
+        self.backend = backend                                       # keep the handle if you want helper methods later
+        self.xp = backend.xp                                         # numpy or cupy 
+        self.use_gpu = bool(backend.is_gpu)
         self.gpu_use_c64 = bool(use_c64)                        
 
         # Configure cupy memory pools (no-op on CPU)

@@ -8,6 +8,7 @@ from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
 from . import hamiltonian, lattice, const, utils
 from .hamiltonian import SpecDens
+from qdotkmc.backend import get_backend
 
 # global variable to allow parallel workers to use the same bath setup
 _BATH_GLOBAL = None
@@ -38,9 +39,29 @@ class KMCRunner():
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
 
-        # TODO : create backend here
-        
+
+        # --- backend selection (GPU/CPU) ---
+        # TODO : users choose via env, but feel free to plumb through RunConfig instead ?
+        prefer_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
+        use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
+
+        bx = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
+        self.backend = bx                                       # keep the handle if you want helper methods later
+        self.xp = bx.xp                                         # numpy or cupy 
+        self.use_gpu = bool(bx.is_gpu)
+        self.gpu_use_c64 = bool(use_c64)                        
+
+        # Configure cupy memory pools (no-op on CPU)
+        if hasattr(bx, "setup_pools"):
+            bx.setup_pools()
+
+        # print which backend we end up using
+        if self.time_verbose:
+            mode = "GPU" if self.use_gpu else "CPU"
+            print(f"[Redfield] backend: {mode}  (use_c64={self.gpu_use_c64})")
     
+
+
     # make join time-grid
     def _make_time_grid(self):
         npts = int(self.run.t_final * self.run.time_grid_density)
@@ -230,8 +251,10 @@ class KMCRunner():
             rnd_seed = seed 
         
         # initialize instance of QDLattice class
-        # NOTE : change to rnd_seed = self.dis.seed_base for default seed
         qd = lattice.QDLattice(geom=self.geom, dis=self.dis, seed_realization=rnd_seed)
+
+        # attach GPU/CPU backend
+        qd.backend = self.backend
 
         # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
         qd._setup(bath)
