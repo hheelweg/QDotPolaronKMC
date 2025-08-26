@@ -442,7 +442,7 @@ class Redfield():
                 k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol))*S_view.sum(), 'left')) + 1
                 kept = cand[:k_pol]
             else:
-                kept = self._top_prefix_by_coverage_cp(Sg, 1.0 - float(theta_pol))
+                kept = self._top_prefix_by_coverage_gpu(Sg, 1.0 - float(theta_pol))
                 kept = kept[kept != nu]
 
             # deterministic order
@@ -464,7 +464,7 @@ class Redfield():
                 k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol))*S_view.sum(), 'left')) + 1
                 kept = cand[:k_pol]
             else:
-                kept = self._top_prefix_by_coverage_np(S, 1.0 - float(theta_pol))
+                kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
                 kept = kept[kept != nu]
 
             kept = kept[np.argsort(-S[kept])]
@@ -496,7 +496,7 @@ class Redfield():
                     print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
                 return site_g, pol_g
 
-            kept_sites = self._top_prefix_by_coverage_cp(s_g, 1.0 - float(theta_site))
+            kept_sites = self._top_prefix_by_coverage_gpu(s_g, 1.0 - float(theta_site))
             site_g = np.sort(kept_sites.astype(np.intp))
 
             if verbose:
