@@ -31,16 +31,11 @@ class Redfield():
         self._L2g = None
         self._gpu_cache_key = None                                  # (n, P, id(W_host), id(L2_host))
 
-        # --- backend selection (GPU/CPU) ---
-        # TODO : users choose via env, but feel free to plumb through RunConfig instead ?
-        # prefer_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
-        # use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
-
-        #bx = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
+        # --- load backend (GPU/CPU) ---
         self.backend = backend                                       # keep the handle if you want helper methods later
         self.xp = backend.xp                                         # numpy or cupy 
-        self.use_gpu = bool(backend.is_gpu)
-        self.gpu_use_c64 = bool(backend.use_c64)                        
+        self.use_gpu = self.backend.use_gpu #bool(backend.is_gpu)
+        self.gpu_use_c64 = self.backend.gpu_use_c64#bool(backend.use_c64)                        
 
         # Configure cupy memory pools (no-op on CPU)
         if hasattr(self.backend, "setup_pools"):
