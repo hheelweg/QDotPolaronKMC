@@ -38,8 +38,8 @@ class KMCRunner():
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
 
-        #self.rates_by = self.run.rates_by       # determine strategy to obtain rates
-
+        # TODO : create backend here
+        
     
     # make join time-grid
     def _make_time_grid(self):
