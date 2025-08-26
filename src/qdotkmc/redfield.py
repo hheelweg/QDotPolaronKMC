@@ -376,7 +376,7 @@ class Redfield():
 
     def select_by_weight(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
-                     max_nuprime: int | None = None,
+                     max_nuprime: Optional[int] = None,
                      verbose: bool = False):
         """
         Unified CPU/GPU implementation chosen by self.use_gpu (via backend.py).
