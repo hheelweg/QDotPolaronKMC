@@ -7,25 +7,69 @@ from . import lattice
 
 # diagonalize Hamiltonian
 # NOTE : might want to make this more efficient with GPU/torch etc.
-def diagonalize(H, S=None, 
+def diagonalize(H, 
+                backend, 
                 cpu_threads: int = 8,
                 cpu_driver: str = "evr",
-                uplo: str = "L"):
+                uplo: str = "L",
+                dtype=np.float64):
     """
-    Diagonalize a real, symmetrix matrix and return sorted results.
-    
-    Return the eigenvalues and eigenvectors (column matrix) 
-    sorted from lowest to highest eigenvalue.
+    Backend-aware symmetric eigendecomposition.
+
+    If backend.is_gpu is True:
+        Uses CuPy/cuSolver via xp.linalg.eigh on device.
+    Else:
+        Uses SciPy LAPACK driver (default 'evr' = MRRR) on CPU.
+
+    Parameters
+    ----------
+    H : (N,N) ndarray (float64)
+        Real symmetric Hamiltonian (host memory).
+    backend : object
+        From backend.get_backend(...). Must expose:
+            - is_gpu (bool), xp (numpy or cupy)
+            - from_host(a, dtype, order), to_host(a)
+    uplo : {'L','U'}
+        Which triangle of H is valid (forwarded to eigh).
+    cpu_driver : {'evr','evd','evx'} 
+        SciPy LAPACK driver (MRRR, divide&conquer, QR). Try 'evr' or 'evd'.
+    cpu_threads : int
+        Temporary BLAS thread cap during the call.
+    dtype : np.dtype
+        Working dtype (float64 recommended for reproducibility).
+
+    Returns
+    -------
+    E : (N,) float64
+        Eigenvalues in ascending order.
+    C : (N,N) float64
+        Eigenvectors as columns, sorted to match E.
     """
-    # CPU path (MKL/OpenBLAS). Pin to a reasonable #threads just for this call.
-    with threadpool_limits(limits=cpu_threads):
-        # SciPy ≥1.10 lets you pick driver; 'evr' (MRRR) often fastest & stable.
-        E, C = la.eigh(H, driver=cpu_driver, lower=(uplo == "L"))
-    
+    N = H.shape[0]
+
+    if getattr(backend, "is_gpu", False):
+        xp = backend.xp
+        # H -> device
+        Hg = backend.from_host(H, dtype=dtype, order="C")
+        # cuSolver path via CuPy
+        Eg, Cg = xp.linalg.eigh(Hg, UPLO=uplo)
+        # back to host
+        E = backend.to_host(Eg)
+        C = backend.to_host(Cg)
+    else:
+        # CPU path (MKL/OpenBLAS). Pin to a reasonable #threads just for this call.
+        with threadpool_limits(limits=cpu_threads):
+            # SciPy ≥1.10 lets you pick driver; 'evr' (MRRR) often fastest & stable.
+            E, C = la.eigh(H, driver=cpu_driver, lower=(uplo == "L"))
+
+    # Ascending sort (eigh() already returns ascending on most drivers, but be explicit)
     idx = np.argsort(E)
     E = E[idx]
     C = C[:, idx]
-    return E,C
+    # Ensure float64 host arrays (important if GPU used complex64/float32 elsewhere)
+    E = np.asarray(E, dtype=np.float64, order="C")
+    C = np.asarray(C, dtype=np.float64, order="F")  # column-major helps downstream GEMMs
+    return E, C
 
 
 def export_msds(times, msds, file_name = "msds.csv"):

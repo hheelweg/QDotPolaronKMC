@@ -45,11 +45,13 @@ class KMCRunner():
         prefer_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
         use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
 
-        self.backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)                                   
+        self.backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)   
+
+        # print which backend we end up using for KMC
+        mode = "GPU" if self.backend.use_gpu else "CPU"
+        print(f"[qdotkmc] backend: {mode}  (use_c64={self.backend.gpu_use_c64})")                                
 
     
-
-
     # make join time-grid
     def _make_time_grid(self):
         npts = int(self.run.t_final * self.run.time_grid_density)

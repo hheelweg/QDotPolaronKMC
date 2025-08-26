@@ -35,15 +35,6 @@ class Redfield():
         self.backend = backend                                       # keep the handle if you want helper methods later
         self.xp = backend.xp                                         # numpy or cupy                  
 
-        # # configure cupy memory pools (no-op on CPU)
-        # if hasattr(self.backend, "setup_pools"):
-        #     self.backend.setup_pools()
-
-        # print which backend we end up using
-        if self.time_verbose:
-            mode = "GPU" if self.backend.use_gpu else "CPU"
-            print(f"[Redfield] backend: {mode}  (use_c64={self.backend.gpu_use_c64})")
-
     
     def _get_W_abs2(self):
         """
