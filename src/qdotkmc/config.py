@@ -64,6 +64,10 @@ class RunConfig:
     nrealizations: int
     t_final: float = 5                      # time for each trajectory (units ?)
     time_grid_density: int = 200            # points per unit time for MSD time grid
+
+    # HPC execution parameters
+    prefer_gpu : bool = True                # try to use GPU if available
+    gpu_use_c64 : bool = True               # 
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
 
     # mode selector to compute rates in KMC 
