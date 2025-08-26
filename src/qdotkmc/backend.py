@@ -17,14 +17,14 @@ class Backend:
         self.c = xp.complex64 if use_c64 else xp.complex128
 
         # streams
-        if self.is_gpu and enable_streams:
+        if self.use_gpu and enable_streams:
             import cupy as cp
             self.Stream = cp.cuda.Stream
         else:
             self.Stream = CPUStreams
 
         # memory pools (GPU only)
-        if self.is_gpu:
+        if self.use_gpu:
             import cupy as cp
             cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
             try:
