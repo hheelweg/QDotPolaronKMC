@@ -378,165 +378,25 @@ class Redfield():
 
     #     return site_g, pol_g
 
-    def _ensure_WL2_backend(self, bx):
-        """
-        Return (Wb, L2b, Ns, Np) in the backend's array type.
-        - CPU → returns NumPy arrays
-        - GPU → caches CuPy arrays to avoid re-uploads
-        """
-        Wh  = self._get_W_abs2_full()   # (Ns,Np) float64 C
-        L2h = self._ensure_L2_full()    # (Ns,Ns) float64 C
-        Ns, Np = Wh.shape
-
-        if not getattr(bx, "is_gpu", False):
-            return Wh, L2h, Ns, Np
-
-        # GPU: reuse device copies per lattice (key by host buffers' data ptrs + shape)
-        key = (Ns, Np,
-            int(Wh.__array_interface__['data'][0]),
-            int(L2h.__array_interface__['data'][0]))
-        if self._gpu_sel_key != key:
-            # set pools once (safe to call repeatedly)
-            try:
-                cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
-                cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-            except Exception:
-                pass
-            self._Wg_sel = cp.asarray(Wh,  dtype=cp.float64, order="C")
-            self._L2g_sel = cp.asarray(L2h, dtype=cp.float64, order="C")
-            self._gpu_sel_key = key
-        return self._Wg_sel, self._L2g_sel, Ns, Np
-
     def select_by_weight(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
-                     max_nuprime: Optional[int] = None,
+                     max_nuprime: int | None = None,
                      verbose: bool = False):
         """
-        Unified CPU/GPU implementation chosen by self.use_gpu (via backend.py).
-        Keeps exact physics; uses cached device W/L2 when on GPU.
+        Choose between CPU and GPU implementations depending only on self.use_gpu.
         """
-        bx = get_backend(prefer_gpu=self.use_gpu, use_c64=False)  # keep float64 for determinism here
-        xp = bx.xp
-        nu = int(center_global)
-
-        # arrays on the chosen backend
-        Wb, L2b, Ns, Np = self._ensure_WL2_backend(bx)
-
-        # --- (1) ν' selection by S coverage ---
-        # t0 = |J|^2 w0 ; S = W^T t0
-        if bx.is_gpu:
-            w0 = Wb[:, nu]
-            t0 = L2b @ w0
-            Sg = Wb.T @ t0
-            Sg[nu] = 0.0
-            S_host = bx.to_host(Sg)
-
-            if max_nuprime is not None and max_nuprime < Np-1:
-                # pre-cap: top-(K+1), drop self, sort desc
-                cand_g = cp.argpartition(Sg, -(max_nuprime+1))[-(max_nuprime+1):]
-                cand = np.asarray(cand_g.get())
-                cand = cand[cand != nu]
-                cand = cand[np.argsort(-S_host[cand])]
-                S_view = S_host[cand]
-                csum = np.cumsum(S_view)
-                k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol))*S_view.sum(), 'left')) + 1
-                kept = cand[:k_pol]
-            else:
-                kept = self._top_prefix_by_coverage_gpu(Sg, 1.0 - float(theta_pol))
-                kept = kept[kept != nu]
-
-            # deterministic order
-            kept = kept[np.argsort(-S_host[kept])]
-            pol_g = np.concatenate(([nu], kept)).astype(np.intp)
+        if self.use_gpu:
+            return self.select_by_weight_gpu(center_global,
+                                            theta_site=theta_site,
+                                            theta_pol=theta_pol,
+                                            max_nuprime=max_nuprime,
+                                            verbose=verbose)
         else:
-            W, L2 = Wb, L2b
-            w0 = W[:, nu]
-            t0 = L2 @ w0
-            S  = W.T @ t0
-            S[nu] = 0.0
-
-            if max_nuprime is not None and max_nuprime < Np-1:
-                cand = np.argpartition(S, -(max_nuprime+1))[-(max_nuprime+1):]
-                cand = cand[cand != nu]
-                cand = cand[np.argsort(-S[cand])]
-                S_view = S[cand]
-                csum = np.cumsum(S_view)
-                k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol))*S_view.sum(), 'left')) + 1
-                kept = cand[:k_pol]
-            else:
-                kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
-                kept = kept[kept != nu]
-
-            kept = kept[np.argsort(-S[kept])]
-            pol_g = np.concatenate(([nu], kept)).astype(np.intp)
-
-        # --- (2) site selection by s coverage ---
-        if bx.is_gpu:
-            k = kept.size
-            if k == 0:
-                wD = xp.zeros((Ns,), dtype=xp.float64)
-            elif k < (Np // 16):
-                wD = Wb[:, kept].sum(axis=1)
-            else:
-                mask = xp.zeros((Np,), dtype=xp.float64)
-                mask[kept] = 1.0
-                wD = Wb @ mask
-
-            tD = L2b @ wD
-            s_g = w0 * tD + wD * t0
-
-            s_host = bx.to_host(s_g)
-            if float(s_host.sum()) <= 0.0:
-                Wh = self._get_W_abs2_full()
-                site_set = set(utils._mass_core_by_theta(Wh[:, nu], theta_site).tolist())
-                for j in kept:
-                    site_set |= set(utils._mass_core_by_theta(Wh[:, j], theta_site).tolist())
-                site_g = np.array(sorted(site_set), dtype=np.intp)
-                if verbose:
-                    print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
-                return site_g, pol_g
-
-            kept_sites = self._top_prefix_by_coverage_gpu(s_g, 1.0 - float(theta_site))
-            site_g = np.sort(kept_sites.astype(np.intp))
-
-            if verbose:
-                Ssum = float(S_host.sum())
-                cov_pol   = S_host[kept].sum() / (Ssum + 1e-300)
-                cov_sites = s_host[site_g].sum() / (s_host.sum() + 1e-300)
-                print(f"[select] nu' kept: {len(kept)}/{Np-1}  S-coverage={cov_pol:.3f}")
-                print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage={cov_sites:.3f}")
-
-            return site_g, pol_g
-
-        else:
-            # CPU path
-            W, L2 = Wb, L2b
-            if kept.size:
-                wD = W[:, kept].sum(axis=1, dtype=np.float64)
-                tD = L2 @ wD
-                s  = w0 * tD + wD * t0
-            else:
-                s  = np.zeros(Ns, dtype=np.float64)
-
-            if float(s.sum()) <= 0.0:
-                site_set = set(utils._mass_core_by_theta(w0, theta_site).tolist())
-                for j in kept:
-                    site_set |= set(utils._mass_core_by_theta(W[:, j], theta_site).tolist())
-                site_g = np.array(sorted(site_set), dtype=np.intp)
-                if verbose:
-                    print(f"[select] s_sum = 0 fallback; sites={site_g.size}")
-                return site_g, pol_g
-
-            kept_sites = self._top_prefix_by_coverage_np(s, 1.0 - float(theta_site))
-            site_g = np.sort(kept_sites.astype(np.intp))
-
-            if verbose:
-                cov_pol   = S[kept].sum() / (S.sum() + 1e-300)
-                cov_sites = s[site_g].sum() / (s.sum() + 1e-300)
-                print(f"[select] nu' kept: {len(kept)}/{Np-1}  S-coverage={cov_pol:.3f}")
-                print(f"[select] sites kept: {site_g.size}/{Ns}  s-coverage={cov_sites:.3f}")
-
-            return site_g, pol_g
+            return self.select_by_weight_cpu(center_global,
+                                            theta_site=theta_site,
+                                            theta_pol=theta_pol,
+                                            max_nuprime=max_nuprime,
+                                            verbose=verbose)
 
     def select_by_weight_cpu(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
