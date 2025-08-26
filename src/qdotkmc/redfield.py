@@ -374,6 +374,35 @@ class Redfield():
 
     #     return site_g, pol_g
 
+    def _ensure_WL2_backend(self, bx):
+        """
+        Return (Wb, L2b, Ns, Np) in the backend's array type.
+        - CPU → returns NumPy arrays
+        - GPU → caches CuPy arrays to avoid re-uploads
+        """
+        Wh  = self._get_W_abs2_full()   # (Ns,Np) float64 C
+        L2h = self._ensure_L2_full()    # (Ns,Ns) float64 C
+        Ns, Np = Wh.shape
+
+        if not getattr(bx, "is_gpu", False):
+            return Wh, L2h, Ns, Np
+
+        # GPU: reuse device copies per lattice (key by host buffers' data ptrs + shape)
+        key = (Ns, Np,
+            int(Wh.__array_interface__['data'][0]),
+            int(L2h.__array_interface__['data'][0]))
+        if self._gpu_sel_key != key:
+            # set pools once (safe to call repeatedly)
+            try:
+                cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
+                cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+            except Exception:
+                pass
+            self._Wg_sel = cp.asarray(Wh,  dtype=cp.float64, order="C")
+            self._L2g_sel = cp.asarray(L2h, dtype=cp.float64, order="C")
+            self._gpu_sel_key = key
+        return self._Wg_sel, self._L2g_sel, Ns, Np
+
     def select_by_weight(self, center_global: int, *,
                      theta_site: float, theta_pol: float,
                      max_nuprime: Optional[int] = None,
