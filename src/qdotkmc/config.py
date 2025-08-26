@@ -67,7 +67,7 @@ class RunConfig:
 
     # HPC execution parameters
     prefer_gpu : bool = True                # try to use GPU if available
-    gpu_use_c64 : bool = True               # 
+    gpu_use_c64 : bool = True               # TODO : what does this parameter do?
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
 
     # mode selector to compute rates in KMC 

@@ -42,10 +42,12 @@ class KMCRunner():
 
         # backend selection (GPU/CPU)
         # TODO : users choose via env, but feel free to plumb through RunConfig instead ?
-        prefer_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
-        use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
 
-        self.backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)   
+        # prefer_gpu = (os.getenv("QDOT_USE_GPU", "0") == "1")
+        # use_c64    = (os.getenv("QDOT_GPU_USE_C64", "0") == "1")
+
+        self.backend = get_backend(prefer_gpu=self.run.prefer_gpu,
+                                   use_c64=self.run.gpu_use_c64)   
 
         # print which backend we end up using for KMC
         mode = "GPU" if self.backend.use_gpu else "CPU"
