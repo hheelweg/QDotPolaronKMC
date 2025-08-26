@@ -10,7 +10,7 @@ from . import lattice
 # NOTE : might want to make this more efficient with GPU/torch etc.
 def diagonalize_backend(
     H: np.ndarray,
-    *,
+    #*,
     backend,                 # your backend.get_backend(...) return value
     uplo: str = "L",         # which triangle holds data
     cpu_driver: str = "evr", # 'evr' (MRRR) or 'evd' (divide&conquer)
