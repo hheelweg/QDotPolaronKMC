@@ -614,6 +614,9 @@ class Redfield():
         #     kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
         #     kept = kept[kept != nu]
 
+        kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
+        kept = kept[kept != nu]
+
         # deterministic order
         kept = kept[np.argsort(-S_host[kept])]
         pol_g = np.concatenate(([nu], kept)).astype(np.intp)
