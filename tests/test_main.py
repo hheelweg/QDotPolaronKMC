@@ -16,7 +16,7 @@ def main():
 
     # ---- QDLattice gometry ------
     ndim = 2                                    # number of dimensions
-    N = 30                                      # number of QDs in each dimension
+    N = 50                                      # number of QDs in each dimension
 
     # ---- system parameters ------
     inhomog_sd = 0.002                          # inhomogenous broadening (units?)
@@ -29,8 +29,8 @@ def main():
     reorg_nrg = 0.01                            # reorganization energy (units?)
 
     # ---- KMC parameters ---------
-    ntrajs = 10                                 # number of trajectories to compute MSDs over
-    nrealizations = 2                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    ntrajs = 5                                 # number of trajectories to compute MSDs over
+    nrealizations = 1                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
