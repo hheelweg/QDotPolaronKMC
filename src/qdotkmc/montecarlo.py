@@ -55,10 +55,10 @@ class KMCRunner():
         if hasattr(bx, "setup_pools"):
             bx.setup_pools()
 
-        # print which backend we end up using
-        if self.time_verbose:
-            mode = "GPU" if self.use_gpu else "CPU"
-            print(f"[Redfield] backend: {mode}  (use_c64={self.gpu_use_c64})")
+        # # print which backend we end up using
+        # if self.time_verbose:
+        #     mode = "GPU" if self.use_gpu else "CPU"
+        #     print(f"[Redfield] backend: {mode}  (use_c64={self.gpu_use_c64})")
     
 
 
