@@ -11,6 +11,7 @@ class Backend:
     def __init__(self, xp, *, use_c64=False, enable_streams=True):
         self.xp = xp
         self.is_gpu = hasattr(xp, "__name__") and xp.__name__.startswith("cupy")
+        self.use_c64 = use_c64
         # dtype policy
         self.f = xp.float32  if use_c64 else xp.float64
         self.c = xp.complex64 if use_c64 else xp.complex128
