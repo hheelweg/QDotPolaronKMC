@@ -77,7 +77,7 @@ class Redfield():
         """
         Return cached matrix W = |U|^2 (site × polaron weights).
 
-        -   U is the site2polaron transformation matrix (Ns × Np).
+        -   U is the site2polaron transformation matrix (n × P).
         -   Each entry W[m,ν] = |U[m,ν]|^2 gives the probability
             weight of polaron ν on site m.
         -   This is reused in many selections, so we cache it in
@@ -85,7 +85,7 @@ class Redfield():
 
         Returns
         -------
-        W : ndarray, shape (Ns, Np), float64, C-contiguous
+        W : ndarray, shape (n, P), float64, C-contiguous
             Cached weights matrix.
         """
         if self._W_abs2 is None:
@@ -518,7 +518,7 @@ class Redfield():
         w0 = W[:, nu]                           # (n,)
         t0 = L2 @ w0                            # (n,)
         S  = W.T @ t0                           # (P,)
-        S[nu] = 0.0
+        S[nu] = 0.0                             # exclude self
 
         kept = self._top_prefix_by_coverage_cpu(S, 1.0 - float(theta_pol))
         kept = kept[kept != nu]
@@ -562,30 +562,57 @@ class Redfield():
                      theta_site: float, theta_pol: float,
                      max_nuprime: Optional[int] = None,
                      verbose: bool):
+        
+        """
+        GPU version of weight-based selection (CuPy).
+
+        Steps (identical physics to CPU):
+        1) Destination polaron selection (θ_pol):
+        - S_{ν→ν'} = w_ν^T |J|^2 w_{ν'}  with w_α = |U|^2[:, α]
+        - Keep smallest set of ν' whose cumulative S reaches (1 - θ_pol).
+        2) Site selection (θ_site):
+        - w_D = Σ_{ν'∈kept} |U|^2[:,ν']
+        - s_i = w_ν[i]*(L2 w_D)[i] + w_D[i]*(L2 w_ν)[i]
+        - Keep smallest site set reaching (1 - θ_site).
+
+        GPU-specific notes:
+        - Uses _ensure_WL2_gpu() to keep W=|U|^2 and L2=|J|^2 resident on device.
+        - Minimizes host<>device copies (one cp.asnumpy of S and s for diagnostics/ordering).
+        - Chooses between a column-gather sum and a masked GEMV for w_D depending on kept size.
+
+        Returns
+        -------
+        site_g : np.ndarray[int]
+            Selected site indices.
+        pol_g : np.ndarray[int]
+            Selected polaron indices, with center first.
+        """
 
         nu = int(center_global)
-        W, L2, Ns, Np = self._ensure_WL2_gpu()   # <-- cached device arrays
+        # ensure W (n × P) and L2 (n × n) on the GPU; reuse if unchanged
+        W, L2, Ns, Np = self._ensure_WL2_gpu()  
 
         # (1) ν' selection
-        w0 = W[:, nu]
-        t0 = L2 @ w0
-        S  = W.T @ t0
-        S[nu] = 0.0
+        w0 = W[:, nu]               # (n,)
+        t0 = L2 @ w0                # (n,)
+        S  = W.T @ t0               # (P,)
+        S[nu] = 0.0                 # exclude self
 
-        S_host = cp.asnumpy(S)  # one host copy for ordering/diagnostics
-        # Pre-cap if max_nuprime set to shrink coverage work
-        if max_nuprime is not None and max_nuprime < Np-1:
-            cand = cp.argpartition(S, -(max_nuprime+1))[-(max_nuprime+1):]
-            cand = cp.asnumpy(cand)
-            cand = cand[cand != nu]
-            cand = cand[np.argsort(-S_host[cand])]
-            S_view = S_host[cand]
-            csum = np.cumsum(S_view)
-            k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol))*S_view.sum(), 'left')) + 1
-            kept = cand[:k_pol]
-        else:
-            kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
-            kept = kept[kept != nu]
+        # one host copy for ordering/diagnostics; heavy math remains on device
+        S_host = cp.asnumpy(S)  
+        # optional: pre-cap by max_nuprime to reduce coverage work on long tails
+        # if max_nuprime is not None and max_nuprime < Np-1:
+        #     cand = cp.argpartition(S, -(max_nuprime+1))[-(max_nuprime+1):]
+        #     cand = cp.asnumpy(cand)
+        #     cand = cand[cand != nu]
+        #     cand = cand[np.argsort(-S_host[cand])]
+        #     S_view = S_host[cand]
+        #     csum = np.cumsum(S_view)
+        #     k_pol = int(np.searchsorted(csum, (1.0 - float(theta_pol))*S_view.sum(), 'left')) + 1
+        #     kept = cand[:k_pol]
+        # else:
+        #     kept = self._top_prefix_by_coverage_gpu(S, 1.0 - float(theta_pol))
+        #     kept = kept[kept != nu]
 
         # deterministic order
         kept = kept[np.argsort(-S_host[kept])]
