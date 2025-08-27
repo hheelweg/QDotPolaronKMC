@@ -108,64 +108,6 @@ class QDLattice():
         return rij_wrap
 
 
-    @njit(parallel=True, fastmath=False)
-    def _build_J_numba(self, pos3, mu_unit, J_c, kappa_polaron, L, d):
-        """
-        pos3: (n,3) float64   positions embedded in 3D (z=0 if d<3)
-        mu_unit: (n,3) float64 normalized dipoles
-        L: float64 periodic box length (0.0 => no wrap)
-        d: int   # of wrapped dims (1 or 2)
-        returns: (n,n) float64
-        """
-        n = pos3.shape[0]
-        J = np.zeros((n, n), dtype=np.float64)
-        scale = J_c * kappa_polaron
-
-        for i in prange(n):
-            # diagonal stays 0
-            for j in range(i+1, n):
-                # --- unwrapped delta for direction ---
-                ux = pos3[j,0] - pos3[i,0]
-                uy = pos3[j,1] - pos3[i,1]
-                uz = pos3[j,2] - pos3[i,2]
-
-                # --- wrapped delta for magnitude (minimum image) ---
-                wx, wy, wz = ux, uy, uz
-                if L > 0.0:
-                    if d >= 1:
-                        wx -= L * np.floor(wx / L + 0.5)
-                    if d >= 2:
-                        wy -= L * np.floor(wy / L + 0.5)
-                    # z is not wrapped
-
-                r2 = wx*wx + wy*wy + wz*wz
-                if r2 == 0.0:
-                    inv_r3 = 0.0
-                else:
-                    r = np.sqrt(r2)
-                    inv_r3 = 1.0 / (r2 * r)
-
-                # --- unit direction from UNWRAPPED delta ---
-                nr2 = ux*ux + uy*uy + uz*uz
-                if nr2 == 0.0:
-                    rx = ry = rz = 0.0
-                else:
-                    rinv = 1.0 / np.sqrt(nr2)
-                    rx, ry, rz = ux*rinv, uy*rinv, uz*rinv
-
-                # --- angular factor kappa ---
-                mui0, mui1, mui2 = mu_unit[i,0], mu_unit[i,1], mu_unit[i,2]
-                muj0, muj1, muj2 = mu_unit[j,0], mu_unit[j,1], mu_unit[j,2]
-                mui_dot_muj = mui0*muj0 + mui1*muj1 + mui2*muj2
-                mui_dot_r   = mui0*rx + mui1*ry + mui2*rz
-                muj_dot_r   = muj0*rx + muj1*ry + muj2*rz
-                kappa = mui_dot_muj - 3.0*(mui_dot_r*muj_dot_r)
-
-                val = scale * kappa * inv_r3
-                J[i,j] = val
-                J[j,i] = val
-
-        return J
     
     def _build_J_cpu(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         n, d = qd_pos.shape
@@ -174,7 +116,7 @@ class QDLattice():
         dip  = np.asarray(qd_dip, dtype=np.float64, order="C")
         mu_unit = dip / np.linalg.norm(dip, axis=1, keepdims=True)
         L = float(boundary) if boundary is not None else 0.0
-        J = self._build_J_numba(pos3, mu_unit, float(J_c), float(kappa_polaron), L, int(d))
+        J = _build_J_numba(pos3, mu_unit, float(J_c), float(kappa_polaron), L, int(d))
         # zero diag (already 0, but keep invariant)
         np.fill_diagonal(J, 0.0)
         return J
@@ -338,3 +280,61 @@ class QDLattice():
         return self.kappa_polaron
 
 
+@njit(parallel=True, fastmath=False)
+def _build_J_numba(pos3, mu_unit, J_c, kappa_polaron, L, d):
+    """
+    pos3: (n,3) float64   positions embedded in 3D (z=0 if d<3)
+    mu_unit: (n,3) float64 normalized dipoles
+    L: float64 periodic box length (0.0 => no wrap)
+    d: int   # of wrapped dims (1 or 2)
+    returns: (n,n) float64
+    """
+    n = pos3.shape[0]
+    J = np.zeros((n, n), dtype=np.float64)
+    scale = J_c * kappa_polaron
+
+    for i in prange(n):
+        # diagonal stays 0
+        for j in range(i+1, n):
+            # --- unwrapped delta for direction ---
+            ux = pos3[j,0] - pos3[i,0]
+            uy = pos3[j,1] - pos3[i,1]
+            uz = pos3[j,2] - pos3[i,2]
+
+            # --- wrapped delta for magnitude (minimum image) ---
+            wx, wy, wz = ux, uy, uz
+            if L > 0.0:
+                if d >= 1:
+                    wx -= L * np.floor(wx / L + 0.5)
+                if d >= 2:
+                    wy -= L * np.floor(wy / L + 0.5)
+                # z is not wrapped
+
+            r2 = wx*wx + wy*wy + wz*wz
+            if r2 == 0.0:
+                inv_r3 = 0.0
+            else:
+                r = np.sqrt(r2)
+                inv_r3 = 1.0 / (r2 * r)
+
+            # --- unit direction from UNWRAPPED delta ---
+            nr2 = ux*ux + uy*uy + uz*uz
+            if nr2 == 0.0:
+                rx = ry = rz = 0.0
+            else:
+                rinv = 1.0 / np.sqrt(nr2)
+                rx, ry, rz = ux*rinv, uy*rinv, uz*rinv
+
+            # --- angular factor kappa ---
+            mui0, mui1, mui2 = mu_unit[i,0], mu_unit[i,1], mu_unit[i,2]
+            muj0, muj1, muj2 = mu_unit[j,0], mu_unit[j,1], mu_unit[j,2]
+            mui_dot_muj = mui0*muj0 + mui1*muj1 + mui2*muj2
+            mui_dot_r   = mui0*rx + mui1*ry + mui2*rz
+            muj_dot_r   = muj0*rx + muj1*ry + muj2*rz
+            kappa = mui_dot_muj - 3.0*(mui_dot_r*muj_dot_r)
+
+            val = scale * kappa * inv_r3
+            J[i,j] = val
+            J[j,i] = val
+
+    return J
