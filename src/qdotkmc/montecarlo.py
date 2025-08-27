@@ -6,7 +6,7 @@ from typing import Optional
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
 from numpy.random import SeedSequence, default_rng
-from . import hamiltonian, lattice, const, utils
+from . import hamiltonian, lattice, const, utils, print_utils
 from .hamiltonian import SpecDens
 from qdotkmc.backend import get_backend
 
@@ -453,10 +453,11 @@ class KMCRunner():
                 rid, msd_r, sim_time = fut.result()
                 msds[rid] = msd_r
 
-        print('----------------------------------')
-        print('---- SIMULATED TIME SUMMARY -----')
-        print(f'total simulated time {sim_time:.3f}')
-        print('----------------------------------')
+        print(print_utils.simulated_time(sim_time))
+        # print('----------------------------------')
+        # print('---- SIMULATED TIME SUMMARY -----')
+        # print(f'total simulated time {sim_time:.3f}')
+        # print('----------------------------------')
         return times_msds, msds
 
     # serial KMC
@@ -488,10 +489,8 @@ class KMCRunner():
             # store mean squared displacement for QDLattice realization r
             msds[r] = msd
 
-        print('----------------------------------')
-        print('---- SIMULATED TIME SUMMARY -----')
-        print(f'total simulated time {sim_time:.3f}')
-        print('----------------------------------')
+        print(print_utils.simulated_time(sim_time))
+        
         return times_msds, msds
 
     
