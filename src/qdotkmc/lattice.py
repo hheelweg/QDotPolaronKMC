@@ -7,7 +7,7 @@ from .config import GeometryConfig, DisorderConfig
 from .hamiltonian import SpecDens
 import cupy as cp
 
-
+# kernel to build couplings fast on GPU
 _BUILDJ_SRC = r'''
 extern "C" __global__
 void buildJ_upper(
@@ -67,6 +67,7 @@ void buildJ_upper(
     if (j != i) J[j*(long long)n + i] = val;
 }
 ''';
+
 
 # class to set up QD Lattice 
 class QDLattice():
@@ -189,7 +190,7 @@ class QDLattice():
         Jd = cp.zeros((n,n), dtype=cp.float64)
         L  = 0.0 if boundary is None else float(boundary)
 
-        # lazily compile/get the kernel from backend cache
+        # ompile/get the kernel from backend cache
         kern = backend.rawkernel("buildJ_upper", _BUILDJ_SRC)
 
         # launch
@@ -202,10 +203,9 @@ class QDLattice():
             float(L), int(d), int(n), Jd))
 
         # return NumPy (if your downstream expects host arrays)
-        Jh = backend.to_host(Jd)
-        np.fill_diagonal(Jh, 0.0) 
-        return Jh
-
+        J = backend.to_host(Jd)
+        np.fill_diagonal(J, 0.0) 
+        return J
 
     # function to build couplings 
     @staticmethod
@@ -257,6 +257,17 @@ class QDLattice():
         return J
 
 
+    def _build_J(self, qd_pos, qd_dip, J_c, kappa_polaron, backend=None, boundary=None):
+        """
+        Dispatch to CPU or GPU implementation of J depending on backend.
+        """
+        #be = backend if backend is not None else getattr(self, "backend", None)
+        if backend is not None and getattr(backend, "use_gpu", False):
+            return self._build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, backend=backend, boundary=boundary)
+        else:
+            return self._build_J_cpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=boundary)
+
+
     # setup polaron-transformed Hamiltonian
     def _setup_hamil(self, kappa_polaron, periodic = True):
         import time
@@ -270,7 +281,15 @@ class QDLattice():
         #                 kappa_polaron=kappa_polaron,
         #                 boundary=(self.geom.boundary if periodic else None)
         #                 )
-        J = QDLattice._build_J_gpu(
+        # J = QDLattice._build_J_gpu(
+        #                 qd_pos=self.qd_locations,
+        #                 qd_dip=self.qddipoles,
+        #                 J_c=self.dis.J_c,
+        #                 kappa_polaron=kappa_polaron,
+        #                 backend=self.backend,
+        #                 boundary=(self.geom.boundary if periodic else None)
+        #                 )
+        J = QDLattice._build_J(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
