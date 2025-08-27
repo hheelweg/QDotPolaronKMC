@@ -8,23 +8,22 @@ from .hamiltonian import SpecDens
 import cupy as cp
 
 
-_buildJ_kernel = cp.RawKernel(r'''
+_BUILDJ_SRC = r'''
 extern "C" __global__
 void buildJ_upper(
     const double* __restrict__ pos,    // (n,3)
-    const double* __restrict__ mu_u,   // (n,3) unit dipoles
+    const double* __restrict__ mu_u,   // (n,3)
     const double  Jc,
     const double  kap,
     const double  L,
-    const int     d,                   // 1 or 2
+    const int     d,
     const int     n,
     double* __restrict__ J             // (n,n) row-major
 ){
     int i = blockDim.y * blockIdx.y + threadIdx.y;
     int j = blockDim.x * blockIdx.x + threadIdx.x;
-    if (i >= n || j >= n || j < i) return;  // upper triangle incl. diag
+    if (i >= n || j >= n || j < i) return;
 
-    // load positions/dipoles
     double pix = pos[3*i+0], piy = pos[3*i+1], piz = pos[3*i+2];
     double pjx = pos[3*j+0], pjy = pos[3*j+1], pjz = pos[3*j+2];
 
@@ -36,15 +35,13 @@ void buildJ_upper(
     double uy = pjy - piy;
     double uz = pjz - piz;
 
-    // wrapped delta (magnitude) on first d dims
+    // wrapped delta (magnitude)
     double wx = ux, wy = uy, wz = uz;
     if (L > 0.0) {
         if (d >= 1) { wx = ux - L * floor(ux / L + 0.5); }
         if (d >= 2) { wy = uy - L * floor(uy / L + 0.5); }
-        // z not wrapped
     }
 
-    // r_wrap
     double r2 = wx*wx + wy*wy + wz*wz;
     double inv_r3 = 0.0;
     if (r2 > 0.0) {
@@ -52,7 +49,6 @@ void buildJ_upper(
         inv_r3 = 1.0 / (r2 * r);
     }
 
-    // rhat from unwrapped
     double nr2 = ux*ux + uy*uy + uz*uz;
     double rx=0.0, ry=0.0, rz=0.0;
     if (nr2 > 0.0) {
@@ -60,19 +56,17 @@ void buildJ_upper(
         rx = ux * rinv; ry = uy * rinv; rz = uz * rinv;
     }
 
-    // kappa = μi·μj - 3(μi·rhat)(μj·rhat)
     double mui_dot_muj = uix*ujx + uiy*ujy + uiz*ujz;
     double mui_dot_r   = uix*rx   + uiy*ry   + uiz*rz;
     double muj_dot_r   = ujx*rx   + ujy*ry   + ujz*rz;
     double kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r);
 
-    // final J; zero diag by construction since inv_r3=0 when r2=0
     double val = (Jc * kap) * (kappa * inv_r3);
 
     J[i*(long long)n + j] = val;
     if (j != i) J[j*(long long)n + i] = val;
 }
-''', 'buildJ_upper')
+''';
 
 # class to set up QD Lattice 
 class QDLattice():
@@ -178,27 +172,38 @@ class QDLattice():
 
 
     @staticmethod
-    def _build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
-        pos = cp.asarray(qd_pos, dtype=cp.float64)  # (n,d)
-        dip = cp.asarray(qd_dip, dtype=cp.float64)  # (n,3)
+    def _build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, backend, boundary=None):
+        
+        cp = backend.cp 
+
+        # inputs to device
+        pos = cp.asarray(qd_pos, dtype=cp.float64)    # (n,d)
+        dip = cp.asarray(qd_dip, dtype=cp.float64)    # (n,3)
         n, d = pos.shape
+
+        # embed positions; normalize dipoles
         pos3 = cp.zeros((n,3), dtype=cp.float64); pos3[:,:d] = pos
         mu_u = dip / cp.linalg.norm(dip, axis=1, keepdims=True)
 
-        J = cp.zeros((n,n), dtype=cp.float64)
-        L = 0.0 if boundary is None else float(boundary)
+        # output buffer
+        Jd = cp.zeros((n,n), dtype=cp.float64)
+        L  = 0.0 if boundary is None else float(boundary)
 
-        # launch config: 2D blocks over (j,i). tune block sizes if needed.
+        # lazily compile/get the kernel from backend cache
+        kern = backend.rawkernel("buildJ_upper", _BUILDJ_SRC)
+
+        # launch
         bx, by = 32, 8
         gx = (n + bx - 1)//bx
         gy = (n + by - 1)//by
-        _buildJ_kernel((gx, gy), (bx, by),
-                    (pos3, mu_u, np.float64(J_c), np.float64(kappa_polaron),
-                        np.float64(L), np.int32(d), np.int32(n), J))
+        kern((gx, gy), (bx, by),
+            (pos3, mu_u,
+            float(J_c), float(kappa_polaron),
+            float(L), int(d), int(n), Jd))
 
-        # return to host (or keep on device if the next steps are GPU)
-        Jh = cp.asnumpy(J)
-        np.fill_diagonal(Jh, 0.0)  # safety; should already be zero
+        # return NumPy (if your downstream expects host arrays)
+        Jh = backend.to_host(Jd)
+        np.fill_diagonal(Jh, 0.0) 
         return Jh
 
 
