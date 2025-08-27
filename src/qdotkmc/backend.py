@@ -105,16 +105,6 @@ class Backend:
     def tensordot(self, a, b, axes=2): return self.xp.tensordot(a, b, axes=axes)
     def einsum(self, subscripts, *ops, optimize=False): return self.xp.einsum(subscripts, *ops, optimize=optimize)
 
-    # def setup_pools(self):
-    #     """(Re)configure memory pools (GPU); no-op on CPU."""
-    #     if self.is_gpu:
-    #         import cupy as cp
-    #         cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
-    #         try:
-    #             cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-    #         except Exception:
-    #             pass
-
     def sync(self):
         """Device synchronize (GPU); no-op on CPU."""
         if self.is_gpu:
