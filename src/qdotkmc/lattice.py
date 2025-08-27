@@ -108,7 +108,7 @@ class QDLattice():
 
 
     def _build_J_backend(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None,
-                        backend=None, tile_ij=1024):
+                        backend=None, tile_ij=2024):
         """
         Fast pairwise dipole coupling builder with tiling and CPU/GPU backend.
 
