@@ -68,7 +68,6 @@ void buildJ_upper(
 }
 ''';
 
-
 # class to set up QD Lattice 
 class QDLattice():
 
@@ -90,7 +89,6 @@ class QDLattice():
         self.backend = None
 
 
-        
     # NOTE: old make_qd_array method (basically unchanged)
     def _make_lattice(self):    
         # set locations for each QD
@@ -242,6 +240,7 @@ class QDLattice():
 
     # setup polaron-transformed Hamiltonian
     def _setup_hamil(self, kappa_polaron, periodic = True):
+
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         J = self._build_J(
@@ -256,8 +255,6 @@ class QDLattice():
         self.hamil = np.diag(self.qdnrgs).astype(np.float64, copy=False)
         self.hamil += J
         
-
-
         # (2) keep original diagonalization routine
         self.eignrgs, self.eigstates = utils.diagonalize(self.hamil, self.backend)
 
