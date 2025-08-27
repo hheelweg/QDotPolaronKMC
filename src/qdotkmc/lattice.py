@@ -255,20 +255,20 @@ class QDLattice():
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         start = time.time()
-        # J = self._build_J(
-        #                 qd_pos=self.qd_locations,
-        #                 qd_dip=self.qddipoles,
-        #                 J_c=self.dis.J_c,
-        #                 kappa_polaron=kappa_polaron,
-        #                 boundary=(self.geom.boundary if periodic else None)
-        #                 )
-        J = self._build_J_gpu(
+        J = self._build_J(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
                         kappa_polaron=kappa_polaron,
                         boundary=(self.geom.boundary if periodic else None)
                         )
+        # J = self._build_J_gpu(
+        #                 qd_pos=self.qd_locations,
+        #                 qd_dip=self.qddipoles,
+        #                 J_c=self.dis.J_c,
+        #                 kappa_polaron=kappa_polaron,
+        #                 boundary=(self.geom.boundary if periodic else None)
+        #                 )
         end = time.time()
         print(f"time taken for building J: {end-start:.4f}")
         # (1.2) site energies and total Hamiltonian
