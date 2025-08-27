@@ -141,7 +141,7 @@ class KMCRunner():
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield(
             pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global,
-            verbosity = False
+            verbosity = False                                                               # NOTE : can change this to True to print comments in make_redfield
         )
 
         # (3) cache by global center index
