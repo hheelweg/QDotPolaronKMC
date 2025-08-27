@@ -16,7 +16,7 @@ def main():
 
     # ---- QDLattice gometry ------
     ndim = 2                                    # number of dimensions
-    N = 60                                      # number of QDs in each dimension
+    N = 70                                      # number of QDs in each dimension
 
     # ---- system parameters ------
     inhomog_sd = 0.002                          # inhomogenous broadening (units?)
