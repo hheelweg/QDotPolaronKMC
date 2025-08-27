@@ -207,12 +207,15 @@ class QDLattice():
                     r2[idx, idx] = xp.inf
                     r2_dir[idx, idx] = 1.0
 
-                r = xp.sqrt(r2)
-                with xp.errstate(divide='ignore', invalid='ignore'):
-                    inv_r3 = 1.0 / (r2 * r)   # 1/||r||^3
+                # --- safe inverses (no errstate) ---
+                eps = xp.asarray(xp.finfo(f).tiny, dtype=f)
+                r   = xp.sqrt(r2)
+                den = r2 * r
+                inv_r3 = xp.where(den > 0, 1.0 / den, 0.0).astype(f, copy=False)
 
-                # rhat from unwrapped delta
-                rhat = d_unwrap / xp.sqrt(r2_dir)[:, :, None]    # (Bi,Bj,3)
+                norm_dir = xp.sqrt(r2_dir)
+                norm_dir = xp.maximum(norm_dir, eps)
+                rhat = d_unwrap / norm_dir[:, :, None]
 
                 # angular factor kappa = μi·μj - 3(μi·rhat)(μj·rhat)
                 mui_dot_muj = muI @ muJ.T                        # (Bi,Bj)
