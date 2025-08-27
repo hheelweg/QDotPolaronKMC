@@ -7,16 +7,6 @@ class CPUStreams:
     def __exit__(self, *a): return False
     def synchronize(self): pass
 
-# backend.py
-from contextlib import nullcontext
-import os
-from typing import Optional
-
-class CPUStreams:
-    def __enter__(self): return self
-    def __exit__(self, *a): return False
-    def synchronize(self): pass
-
 class Backend:
     """
     Thin CPU/GPU facade over numpy/cupy with a few convenience helpers.

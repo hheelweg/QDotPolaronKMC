@@ -231,7 +231,7 @@ def get_closest_idx(qd_lattice, pos, array, periodic=True):
     return np.argmin(dists_squared)
 
 
-# NOTE : former get_disp_vector_matrix
+# NOTE : former montecarlo.KMCRunner.get_disp_vector_matrix 
 def get_pairwise_displacements(qd_pos, boundary):
     """
     Match get_disp_vector_matrix(): wrapped displacement for magnitude.
