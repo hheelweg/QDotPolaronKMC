@@ -202,7 +202,8 @@ class QDLattice():
 
 
     # function to build couplings 
-    def _build_J(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+    @staticmethod
+    def _build_J_cpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         """
         Vectorized but physics-identical to the original loops:
         J_ij = J_c * kappa_polaron * [ μ_i·μ_j - 3(μ_i·r̂_unwrapped)(μ_j·r̂_unwrapped) ] / (‖r_wrap‖^3),
@@ -256,7 +257,7 @@ class QDLattice():
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         start = time.time()
-        J = self._build_J(
+        J = QDLattice._build_J_cpu(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
