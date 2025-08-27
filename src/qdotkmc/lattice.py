@@ -107,6 +107,132 @@ class QDLattice():
         return rij_wrap
 
 
+    def _build_J_backend(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None,
+                        backend=None, tile_ij=1024):
+        """
+        Fast pairwise dipole coupling builder with tiling and CPU/GPU backend.
+
+        J_ij = J_c * kappa_polaron *
+            [ μ_i·μ_j - 3 (μ_i·r̂_unwrap)(μ_j·r̂_unwrap) ] / ||r_wrap||^3
+
+        - Magnitude uses WRAPPED displacement (minimum image) like your original.
+        - Direction uses UNWRAPPED displacement (matches your get_kappa path).
+        - Works for 1D/2D positions embedded in 3D dipole space.
+        - Computes upper triangle in tiles and mirrors (saves ~2x time/mem).
+        - Avoids allocating (n,n,3) tensors; peak memory ~ O(tile_ij^2).
+
+        Parameters
+        ----------
+        qd_pos : (n, d) float64, d in {1,2}
+        qd_dip : (n, 3) float64   # dipoles in 3D
+        J_c, kappa_polaron : float
+        boundary : Optional[float]   # box length for wrapping (None → no wrap)
+        backend : Backend            # your backend (has .xp, .f, .to_host)
+        tile_ij : int                # tile size along i/j (tune per VRAM/CPU RAM)
+
+        Returns
+        -------
+        J : (n, n) float64 on host
+        """
+        bk = backend
+        xp = bk.xp
+        f  = bk.f   # float32 (GPU if use_c64) or float64 (CPU default)
+
+        qd_pos = np.asarray(qd_pos, dtype=np.float64, order="C")   # host input
+        qd_dip = np.asarray(qd_dip, dtype=np.float64, order="C")
+
+        n, d = qd_pos.shape
+        assert d in (1, 2)
+
+        # --- embed positions to 3D once (host) ---
+        pos3 = np.zeros((n, 3), dtype=np.float64)
+        pos3[:, :d] = qd_pos
+        mu = qd_dip
+        mu_unit = mu / np.linalg.norm(mu, axis=1, keepdims=True)  # host
+
+        # Upload small, reused arrays (GPU) or keep as NumPy (CPU)
+        pos3_g   = bk.from_host(pos3, dtype=f, order="C")
+        mu_unit_g= bk.from_host(mu_unit, dtype=f, order="C")
+
+        J = np.zeros((n, n), dtype=np.float64, order="C")  # we’ll fill on host
+
+        L = float(boundary) if boundary is not None else None
+        scale = float(J_c) * float(kappa_polaron)
+
+        # helper: wrap along first d dimensions (minimum image), in-place
+        def _apply_wrap_inplace(delta, L, d):
+            # delta shape: (Bi, Bj, 3), backend array
+            if L is None:
+                return
+            # exact rule: (> L/2) -= L, (< -L/2) += L  on the first d axes
+            for ax in range(d):
+                v = delta[..., ax]
+                mask_hi = v >  (L * 0.5)
+                mask_lo = v < -(L * 0.5)
+                # note: xp.where allocates; in-place boolean assignment is fine
+                v[mask_hi] = v[mask_hi] - L
+                v[mask_lo] = v[mask_lo] + L
+            # remaining dims (2→z) untouched
+
+        # Tiled upper triangle
+        for i0 in range(0, n, tile_ij):
+            i1 = min(i0 + tile_ij, n)
+            Bi = i1 - i0
+
+            # slice once for the tile along i
+            posI = pos3_g[i0:i1, :]          # (Bi,3)
+            muI  = mu_unit_g[i0:i1, :]       # (Bi,3)
+
+            for j0 in range(i0, n, tile_ij):
+                j1 = min(j0 + tile_ij, n)
+                Bj = j1 - j0
+
+                posJ = pos3_g[j0:j1, :]      # (Bj,3)
+                muJ  = mu_unit_g[j0:j1, :]   # (Bj,3)
+
+                # unwrapped and wrapped deltas (Bi,Bj,3)
+                d_unwrap = posJ[None, :, :] - posI[:, None, :]
+                d_wrap   = d_unwrap.copy()
+                _apply_wrap_inplace(d_wrap, L, d)
+
+                # r_wrap for magnitude
+                r2 = xp.einsum('ijk,ijk->ij', d_wrap, d_wrap)         # (Bi,Bj)
+                # unit vector from UNWRAPPED deltas (direction)
+                r2_dir = xp.einsum('ijk,ijk->ij', d_unwrap, d_unwrap) # (Bi,Bj)
+
+                # avoid divide-by-zero on the diagonal block
+                if i0 == j0:
+                    # set diagonal entries r2=inf so inv_r3→0; r2_dir=1 so rhat well-defined
+                    idx = xp.arange(Bi)
+                    r2[idx, idx] = xp.inf
+                    r2_dir[idx, idx] = 1.0
+
+                r = xp.sqrt(r2)
+                with xp.errstate(divide='ignore', invalid='ignore'):
+                    inv_r3 = 1.0 / (r2 * r)   # 1/||r||^3
+
+                # rhat from unwrapped delta
+                rhat = d_unwrap / xp.sqrt(r2_dir)[:, :, None]    # (Bi,Bj,3)
+
+                # angular factor kappa = μi·μj - 3(μi·rhat)(μj·rhat)
+                mui_dot_muj = muI @ muJ.T                        # (Bi,Bj)
+                mui_dot_r   = xp.einsum('ik,ijk->ij', muI, rhat) # (Bi,Bj)
+                # (rhat · μj) for each j: use μj on axis=1
+                muj_dot_r   = xp.einsum('ijk,jk->ij', rhat, muJ) # (Bi,Bj)
+                kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r)
+
+                Jij = scale * kappa * inv_r3                     # (Bi,Bj)
+
+                # bring this tile back to host and write into J (upper), mirror to lower
+                Jij_h = bk.to_host(Jij).astype(np.float64, copy=False)
+                J[i0:i1, j0:j1] = Jij_h
+                if j0 != i0:
+                    J[j0:j1, i0:i1] = Jij_h.T
+
+        # zero diagonal to be safe
+        np.fill_diagonal(J, 0.0)
+        return J
+
     # function to build couplings 
     def _build_J(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         """
@@ -162,12 +288,20 @@ class QDLattice():
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         start = time.time()
-        J = self._build_J(
+        # J = self._build_J(
+        #                 qd_pos=self.qd_locations,
+        #                 qd_dip=self.qddipoles,
+        #                 J_c=self.dis.J_c,
+        #                 kappa_polaron=kappa_polaron,
+        #                 boundary=(self.geom.boundary if periodic else None)
+        #                 )
+        J = self._build_J_backend(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
                         kappa_polaron=kappa_polaron,
-                        boundary=(self.geom.boundary if periodic else None)
+                        boundary=(self.geom.boundary if periodic else None),
+                        backend=self.backend
                         )
         end = time.time()
         print(f"time taken for building J: {end-start:.4f}")
