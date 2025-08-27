@@ -1,6 +1,6 @@
 from contextlib import nullcontext
 import os
-from typing import Optional
+from typing import Optional, Dict
 
 class CPUStreams:
     def __enter__(self): return self
@@ -52,15 +52,29 @@ class Backend:
             self.Stream = CPUStreams
 
         # memory pools (GPU only)
+        self.cp = None
+        self._kern_cache: Dict[str, object] = {}
         if self.is_gpu:
             import cupy as cp
+            self.cp = cp
             cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
             try:
                 cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
             except Exception:
                 pass
 
+
     # ------- array helpers (CPU/GPU) -------
+    def rawkernel(self, func_name: str, src: str):
+        """Return a cached cp.RawKernel; compile once per Backend."""
+        if not self.use_gpu or self.cp is None:
+            raise RuntimeError("rawkernel requested but GPU backend is not active")
+        ker = self._kern_cache.get(func_name)
+        if ker is None:
+            ker = self.cp.RawKernel(src, func_name)
+            self._kern_cache[func_name] = ker
+        return ker
+
     def asarray(self, a, dtype=None, order="C"):
         """Like xp.asarray with sane default dtype (real→f, complex→c)."""
         return self.xp.asarray(
@@ -71,14 +85,15 @@ class Backend:
 
     def asarray_f(self, a): return self.xp.asarray(a, dtype=self.f, order="C")
     def asarray_c(self, a): return self.xp.asarray(a, dtype=self.c, order="C")
+
     def from_host(self, a, dtype=None, order="C"):
         """Host→backend array (NumPy no-op; CuPy upload)."""
         return self.xp.asarray(a, dtype=dtype, order=order)
+
     def to_host(self, a):
         """Backend→host array (CuPy download; NumPy no-op)."""
-        if self.is_gpu:
-            import cupy as cp
-            return cp.asnumpy(a)
+        if self.is_gpu and self.cp is not None:
+            return self.cp.asnumpy(a)
         return a
 
     def empty(self, shape, dtype=None): return self.xp.empty(shape, dtype=(dtype or self.f))
@@ -90,15 +105,15 @@ class Backend:
     def tensordot(self, a, b, axes=2): return self.xp.tensordot(a, b, axes=axes)
     def einsum(self, subscripts, *ops, optimize=False): return self.xp.einsum(subscripts, *ops, optimize=optimize)
 
-    def setup_pools(self):
-        """(Re)configure memory pools (GPU); no-op on CPU."""
-        if self.is_gpu:
-            import cupy as cp
-            cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
-            try:
-                cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-            except Exception:
-                pass
+    # def setup_pools(self):
+    #     """(Re)configure memory pools (GPU); no-op on CPU."""
+    #     if self.is_gpu:
+    #         import cupy as cp
+    #         cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
+    #         try:
+    #             cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+    #         except Exception:
+    #             pass
 
     def sync(self):
         """Device synchronize (GPU); no-op on CPU."""
