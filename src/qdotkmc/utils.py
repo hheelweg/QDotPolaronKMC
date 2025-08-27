@@ -231,6 +231,33 @@ def get_closest_idx(qd_lattice, pos, array, periodic=True):
     return np.argmin(dists_squared)
 
 
+# NOTE : former get_disp_vector_matrix
+def get_pairwise_displacements(qd_pos, boundary):
+    """
+    Match get_disp_vector_matrix(): wrapped displacement for magnitude.
+    qd_pos: (n, d) with d in {1,2}
+    boundary: scalar box length
+    Returns: rij_wrap (n, n, 3) with wrap applied on first d coords
+    """
+    import numpy as np
+    n, d = qd_pos.shape
+    L = float(boundary)
+
+    # unwrapped per-axis differences (j - i), shape (n,n,d)
+    rij_d = qd_pos[None, :, :] - qd_pos[:, None, :]
+
+    # exact same wrap rule as original code (> L/2 and < -L/2)
+    too_high = rij_d >  (L / 2.0)
+    too_low  = rij_d < -(L / 2.0)
+    rij_d = rij_d.copy()
+    rij_d[too_high] -= L
+    rij_d[too_low]  += L
+
+    # embed into 3D (dipoles are 3D)
+    rij_wrap = np.zeros((n, n, 3), dtype=np.float64)
+    rij_wrap[:, :, :d] = rij_d
+    return rij_wrap
+
 
 def get_ipr(Umat):
     # returns ipr of one column vector, or mean ipr of multiple column vectors

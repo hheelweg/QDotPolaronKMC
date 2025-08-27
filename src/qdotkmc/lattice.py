@@ -143,36 +143,7 @@ class QDLattice():
             raise ValueError('The lattice dimensions are exceeded! Please choose r_hop and r_ove accordingly!')
         return r_hop, r_ove, box_length
     
-
-    # NOTE : former get_disp_vector_matrix
-    @staticmethod
-    def get_pairwise_displacements(qd_pos, boundary):
-        """
-        Match get_disp_vector_matrix(): wrapped displacement for magnitude.
-        qd_pos: (n, d) with d in {1,2}
-        boundary: scalar box length
-        Returns: rij_wrap (n, n, 3) with wrap applied on first d coords
-        """
-        import numpy as np
-        n, d = qd_pos.shape
-        L = float(boundary)
-
-        # unwrapped per-axis differences (j - i), shape (n,n,d)
-        rij_d = qd_pos[None, :, :] - qd_pos[:, None, :]
-
-        # exact same wrap rule as original code (> L/2 and < -L/2)
-        too_high = rij_d >  (L / 2.0)
-        too_low  = rij_d < -(L / 2.0)
-        rij_d = rij_d.copy()
-        rij_d[too_high] -= L
-        rij_d[too_low]  += L
-
-        # embed into 3D (dipoles are 3D)
-        rij_wrap = np.zeros((n, n, 3), dtype=np.float64)
-        rij_wrap[:, :, :d] = rij_d
-        return rij_wrap
-
-
+    # function to build couplings on GPU
     @staticmethod
     def _build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, backend, boundary=None):
         
@@ -208,7 +179,7 @@ class QDLattice():
         np.fill_diagonal(J, 0.0) 
         return J
 
-    # function to build couplings 
+    # function to build couplings on CPU 
     @staticmethod
     def _build_J_cpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         """
@@ -223,7 +194,7 @@ class QDLattice():
 
         # --- Magnitude uses WRAPPED displacement (minimum image), exactly like get_disp_vector_matrix
         if boundary is not None:
-            rij_wrap = QDLattice.get_pairwise_displacements(qd_pos, boundary)  # (n,n,3)
+            rij_wrap = utils.get_pairwise_displacements(qd_pos, boundary)  # (n,n,3)
         else:
             rij_wrap = np.zeros((n, n, 3), dtype=np.float64)
             rij_wrap[:, :, :d] = qd_pos[None, :, :] - qd_pos[:, None, :]
@@ -275,21 +246,6 @@ class QDLattice():
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         start = time.time()
-        # J = QDLattice._build_J_cpu(
-        #                 qd_pos=self.qd_locations,
-        #                 qd_dip=self.qddipoles,
-        #                 J_c=self.dis.J_c,
-        #                 kappa_polaron=kappa_polaron,
-        #                 boundary=(self.geom.boundary if periodic else None)
-        #                 )
-        # J = QDLattice._build_J_gpu(
-        #                 qd_pos=self.qd_locations,
-        #                 qd_dip=self.qddipoles,
-        #                 J_c=self.dis.J_c,
-        #                 kappa_polaron=kappa_polaron,
-        #                 backend=self.backend,
-        #                 boundary=(self.geom.boundary if periodic else None)
-        #                 )
         J = self._build_J(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
