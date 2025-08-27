@@ -175,7 +175,7 @@ class QDLattice():
         return rij_wrap
 
 
-    def _build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+    def _build_J_gpu(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         pos = cp.asarray(qd_pos, dtype=cp.float64)  # (n,d)
         dip = cp.asarray(qd_dip, dtype=cp.float64)  # (n,3)
         n, d = pos.shape
