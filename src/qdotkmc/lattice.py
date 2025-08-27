@@ -120,6 +120,22 @@ class QDLattice():
         # zero diag (already 0, but keep invariant)
         np.fill_diagonal(J, 0.0)
         return J
+    
+    def _build_J_fast(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+        # 1. Prepare pos3 and mu_unit
+        n, d = qd_pos.shape
+        pos3 = np.zeros((n,3), dtype=np.float64)
+        pos3[:, :d] = qd_pos
+        mu = qd_dip.astype(np.float64, copy=False)
+        mu_unit = mu / np.linalg.norm(mu, axis=1, keepdims=True)
+
+        # 2. Wrapped displacements for magnitudes (fast NumPy broadcast)
+        dxw, dyw = _pairwise_wrapped_2d(qd_pos, boundary)
+
+        # 3. Call the Numba kernel for κ-factor and J
+        J = _finish_J_numba(dxw, dyw, pos3, mu_unit, J_c, kappa_polaron, d)
+
+        return J
 
     # function to build couplings 
     def _build_J(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
@@ -183,7 +199,7 @@ class QDLattice():
         #                 kappa_polaron=kappa_polaron,
         #                 boundary=(self.geom.boundary if periodic else None)
         #                 )
-        J = self._build_J_cpu(
+        J = self._build_J_fast(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
@@ -337,4 +353,41 @@ def _build_J_numba(pos3, mu_unit, J_c, kappa_polaron, L, d):
             J[i,j] = val
             J[j,i] = val
 
+    return J
+
+
+def _pairwise_wrapped_2d(pos, L):
+    x = pos[:,0]; y = pos[:,1]
+    dx = x[None,:]-x[:,None]; dy = y[None,:]-y[:,None]
+    if L is not None:
+        dx = dx - L*np.floor(dx/L + 0.5)
+        dy = dy - L*np.floor(dy/L + 0.5)
+    return dx, dy  # (n,n), (n,n)
+
+@njit(parallel=True, cache=True)
+def _finish_J_numba(dx_wrap, dy_wrap, pos3, mu_unit, J_c, kappa, d):
+    n = pos3.shape[0]
+    J = np.zeros((n,n), np.float64)
+    scale = J_c*kappa
+    for i in prange(n):
+        for j in range(i+1,n):
+            wx, wy = dx_wrap[i,j], dy_wrap[i,j]
+            wz = 0.0
+            r2 = wx*wx + wy*wy + wz*wz
+            inv_r3 = 0.0 if r2==0.0 else 1.0/(r2*np.sqrt(r2))
+            # unwrapped direction:
+            ux = pos3[j,0]-pos3[i,0]; uy = pos3[j,1]-pos3[i,1]; uz = pos3[j,2]-pos3[i,2]
+            nr2 = ux*ux + uy*uy + uz*uz
+            if nr2==0.0:
+                rx=ry=rz=0.0
+            else:
+                rinv = 1.0/np.sqrt(nr2); rx,ry,rz = ux*rinv,uy*rinv,uz*rinv
+            mui0, mui1, mui2 = mu_unit[i]
+            muj0, muj1, muj2 = mu_unit[j]
+            mui_dot_muj = mui0*muj0 + mui1*muj1 + mui2*muj2
+            mui_dot_r   = mui0*rx + mui1*ry + mui2*rz
+            muj_dot_r   = muj0*rx + muj1*ry + muj2*rz
+            kappa_ij = mui_dot_muj - 3.0*(mui_dot_r*muj_dot_r)
+            val = scale*kappa_ij*inv_r3
+            J[i,j]=val; J[j,i]=val
     return J
