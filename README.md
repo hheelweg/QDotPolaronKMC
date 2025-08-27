@@ -36,6 +36,7 @@ sbatch <SUBMIT_NAME>.sh
 This should get the job done and export all output files to `cwd`. All print command are directed to `.log` file in `cwd` specified in `output=test.log` of `.sh` script.
 
 
+
 ### Functionality
 
 The current version of the code has two different ways of computing rates implemented (switched by `rates_by`). The underlying theory for computing rates of course remains unchanged, *i.e.*, the polaron-transformed Redfield theory, but what changes is the way we perform **truncation** in high-dimensional QD lattices due to increased computational cost:
