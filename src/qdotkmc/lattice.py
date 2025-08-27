@@ -108,7 +108,7 @@ class QDLattice():
 
 
     def _build_J_backend(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None,
-                        backend=None, tile_ij=2024):
+                        backend=None, tile_ij=1024):
         """
         Fast pairwise dipole coupling builder with tiling and CPU/GPU backend.
 
@@ -291,21 +291,21 @@ class QDLattice():
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         start = time.time()
-        # J = self._build_J(
-        #                 qd_pos=self.qd_locations,
-        #                 qd_dip=self.qddipoles,
-        #                 J_c=self.dis.J_c,
-        #                 kappa_polaron=kappa_polaron,
-        #                 boundary=(self.geom.boundary if periodic else None)
-        #                 )
-        J = self._build_J_backend(
+        J = self._build_J(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
                         kappa_polaron=kappa_polaron,
-                        boundary=(self.geom.boundary if periodic else None),
-                        backend=self.backend
+                        boundary=(self.geom.boundary if periodic else None)
                         )
+        # J = self._build_J_backend(
+        #                 qd_pos=self.qd_locations,
+        #                 qd_dip=self.qddipoles,
+        #                 J_c=self.dis.J_c,
+        #                 kappa_polaron=kappa_polaron,
+        #                 boundary=(self.geom.boundary if periodic else None),
+        #                 backend=self.backend
+        #                 )
         end = time.time()
         print(f"time taken for building J: {end-start:.4f}")
         # (1.2) site energies and total Hamiltonian
