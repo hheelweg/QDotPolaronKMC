@@ -280,7 +280,7 @@ class QDLattice():
         return self.kappa_polaron
 
 
-@njit(parallel=True, fastmath=False)
+@njit(parallel=True, fastmath=False, cache=True)
 def _build_J_numba(pos3, mu_unit, J_c, kappa_polaron, L, d):
     """
     pos3: (n,3) float64   positions embedded in 3D (z=0 if d<3)
