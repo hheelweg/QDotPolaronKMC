@@ -16,7 +16,7 @@ def main():
 
     # ---- QDLattice gometry ------
     ndim = 2                                    # number of dimensions
-    N = 60                                      # number of QDs in each dimension
+    N = 50                                      # number of QDs in each dimension
 
     # ---- system parameters ------
     inhomog_sd = 0.002                          # inhomogenous broadening (units?)
@@ -30,22 +30,22 @@ def main():
 
     # ---- KMC parameters ---------
     ntrajs = 5                                 # number of trajectories to compute MSDs over
-    nrealizations = 1                          # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
-    t_final = 0.5
+    nrealizations = 8                          # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    t_final = 1
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
     # here we leave both 
 
     # (2) for "weight"
-    theta_site = 0.01
-    theta_pol = 0.01
+    theta_site = 0.05
+    theta_pol = 0.05
     
     #-------------------------------------------------------------------------
     # obtain max_workers from SLURM environment for parallelization of work
     max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
     # enforce serial for debugging
-    # max_workers = 1
+    max_workers = 1
 
 
     # define dataclasses
