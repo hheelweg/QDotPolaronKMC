@@ -1,8 +1,9 @@
 # src/qdotkmc/__init__.py
-from . import const, lattice, hamiltonian, montecarlo, redfield, utils, plot_utils, convergence
+from . import const, lattice, hamiltonian, montecarlo, redfield, utils, plot_utils, convergence, print_utils
 
 __all__ = ["const", "lattice", "hamiltonian", "montecarlo",
-           "redfield", "utils", "plot_utils", "convergence"]
+           "redfield", "utils", "plot_utils", "convergence",
+           "backend", "print_utils"]
 
 __version__ = "1.0.2"
 
