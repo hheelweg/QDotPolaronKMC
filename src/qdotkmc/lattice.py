@@ -275,7 +275,7 @@ class QDLattice():
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
                         kappa_polaron=kappa_polaron,
-                        backend=self.backend
+                        backend=self.backend,
                         boundary=(self.geom.boundary if periodic else None)
                         )
         end = time.time()
