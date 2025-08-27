@@ -5,6 +5,73 @@ from numba import njit, prange
 from . import hamiltonian, redfield, utils
 from .config import GeometryConfig, DisorderConfig
 from .hamiltonian import SpecDens
+import cupy as cp
+
+_buildJ_kernel = cp.RawKernel(r'''
+extern "C" __global__
+void buildJ_upper(
+    const double* __restrict__ pos,    // (n,3)
+    const double* __restrict__ mu_u,   // (n,3) unit dipoles
+    const double  Jc,
+    const double  kap,
+    const double  L,
+    const int     d,                   // 1 or 2
+    const int     n,
+    double* __restrict__ J             // (n,n) row-major
+){
+    int i = blockDim.y * blockIdx.y + threadIdx.y;
+    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i >= n || j >= n || j < i) return;  // upper triangle incl. diag
+
+    // load positions/dipoles
+    double pix = pos[3*i+0], piy = pos[3*i+1], piz = pos[3*i+2];
+    double pjx = pos[3*j+0], pjy = pos[3*j+1], pjz = pos[3*j+2];
+
+    double uix = mu_u[3*i+0], uiy = mu_u[3*i+1], uiz = mu_u[3*i+2];
+    double ujx = mu_u[3*j+0], ujy = mu_u[3*j+1], ujz = mu_u[3*j+2];
+
+    // unwrapped delta (direction)
+    double ux = pjx - pix;
+    double uy = pjy - piy;
+    double uz = pjz - piz;
+
+    // wrapped delta (magnitude) on first d dims
+    double wx = ux, wy = uy, wz = uz;
+    if (L > 0.0) {
+        if (d >= 1) { wx = ux - L * floor(ux / L + 0.5); }
+        if (d >= 2) { wy = uy - L * floor(uy / L + 0.5); }
+        // z not wrapped
+    }
+
+    // r_wrap
+    double r2 = wx*wx + wy*wy + wz*wz;
+    double inv_r3 = 0.0;
+    if (r2 > 0.0) {
+        double r = sqrt(r2);
+        inv_r3 = 1.0 / (r2 * r);
+    }
+
+    // rhat from unwrapped
+    double nr2 = ux*ux + uy*uy + uz*uz;
+    double rx=0.0, ry=0.0, rz=0.0;
+    if (nr2 > 0.0) {
+        double rinv = rsqrt(nr2);
+        rx = ux * rinv; ry = uy * rinv; rz = uz * rinv;
+    }
+
+    // kappa = μi·μj - 3(μi·rhat)(μj·rhat)
+    double mui_dot_muj = uix*ujx + uiy*ujy + uiz*ujz;
+    double mui_dot_r   = uix*rx   + uiy*ry   + uiz*rz;
+    double muj_dot_r   = ujx*rx   + ujy*ry   + ujz*rz;
+    double kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r);
+
+    // final J; zero diag by construction since inv_r3=0 when r2=0
+    double val = (Jc * kap) * (kappa * inv_r3);
+
+    J[i*(long long)n + j] = val;
+    if (j != i) J[j*(long long)n + i] = val;
+}
+''', 'buildJ_upper')
 
 # class to set up QD Lattice 
 class QDLattice():
@@ -108,34 +175,29 @@ class QDLattice():
         return rij_wrap
 
 
-    
-    def _build_J_cpu(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
-        n, d = qd_pos.shape
-        pos3 = np.zeros((n,3), dtype=np.float64)
-        pos3[:, :d] = np.asarray(qd_pos, dtype=np.float64, order="C")
-        dip  = np.asarray(qd_dip, dtype=np.float64, order="C")
-        mu_unit = dip / np.linalg.norm(dip, axis=1, keepdims=True)
-        L = float(boundary) if boundary is not None else 0.0
-        J = _build_J_numba(pos3, mu_unit, float(J_c), float(kappa_polaron), L, int(d))
-        # zero diag (already 0, but keep invariant)
-        np.fill_diagonal(J, 0.0)
-        return J
-    
-    def _build_J_fast(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
-        # 1. Prepare pos3 and mu_unit
-        n, d = qd_pos.shape
-        pos3 = np.zeros((n,3), dtype=np.float64)
-        pos3[:, :d] = qd_pos
-        mu = qd_dip.astype(np.float64, copy=False)
-        mu_unit = mu / np.linalg.norm(mu, axis=1, keepdims=True)
+    def _build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+        pos = cp.asarray(qd_pos, dtype=cp.float64)  # (n,d)
+        dip = cp.asarray(qd_dip, dtype=cp.float64)  # (n,3)
+        n, d = pos.shape
+        pos3 = cp.zeros((n,3), dtype=cp.float64); pos3[:,:d] = pos
+        mu_u = dip / cp.linalg.norm(dip, axis=1, keepdims=True)
 
-        # 2. Wrapped displacements for magnitudes (fast NumPy broadcast)
-        dxw, dyw = _pairwise_wrapped_2d(qd_pos, boundary)
+        J = cp.zeros((n,n), dtype=cp.float64)
+        L = 0.0 if boundary is None else float(boundary)
 
-        # 3. Call the Numba kernel for κ-factor and J
-        J = _finish_J_numba(dxw, dyw, pos3, mu_unit, J_c, kappa_polaron, d)
+        # launch config: 2D blocks over (j,i). tune block sizes if needed.
+        bx, by = 32, 8
+        gx = (n + bx - 1)//bx
+        gy = (n + by - 1)//by
+        _buildJ_kernel((gx, gy), (bx, by),
+                    (pos3, mu_u, np.float64(J_c), np.float64(kappa_polaron),
+                        np.float64(L), np.int32(d), np.int32(n), J))
 
-        return J
+        # return to host (or keep on device if the next steps are GPU)
+        Jh = cp.asnumpy(J)
+        np.fill_diagonal(Jh, 0.0)  # safety; should already be zero
+        return Jh
+
 
     # function to build couplings 
     def _build_J(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
@@ -199,7 +261,7 @@ class QDLattice():
         #                 kappa_polaron=kappa_polaron,
         #                 boundary=(self.geom.boundary if periodic else None)
         #                 )
-        J = self._build_J_fast(
+        J = self._build_J_gpu(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
@@ -363,31 +425,3 @@ def _pairwise_wrapped_2d(pos, L):
         dx = dx - L*np.floor(dx/L + 0.5)
         dy = dy - L*np.floor(dy/L + 0.5)
     return dx, dy  # (n,n), (n,n)
-
-@njit(parallel=True, cache=True)
-def _finish_J_numba(dx_wrap, dy_wrap, pos3, mu_unit, J_c, kappa, d):
-    n = pos3.shape[0]
-    J = np.zeros((n,n), np.float64)
-    scale = J_c*kappa
-    for i in prange(n):
-        for j in range(i+1,n):
-            wx, wy = dx_wrap[i,j], dy_wrap[i,j]
-            wz = 0.0
-            r2 = wx*wx + wy*wy + wz*wz
-            inv_r3 = 0.0 if r2==0.0 else 1.0/(r2*np.sqrt(r2))
-            # unwrapped direction:
-            ux = pos3[j,0]-pos3[i,0]; uy = pos3[j,1]-pos3[i,1]; uz = pos3[j,2]-pos3[i,2]
-            nr2 = ux*ux + uy*uy + uz*uz
-            if nr2==0.0:
-                rx=ry=rz=0.0
-            else:
-                rinv = 1.0/np.sqrt(nr2); rx,ry,rz = ux*rinv,uy*rinv,uz*rinv
-            mui0, mui1, mui2 = mu_unit[i]
-            muj0, muj1, muj2 = mu_unit[j]
-            mui_dot_muj = mui0*muj0 + mui1*muj1 + mui2*muj2
-            mui_dot_r   = mui0*rx + mui1*ry + mui2*rz
-            muj_dot_r   = muj0*rx + muj1*ry + muj2*rz
-            kappa_ij = mui_dot_muj - 3.0*(mui_dot_r*muj_dot_r)
-            val = scale*kappa_ij*inv_r3
-            J[i,j]=val; J[j,i]=val
-    return J
