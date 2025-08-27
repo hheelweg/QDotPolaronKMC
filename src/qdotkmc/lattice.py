@@ -246,8 +246,7 @@ class QDLattice():
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
                         kappa_polaron=kappa_polaron,
-                        boundary=(self.geom.boundary if periodic else None),
-                        backend=self.backend
+                        boundary=(self.geom.boundary if periodic else None)
                         )
         end = time.time()
         print(f"time taken for building J: {end-start:.4f}")
