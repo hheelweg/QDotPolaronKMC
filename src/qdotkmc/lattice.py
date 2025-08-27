@@ -1,6 +1,7 @@
 import numpy as np
 import math
 from scipy import integrate
+from numba import njit, prange
 from . import hamiltonian, redfield, utils
 from .config import GeometryConfig, DisorderConfig
 from .hamiltonian import SpecDens
@@ -107,134 +108,76 @@ class QDLattice():
         return rij_wrap
 
 
-    def _build_J_backend(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None, backend=None):
+    @njit(parallel=True, fastmath=False)
+    def _build_J_numba(self, pos3, mu_unit, J_c, kappa_polaron, L, d):
         """
-        Build dipole-dipole coupling matrix with identical physics to the original:
-
-            J_ij = J_c * kappa_polaron *
-                [ μ_i·μ_j - 3 (μ_i·r̂_unwrap)(μ_j·r̂_unwrap) ] / ||r_wrap||^3
-
-        - Magnitude uses wrapped (minimum-image) displacement (|r_wrap|).
-        - Direction uses *unwrapped* displacement (r̂_unwrap).
-        - Dipoles are normalized pairwise (μ → μ/||μ||).
-        - Zero diagonal.
-
-        Implementation details:
-        - Uses only (n×n) matrices (no (n×n×3)), reducing memory.
-        - Runs on CPU or GPU depending on the provided `backend`.
-        - Returns NumPy float64 for downstream code.
-
-        Parameters
-        ----------
-        qd_pos : (n, d) float64, d in {1,2}
-            Site positions (1D or 2D). Will be embedded into 3D internally.
-        qd_dip : (n, 3) float64
-            3D dipole vectors per site.
-        J_c : float
-            Coupling scale.
-        kappa_polaron : float
-            Polaron prefactor.
-        boundary : Optional[float]
-            Periodic box length. If None, no wrapping is applied.
-        backend : Optional[Backend]
-            Backend with attributes:
-            - xp: numpy-like module (NumPy or CuPy)
-            - to_host(arr): (optional) copy device→host; falls back if absent.
-
-        Returns
-        -------
-        J : (n, n) np.ndarray (float64)
-            Coupling matrix.
+        pos3: (n,3) float64   positions embedded in 3D (z=0 if d<3)
+        mu_unit: (n,3) float64 normalized dipoles
+        L: float64 periodic box length (0.0 => no wrap)
+        d: int   # of wrapped dims (1 or 2)
+        returns: (n,n) float64
         """
+        n = pos3.shape[0]
+        J = np.zeros((n, n), dtype=np.float64)
+        scale = J_c * kappa_polaron
 
-        # --- choose array module from backend (preferred) ---
-        if backend is not None:
-            xp = backend.xp
-            to_host = getattr(backend, "to_host", None)
-        else:
-            # minimal fallback: NumPy only (keeps behavior deterministic)
-            xp = np
-            to_host = None
+        for i in prange(n):
+            # diagonal stays 0
+            for j in range(i+1, n):
+                # --- unwrapped delta for direction ---
+                ux = pos3[j,0] - pos3[i,0]
+                uy = pos3[j,1] - pos3[i,1]
+                uz = pos3[j,2] - pos3[i,2]
 
-        # inputs -> xp, float64
-        pos = xp.asarray(qd_pos, dtype=xp.float64, order="C")   # (n,d)
-        mu  = xp.asarray(qd_dip, dtype=xp.float64, order="C")   # (n,3)
-        n, d = pos.shape
-        assert d in (1, 2)
+                # --- wrapped delta for magnitude (minimum image) ---
+                wx, wy, wz = ux, uy, uz
+                if L > 0.0:
+                    if d >= 1:
+                        wx -= L * np.floor(wx / L + 0.5)
+                    if d >= 2:
+                        wy -= L * np.floor(wy / L + 0.5)
+                    # z is not wrapped
 
-        # embed positions into 3D (z=0 for 1D/2D)
-        pos3 = xp.zeros((n, 3), dtype=xp.float64)
-        pos3[:, :d] = pos
+                r2 = wx*wx + wy*wy + wz*wz
+                if r2 == 0.0:
+                    inv_r3 = 0.0
+                else:
+                    r = np.sqrt(r2)
+                    inv_r3 = 1.0 / (r2 * r)
 
-        # unit dipoles (mirror original)
-        mu_unit = mu / xp.linalg.norm(mu, axis=1, keepdims=True)
+                # --- unit direction from UNWRAPPED delta ---
+                nr2 = ux*ux + uy*uy + uz*uz
+                if nr2 == 0.0:
+                    rx = ry = rz = 0.0
+                else:
+                    rinv = 1.0 / np.sqrt(nr2)
+                    rx, ry, rz = ux*rinv, uy*rinv, uz*rinv
 
-        # --- wrapped distance (magnitude) using only (n×n) arrays ---
-        if boundary is not None:
-            L = float(boundary)
+                # --- angular factor kappa ---
+                mui0, mui1, mui2 = mu_unit[i,0], mu_unit[i,1], mu_unit[i,2]
+                muj0, muj1, muj2 = mu_unit[j,0], mu_unit[j,1], mu_unit[j,2]
+                mui_dot_muj = mui0*muj0 + mui1*muj1 + mui2*muj2
+                mui_dot_r   = mui0*rx + mui1*ry + mui2*rz
+                muj_dot_r   = muj0*rx + muj1*ry + muj2*rz
+                kappa = mui_dot_muj - 3.0*(mui_dot_r*muj_dot_r)
 
-            def _wrap_mimage(x):
-                # wrap into (-L/2, L/2] without branching; vectorized; works on NumPy/CuPy
-                return x - L * xp.floor(x / L + 0.5)
+                val = scale * kappa * inv_r3
+                J[i,j] = val
+                J[j,i] = val
 
-            r2_wrap = xp.zeros((n, n), dtype=xp.float64)
-            dx = pos[:, 0][None, :] - pos[:, 0][:, None]
-            dx = _wrap_mimage(dx)
-            r2_wrap += dx * dx
-            if d == 2:
-                dy = pos[:, 1][None, :] - pos[:, 1][:, None]
-                dy = _wrap_mimage(dy)
-                r2_wrap += dy * dy
-        else:
-            r2_wrap = xp.zeros((n, n), dtype=xp.float64)
-            dx = pos[:, 0][None, :] - pos[:, 0][:, None]
-            r2_wrap += dx * dx
-            if d == 2:
-                dy = pos[:, 1][None, :] - pos[:, 1][:, None]
-                r2_wrap += dy * dy
-
-        # avoid div-by-zero on diagonal for 1/|r|^3
-        xp.fill_diagonal(r2_wrap, xp.inf)
-        r_wrap = xp.sqrt(r2_wrap)
-        den_mag = r2_wrap * r_wrap
-        inv_r3 = xp.where(den_mag > 0.0, 1.0 / den_mag, 0.0)   # (n,n), float64
-
-        # --- UNWRAPPED direction via 2D matrices (no (n,n,3)) ---
-        # r2_dir = ||pos3_j||^2 + ||pos3_i||^2 - 2 pos3_i·pos3_j
-        pos_norm2 = xp.sum(pos3 * pos3, axis=1)                # (n,)
-        G = pos3 @ pos3.T                                      # (n,n)
-        r2_dir = pos_norm2[:, None] + pos_norm2[None, :] - 2.0 * G
-        xp.fill_diagonal(r2_dir, 1.0)                          # any nonzero to define rhat on diag
-        norm_dir = xp.sqrt(r2_dir)
-
-        # μ·pos matrices: M_ij = μ_i · pos_j
-        M_mu_pos = mu_unit @ pos3.T                            # (n,n)
-        alpha = xp.sum(mu_unit * pos3, axis=1)                 # (n,)  μ_i·pos_i
-        # numerators for μ_i·r̂ and μ_j·r̂
-        num_i = M_mu_pos - alpha[:, None]                      # (n,n): μ_i·pos_j - μ_i·pos_i
-        num_j = alpha[None, :] - M_mu_pos.T                    # (n,n): μ_j·pos_j - μ_j·pos_i
-
-        mui_dot_r = num_i / norm_dir                           # (n,n)
-        muj_dot_r = num_j / norm_dir                           # (n,n)
-
-        # angular factor κ_ij
-        mui_dot_muj = mu_unit @ mu_unit.T                      # (n,n)
-        kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r)
-
-        # final J, zero diag
-        scale = float(J_c) * float(kappa_polaron)
-        Jx = scale * kappa * inv_r3
-        xp.fill_diagonal(Jx, 0.0)
-
-        # return NumPy float64
-        if to_host is not None and xp is not np:
-            return np.asarray(to_host(Jx), dtype=np.float64, order="C")
-        elif xp is not np:
-            # very defensive fallback if backend has no to_host()
-            Jh = Jx.get()  # type: ignore[attr-defined]
-            return np.asarray(Jh, dtype=np.float64, order="C")
-        else:
-            return np.asarray(Jx, dtype=np.float64, order="C")
+        return J
+    
+    def _build_J_cpu(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+        n, d = qd_pos.shape
+        pos3 = np.zeros((n,3), dtype=np.float64)
+        pos3[:, :d] = np.asarray(qd_pos, dtype=np.float64, order="C")
+        dip  = np.asarray(qd_dip, dtype=np.float64, order="C")
+        mu_unit = dip / np.linalg.norm(dip, axis=1, keepdims=True)
+        L = float(boundary) if boundary is not None else 0.0
+        J = self._build_J_numba(pos3, mu_unit, float(J_c), float(kappa_polaron), L, int(d))
+        # zero diag (already 0, but keep invariant)
+        np.fill_diagonal(J, 0.0)
+        return J
 
     # function to build couplings 
     def _build_J(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
@@ -298,7 +241,7 @@ class QDLattice():
         #                 kappa_polaron=kappa_polaron,
         #                 boundary=(self.geom.boundary if periodic else None)
         #                 )
-        J = self._build_J_backend(
+        J = self._build_J_cpu(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
