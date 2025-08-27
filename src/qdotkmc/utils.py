@@ -20,7 +20,7 @@ def diagonalize(
     """
     symmetric eigendecomposition with automatic CPU/GPU dispatch.
 
-    If backend.is_gpu is True (CuPy available), runs on GPU via cuSolver
+    If backend.use_gpu is True (CuPy available), runs on GPU via cuSolver
     (through xp.linalg.eigh). Otherwise falls back to SciPy LAPACK.
 
     Returns eigenvalues E (ascending) and eigenvectors C (columns) on HOST

@@ -12,8 +12,5 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 
-# ensure GPU stays on (run on GPU)
-export QDOT_USE_GPU=1
-
 # job submission
 python /path/to/python/script/main.py
