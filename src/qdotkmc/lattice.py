@@ -1,11 +1,11 @@
 import numpy as np
 import math
 from scipy import integrate
-from numba import njit, prange
 from . import hamiltonian, redfield, utils
 from .config import GeometryConfig, DisorderConfig
 from .hamiltonian import SpecDens
-import cupy as cp
+from qdotkmc.backend import Backend
+
 
 # kernel to build couplings fast on GPU
 _BUILDJ_SRC = r'''
@@ -88,6 +88,7 @@ class QDLattice():
 
         # computing backend for QDLattice (GPU/CPU)
         self.backend = None
+
 
         
     # NOTE: old make_qd_array method (basically unchanged)
@@ -261,7 +262,7 @@ class QDLattice():
         """
         Dispatch to CPU or GPU implementation of J depending on backend.
         """
-        #be = backend if backend is not None else getattr(self, "backend", None)
+        assert isinstance(backend, Backend), "Need to specify valid instance of Backend class."
         if backend.use_gpu:
             return self._build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, backend=backend, boundary=boundary)
         else:
