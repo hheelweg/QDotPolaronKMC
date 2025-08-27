@@ -149,7 +149,8 @@ class QDLattice():
     
 
     # NOTE : former get_disp_vector_matrix
-    def _pairwise_displacements(self, qd_pos, boundary):
+    @staticmethod
+    def get_pairwise_displacements(qd_pos, boundary):
         """
         Match get_disp_vector_matrix(): wrapped displacement for magnitude.
         qd_pos: (n, d) with d in {1,2}
@@ -214,7 +215,7 @@ class QDLattice():
 
         # --- Magnitude uses WRAPPED displacement (minimum image), exactly like get_disp_vector_matrix
         if boundary is not None:
-            rij_wrap = self._pairwise_displacements(qd_pos, boundary)  # (n,n,3)
+            rij_wrap = QDLattice.get_pairwise_displacements(qd_pos, boundary)  # (n,n,3)
         else:
             rij_wrap = np.zeros((n, n, 3), dtype=np.float64)
             rij_wrap[:, :, :d] = qd_pos[None, :, :] - qd_pos[:, None, :]
