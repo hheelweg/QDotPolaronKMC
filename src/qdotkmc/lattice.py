@@ -289,7 +289,7 @@ class QDLattice():
         #                 backend=self.backend,
         #                 boundary=(self.geom.boundary if periodic else None)
         #                 )
-        J = QDLattice._build_J(
+        J = self._build_J(
                         qd_pos=self.qd_locations,
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
