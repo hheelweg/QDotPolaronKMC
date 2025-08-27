@@ -177,7 +177,8 @@ class QDLattice():
         return rij_wrap
 
 
-    def _build_J_gpu(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+    @staticmethod
+    def _build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         pos = cp.asarray(qd_pos, dtype=cp.float64)  # (n,d)
         dip = cp.asarray(qd_dip, dtype=cp.float64)  # (n,3)
         n, d = pos.shape
@@ -257,20 +258,20 @@ class QDLattice():
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         start = time.time()
-        J = QDLattice._build_J_cpu(
-                        qd_pos=self.qd_locations,
-                        qd_dip=self.qddipoles,
-                        J_c=self.dis.J_c,
-                        kappa_polaron=kappa_polaron,
-                        boundary=(self.geom.boundary if periodic else None)
-                        )
-        # J = self._build_J_gpu(
+        # J = QDLattice._build_J_cpu(
         #                 qd_pos=self.qd_locations,
         #                 qd_dip=self.qddipoles,
         #                 J_c=self.dis.J_c,
         #                 kappa_polaron=kappa_polaron,
         #                 boundary=(self.geom.boundary if periodic else None)
         #                 )
+        J = QDLattice._build_J_gpu(
+                        qd_pos=self.qd_locations,
+                        qd_dip=self.qddipoles,
+                        J_c=self.dis.J_c,
+                        kappa_polaron=kappa_polaron,
+                        boundary=(self.geom.boundary if periodic else None)
+                        )
         end = time.time()
         print(f"time taken for building J: {end-start:.4f}")
         # (1.2) site energies and total Hamiltonian
