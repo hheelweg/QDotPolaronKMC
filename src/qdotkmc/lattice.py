@@ -262,7 +262,7 @@ class QDLattice():
         Dispatch to CPU or GPU implementation of J depending on backend.
         """
         #be = backend if backend is not None else getattr(self, "backend", None)
-        if backend is not None and getattr(backend, "use_gpu", False):
+        if backend.use_gpu:
             return self._build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, backend=backend, boundary=boundary)
         else:
             return self._build_J_cpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=boundary)
