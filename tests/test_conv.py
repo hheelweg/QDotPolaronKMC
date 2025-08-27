@@ -102,7 +102,7 @@ def main():
 
 if __name__ == '__main__':
 
-    profiler = Profiler()
+    profiler = Profiler(use_timing_thread=True)
     profiler.start()
 
     try:
