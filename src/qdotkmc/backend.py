@@ -206,7 +206,7 @@ def get_backend(*,
     be = Backend(xp, use_c64=use_c64)
 
     # (3) compute and attach parallel plan
-    plan = _recommend_parallel_plan(is_gpu=be.use_gpu,
+    plan = _recommend_parallel_plan(use_gpu=be.use_gpu,
                                     do_parallel=do_parallel,
                                     max_workers=max_workers,
                                     nrealizations=nrealizations)
