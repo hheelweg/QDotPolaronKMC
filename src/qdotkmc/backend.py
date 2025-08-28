@@ -1,6 +1,7 @@
 from contextlib import nullcontext
 import os
-from typing import Optional, Dict
+from dataclasses import dataclass
+from typing import Optional, Dict, Literal, List
 
 class CPUStreams:
     def __enter__(self): return self
@@ -36,6 +37,7 @@ class Backend:
         self.c = xp.complex64 if use_c64 else xp.complex128
 
         # streams
+        # TODO : what do we need this for?
         if self.is_gpu and enable_streams:
             import cupy as cp
             self.Stream = cp.cuda.Stream
@@ -55,7 +57,7 @@ class Backend:
                 pass
 
 
-    # ------- array helpers (CPU/GPU) -------
+    # ------- array helpers (CPU <-> GPU) -------
     def rawkernel(self, func_name: str, src: str):
         """Return a cached cp.RawKernel; compile once per Backend."""
         if not self.use_gpu or self.cp is None:
@@ -108,12 +110,52 @@ class Backend:
         return _np.asarray(a).dtype.kind == 'c'
 
 
+@dataclass(frozen=True)
+class ParallelPlan:
+
+    context: Literal["fork", "spawn"]        # mp start method (different for GPU?CPU execution)
+    n_workers: int                           # processes to launch
+    device_ids: Optional[List[int]]          # GPU ids or None for CPU
+    use_gpu: bool                            # whether GPU is intended
+
+
 
 def _slurm_cpus_per_task(default : int = 1) -> int:
     try:
         return max(1, int(os.getenv("SLURM_CPUS_PER_TASK", str(default))))
     except Exception:
         return default
+
+
+def _recommend_plan(*,
+                    use_gpu: bool,
+                    do_parallel: bool,
+                    max_workers: Optional[int],
+                    nrealizations: int
+                    ) -> ParallelPlan:
+    
+    # (1) serial execution
+    if not do_parallel:
+        return ParallelPlan(context="fork", n_workers=1, device_ids=None, use_gpu=use_gpu)
+    
+    # (2) parallel execution
+    # (a) CPU path
+    if not use_gpu:
+        # match number of workers to SLURM environment
+        nw = _slurm_cpus_per_task(1)
+        return ParallelPlan(context="fork", n_workers=max(1, nw), device_ids=None, use_gpu=False)
+    
+    # (b) GPU path
+    try:
+        import cupy as cp
+        n_gpus = int(cp.cuda.runtime.getDeviceCount())
+    except Exception:
+        n_gpus = 1
+    # match number of workers to number of availbale GPUs
+    nw = max_workers if max_workers is not None else n_gpus
+    nw = max(1, min(nw, n_gpus, nrealizations))
+    return ParallelPlan(context="spawn", n_workers=nw, device_ids=list(range(nw)), use_gpu=True)
+
 
 
 def _configure_cublas_env(*, deterministic: Optional[bool] = None,
@@ -136,13 +178,21 @@ def get_backend(*, prefer_gpu=True, use_c64=False):
     Return a Backend bound to CuPy (GPU) if requested & available, else NumPy (CPU).
     Sets cuBLAS env early for deterministic kernels and TF32 policy.
     """
+    # (1) choose xp (numpy or cupy)
+    xp = None
     if prefer_gpu:
         try:
             _configure_cublas_env(deterministic=True, allow_tf32=False)
             import cupy as cp
             if cp.cuda.runtime.getDeviceCount() > 0:
-                return Backend(cp, use_c64=use_c64)
+                xp = cp
+                #return Backend(cp, use_c64=use_c64)
         except Exception:
-            pass
-    import numpy as np
-    return Backend(np, use_c64=use_c64)
+            #pass
+            xp = None
+    if xp is None:
+        import numpy as np
+    
+    # (2) build Backend as before
+    be = Backend(xp, use_c64=use_c64)
+    return be
