@@ -47,11 +47,11 @@ def _one_lattice_worker(args):
     from qdotkmc import const
     bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
 
-    rid_out, msd_r, sim_time_out = runner._run_single_lattice(
+    msd_r, sim_time_out = runner._run_single_lattice(
         ntrajs=run.ntrajs, bath=bath, t_final=run.t_final, times=times_msds,
         realization_id=rid, simulated_time=sim_time, seed=seed,
     )
-    return rid_out, msd_r, sim_time_out
+    return rid, msd_r, sim_time_out
 
 
 class KMCRunner():
