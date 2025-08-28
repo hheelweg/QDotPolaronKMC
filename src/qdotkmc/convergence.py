@@ -4,7 +4,7 @@ import os
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, ConvergenceTuneConfig
+from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, ConvergenceTuneConfig, ExecutionPlan
 from . import const
 from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
@@ -34,10 +34,10 @@ def _rate_score_worker(args):
 # TODO : only implemented for rates_by = "weight". 
 class ConvergenceAnalysis(KMCRunner):
 
-    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, 
+    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, exec_plan : ExecutionPlan,
                  tune_cfg : ConvergenceTuneConfig):
 
-        super().__init__(geom, dis, bath_cfg, run)
+        super().__init__(geom, dis, bath_cfg, run, exec_plan)
         # NOTE : maybe also specify which algortihm type we use radial versus overlap cutoff?
         self.tune_cfg = tune_cfg
 

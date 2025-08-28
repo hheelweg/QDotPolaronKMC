@@ -63,7 +63,7 @@ def main():
                                                     )
 
     # set up convergence
-    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, tune_cfg)
+    convergence_setup = qdotkmc.convergence.ConvergenceAnalysis(geom, dis, bath_cfg, run, exec_plan, tune_cfg)
     
 
     #  ---------    automatically optimize thetas    ----------
