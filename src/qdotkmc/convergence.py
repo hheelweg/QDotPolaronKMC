@@ -98,7 +98,7 @@ class ConvergenceAnalysis(KMCRunner):
 
     
     # build setu-uop for obtaining convergence
-    def _build_rate_convergenc_env(self, rnd_seed : int):
+    def _build_rate_convergenc_env(self):
 
         # (0) build bath
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
