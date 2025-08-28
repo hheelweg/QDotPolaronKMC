@@ -112,7 +112,8 @@ class KMCRunner():
         # print which backend we end up using for KMC
         # TODO : maybe move this to main?
         mode = "GPU" if self.backend.use_gpu else "CPU"
-        print(f"[qdotkmc] backend: {mode}  (use_c64={self.backend.gpu_use_c64})")                                
+        parallel_mode = "parallel" if self.backend.plan.do_parallel else "serial"
+        print(f"[qdotkmc] backend: {mode} {parallel_mode} (use_c64={self.backend.gpu_use_c64})")                                
 
     
     # make join time-grid
