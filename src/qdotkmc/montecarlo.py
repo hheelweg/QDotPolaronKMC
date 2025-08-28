@@ -8,7 +8,7 @@ from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, Execu
 from numpy.random import SeedSequence, default_rng
 from . import hamiltonian, lattice, const, utils, print_utils
 from .hamiltonian import SpecDens
-from qdotkmc.backend import get_backend
+#from qdotkmc.backend import get_backend
 
 # global variable to allow parallel workers to use the same bath setup
 _BATH_GLOBAL = None
@@ -63,6 +63,8 @@ def _one_lattice_worker(args):
 
     geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed, device_id = args
 
+    # assign device if we selected GPU path (device_id is not None)
+    print('device_id', device_id)
     if device_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
         os.environ["QDOT_USE_GPU"] = "1"
@@ -584,11 +586,11 @@ class KMCRunner():
                             times_msds, rid, sim_time, seeds[rid], dev))
         # (b) CPU path
         else:
-            print('do CPU path')
             dev = self.backend.plan.device_ids                                              # should be None for CPU path
             jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
                     times_msds, rid, sim_time, seeds[rid], dev) for rid in range(R)]
         
+        # allocate jobs to workers
         with ProcessPoolExecutor(max_workers=self.exec_plan.max_workers, mp_context=ctx) as ex:
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
