@@ -8,55 +8,9 @@ from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, Execu
 from numpy.random import SeedSequence, default_rng
 from . import hamiltonian, lattice, const, utils, print_utils
 from .hamiltonian import SpecDens
-#from qdotkmc.backend import get_backend
 
-# global variable to allow parallel workers to use the same bath setup
-_BATH_GLOBAL = None
-
-# top-level worker for a single lattice realization
-def _one_lattice_worker_old(args):
-
-    # (a) CPU has 9 arguments
-    if len(args) == 8:
-        geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed = args
-        device_id = None
-    # (b) GPU has 10 arguments (new: device_id)
-    else:
-        geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed, device_id = args
-
-    # GPU binding (only if a device is assigned)
-    if device_id is not None:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id) 
-        os.environ["QDOT_USE_GPU"] = "1"                    
-
-    # TODO : can we avoid setting this function
-    runner = KMCRunner(geom, dis, bath_cfg, run, exec_plan)
-    # (a) CPU path:
-    if device_id is None:
-        msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
-                                                         bath=_BATH_GLOBAL, 
-                                                         t_final=run.t_final, 
-                                                         times=times_msds,
-                                                         realization_id=rid, 
-                                                         simulated_time=sim_time, 
-                                                         seed=seed,
-                                                         )
-    # (b) GPU path:
-    elif device_id is not None:
-        # rebuild bath in child (spawn path)
-        bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
-        msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
-                                                         bath=bath, 
-                                                         t_final=run.t_final, 
-                                                         times=times_msds,
-                                                         realization_id=rid, 
-                                                         simulated_time=sim_time, 
-                                                         seed=seed,
-                                                         )
-    else:
-        raise NotImplementedError('Need to attach each process to device ID')
-
-    return rid, msd_r, sim_time_out
+# # global variable to allow parallel workers to use the same bath setup
+# _BATH_GLOBAL = None
 
 # top-level worker for a single lattice realization
 def _one_lattice_worker(args):
@@ -64,7 +18,6 @@ def _one_lattice_worker(args):
     geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed, device_id = args
 
     # assign device if we selected GPU path (device_id is not None)
-    print('device_id', device_id)
     if device_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
         os.environ["QDOT_USE_GPU"] = "1"
@@ -474,89 +427,11 @@ class KMCRunner():
 
     # execute parallel if available based on max_worker (otherwise serial)
     def _simulate_kmc(self):
-        #if self.exec_plan.max_workers is None or self.exec_plan.max_workers == 1:
         if not self.exec_plan.do_parallel:
             return self.simulate_kmc_serial()
         else:
             return self.simulate_kmc_parallel()
 
-    # parallel KMC
-    def simulate_kmc_parallel_old(self):
-        """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
-
-        os.environ.setdefault("OMP_NUM_THREADS", "1")
-        os.environ.setdefault("MKL_NUM_THREADS", "1")
-        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-
-        R = self.run.nrealizations
-        times_msds = self._make_time_grid()
-        msds = np.zeros((R, len(times_msds)))
-        sim_time = 0.0
-
-        # decide backend mode
-        use_gpu = getattr(self.backend, "use_gpu", False)
-
-        # (a)  -------  CPU path ---------
-        if not use_gpu:
-
-            # build bath ONCE in parent and share via fork 
-            bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
-            global _BATH_GLOBAL
-            _BATH_GLOBAL = bath
-
-            # use fork context so children inherit memory instead of pickling args
-            ctx = mp.get_context("fork")
-
-            # create seeds for lattice realizations, its important to feed them here
-            # in order to have parallel execution yield the same results as serial
-            seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
-            jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan, times_msds, rid, sim_time, seeds[rid])
-                    for rid in range(R)]
-
-            with ProcessPoolExecutor(max_workers=self.exec_plan.max_workers, mp_context=ctx) as ex:
-                futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
-                for fut in as_completed(futs):
-                    rid, msd_r, sim_time = fut.result()
-                    msds[rid] = msd_r
-
-        # (b) --------- GPU path ---------------
-        elif use_gpu:
-
-            # GPU: spawn + one process per GPU
-            # avoid parent-global bath in GPU mode because spawn doesn’t inherit it, rebuild in child
-            ctx = mp.get_context("spawn")
-
-            # detect how many GPUs are visible (fallback to 1 if detection fails)
-            try:
-                #import cupy as cp
-                n_gpus = int(self.backend.cp.cuda.runtime.getDeviceCount())
-            except Exception:
-                n_gpus = 1
-
-            # cap workers to # of GPUs (one process per GPU recommended)
-            # TODO : can we change this to make code even faster?
-            max_workers = max(1, min(self.exec_plan.max_workers, n_gpus))
-
-            # create seeds for lattice realizations, its important to feed them here
-            # in order to have parallel execution yield the same results as serial
-            seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
-
-            # assign each job a device id round-robin over [0..n_gpus-1]
-            jobs = []
-            for rid in range(R):
-                dev = rid % n_gpus
-                jobs.append((self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan, times_msds, rid, sim_time, seeds[rid], dev))
-
-            with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
-                futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
-                for fut in as_completed(futs):
-                    rid, msd_r, sim_time = fut.result()
-                    msds[rid] = msd_r
-
-        # print total time spent on Redfield rates
-        print(print_utils.simulated_time(sim_time))
-
-        return times_msds, msds
     
     # parallel KMC
     def simulate_kmc_parallel(self):

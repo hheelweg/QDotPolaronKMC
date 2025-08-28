@@ -130,6 +130,7 @@ def _slurm_cpus_per_task(default : int = 1) -> int:
         return default
 
 
+# recommend plan for parallel execution
 def _recommend_parallel_plan(*,
                     use_gpu: bool,
                     do_parallel: bool,
@@ -158,7 +159,6 @@ def _recommend_parallel_plan(*,
     nw = max_workers if max_workers is not None else n_gpus
     nw = max(1, min(nw, n_gpus))
     return ParallelPlan(context="spawn", n_workers=nw, device_ids=list(range(nw)), use_gpu=True)
-
 
 
 def _configure_cublas_env(*, deterministic: Optional[bool] = None,
