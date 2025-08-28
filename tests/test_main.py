@@ -60,8 +60,7 @@ def main():
     
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
                                              gpu_use_c64 = True,
-                                             do_parallel = False,
-                                             max_workers = max_workers
+                                             do_parallel = True
                                              )
     
     
