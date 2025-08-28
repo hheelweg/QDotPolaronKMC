@@ -36,6 +36,9 @@ class Backend:
         self.f = xp.float32   if use_c64 else xp.float64
         self.c = xp.complex64 if use_c64 else xp.complex128
 
+        # intialize parallel plan attribute
+        self.plan = None
+
         # streams
         # TODO : what do we need this for?
         if self.is_gpu and enable_streams:
@@ -127,7 +130,7 @@ def _slurm_cpus_per_task(default : int = 1) -> int:
         return default
 
 
-def _recommend_plan(*,
+def _recommend_parallel_plan(*,
                     use_gpu: bool,
                     do_parallel: bool,
                     max_workers: Optional[int],
@@ -173,7 +176,13 @@ def _configure_cublas_env(*, deterministic: Optional[bool] = None,
         os.environ.setdefault("NVIDIA_TF32_OVERRIDE", "0")
 
 
-def get_backend(*, prefer_gpu=True, use_c64=False):
+def get_backend(*, 
+                prefer_gpu: bool = True, 
+                use_c64: bool = False,
+                do_parallel: bool = True,
+                max_workers: Optional[int] = None,
+                nrealizations: int = 1
+                ):
     """
     Return a Backend bound to CuPy (GPU) if requested & available, else NumPy (CPU).
     Sets cuBLAS env early for deterministic kernels and TF32 policy.
@@ -195,4 +204,12 @@ def get_backend(*, prefer_gpu=True, use_c64=False):
     
     # (2) build Backend as before
     be = Backend(xp, use_c64=use_c64)
+
+    # (3) compute and attach parallel plan
+    plan = _recommend_parallel_plan(is_gpu=be.use_gpu,
+                                    do_parallel=do_parallel,
+                                    max_workers=max_workers,
+                                    nrealizations=nrealizations)
+    be.plan = plan 
+
     return be
