@@ -16,13 +16,13 @@ _BATH_GLOBAL = None
 # top-level worker for a single lattice realization
 def _one_lattice_worker(args):
 
-    # (a) CPU has 8 arguments
+    # (a) CPU has 9 arguments
     if len(args) == 8:
-        geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed = args
+        geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed = args
         device_id = None
-    # (b) GPU has 9 arguments (new: device_id)
+    # (b) GPU has 10 arguments (new: device_id)
     else:
-        geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed, device_id = args
+        geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed, device_id = args
 
     # GPU binding (only if a device is assigned)
     if device_id is not None:
@@ -30,7 +30,7 @@ def _one_lattice_worker(args):
         os.environ["QDOT_USE_GPU"] = "1"                    
 
     # TODO : can we avoid setting this function
-    runner = KMCRunner(geom, dis, bath_cfg, run)
+    runner = KMCRunner(geom, dis, bath_cfg, run, exec_plan)
     # (a) CPU path:
     if device_id is None:
         msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
@@ -480,7 +480,7 @@ class KMCRunner():
             # create seeds for lattice realizations, its important to feed them here
             # in order to have parallel execution yield the same results as serial
             seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
-            jobs = [(self.geom, self.dis, self.bath_cfg, self.run, times_msds, rid, sim_time, seeds[rid])
+            jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan, times_msds, rid, sim_time, seeds[rid])
                     for rid in range(R)]
 
             with ProcessPoolExecutor(max_workers=self.run.max_workers, mp_context=ctx) as ex:
@@ -515,7 +515,7 @@ class KMCRunner():
             jobs = []
             for rid in range(R):
                 dev = rid % n_gpus
-                jobs.append((self.geom, self.dis, self.bath_cfg, self.run, times_msds, rid, sim_time, seeds[rid], dev))
+                jobs.append((self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan, times_msds, rid, sim_time, seeds[rid], dev))
 
             with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
