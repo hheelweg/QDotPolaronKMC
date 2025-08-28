@@ -122,7 +122,7 @@ class ParallelPlan:
     use_gpu: bool                            # whether GPU is intended
 
 
-
+# return available CPUs for parallel execution in CPU mode
 def _slurm_cpus_per_task(default : int = 1) -> int:
     try:
         return max(1, int(os.getenv("SLURM_CPUS_PER_TASK", str(default))))
@@ -154,6 +154,7 @@ def _recommend_parallel_plan(*,
     except Exception:
         n_gpus = 1
     # match number of workers to number of availbale GPUs
+    # TODO : edit the following so that we do not need max_workers anymore
     nw = max_workers if max_workers is not None else n_gpus
     nw = max(1, min(nw, n_gpus))
     return ParallelPlan(context="spawn", n_workers=nw, device_ids=list(range(nw)), use_gpu=True)

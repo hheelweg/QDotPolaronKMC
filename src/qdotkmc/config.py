@@ -90,17 +90,13 @@ class ExecutionPlan:
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
                                             # if None, decide automatically from env/GPU count
 
-    # build a backend on demand
+    # build a backend for execution
     def build_backend(self):
-        # local import to avoid side-effects at module import time
-        return get_backend(prefer_gpu=self.prefer_gpu,
-                           use_c64=self.gpu_use_c64,
-                           do_parallel=self.do_parallel,
-                           max_workers=self.max_workers
+        return get_backend(prefer_gpu   = self.prefer_gpu,
+                           use_c64      = self.gpu_use_c64,
+                           do_parallel  = self.do_parallel,
+                           max_workers  = self.max_workers
                            )
-                        #    do_parallel=self.do_parallel,
-                        #    max_workers=self.max_workers,
-                        #    nrealizations=self.nrealizations)
 
 
 @dataclass(frozen=True)

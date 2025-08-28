@@ -75,10 +75,10 @@ class KMCRunner():
         self._ss_root = SeedSequence(self.dis.seed_base)
 
         # backend selection (GPU/CPU)
-        # TODO : maybe add prefer_parallel here as well
         self.backend = self.exec_plan.build_backend()
 
         # print which backend we end up using for KMC
+        # TODO : maybe move this to main?
         mode = "GPU" if self.backend.use_gpu else "CPU"
         print(f"[qdotkmc] backend: {mode}  (use_c64={self.backend.gpu_use_c64})")                                
 
@@ -443,7 +443,8 @@ class KMCRunner():
 
     # execute parallel if available based on max_worker (otherwise serial)
     def _simulate_kmc(self):
-        if self.exec_plan.max_workers is None or self.exec_plan.max_workers == 1:
+        #if self.exec_plan.max_workers is None or self.exec_plan.max_workers == 1:
+        if not self.exec_plan.do_parallel:
             return self.simulate_kmc_serial()
         else:
             return self.simulate_kmc_parallel()
