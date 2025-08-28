@@ -58,8 +58,12 @@ def main():
                                     max_workers = max_workers, t_final = t_final
                                     )
     
+    exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
+                                             gpu_use_c64 = True)
+    
+    
     # set up KMC simulation
-    kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run)
+    kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan)
 
     # perform KMC simulation (automatically switches parallel/serial based on max_workers)
     times, msds = kmc._simulate_kmc()

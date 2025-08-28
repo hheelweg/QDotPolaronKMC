@@ -7,6 +7,7 @@ class CPUStreams:
     def __exit__(self, *a): return False
     def synchronize(self): pass
 
+
 class Backend:
     """
     Thin CPU/GPU facade over numpy/cupy with a few convenience helpers.
@@ -105,6 +106,14 @@ class Backend:
     def _is_complex(a):
         import numpy as _np
         return _np.asarray(a).dtype.kind == 'c'
+
+
+
+def _slurm_cpus_per_task(default : int = 1) -> int:
+    try:
+        return max(1, int(os.getenv("SLURM_CPUS_PER_TASK", str(default))))
+    except Exception:
+        return default
 
 
 def _configure_cublas_env(*, deterministic: Optional[bool] = None,

@@ -86,6 +86,27 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
+class ExecutionPlan:
+
+    # HPC execution parameters
+    prefer_gpu : bool = True                # try to use GPU if available
+    gpu_use_c64 : bool = True               # use complex64/float32 on GPU (speed vs accuracy)
+    do_parallel : bool = True               # enable multi-process
+    max_workers: Optional[int] = None       # max_workers to conduct parallel work
+                                            # if None, decide automatically from env/GPU count
+
+    # build a backend on demand (in the calling process)
+    def build_backend(self):
+        # local import to avoid side-effects at module import time
+        from qdotkmc.backend import get_backend
+        return get_backend(prefer_gpu=self.prefer_gpu,
+                           use_c64=self.gpu_use_c64)
+                        #    do_parallel=self.do_parallel,
+                        #    max_workers=self.max_workers,
+                        #    nrealizations=self.nrealizations)
+
+
+@dataclass(frozen=True)
 class ConvergenceTuneConfig:
     """
     immutable configuration for convergence tuning of KMC hyperparameters parameters (θ_sites, θ_pol).

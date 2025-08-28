@@ -4,7 +4,7 @@ import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Optional
 
-from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
+from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, ExecutionPlan
 from numpy.random import SeedSequence, default_rng
 from . import hamiltonian, lattice, const, utils, print_utils
 from .hamiltonian import SpecDens
@@ -62,12 +62,14 @@ def _one_lattice_worker(args):
 class KMCRunner():
     
     
-    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig):
+    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, 
+                 run : RunConfig, exec_plan : ExecutionPlan):
 
         self.geom = geom                        # geometry for QDLattice
         self.dis = dis                          # energetic parameters for QDLattice
         self.bath_cfg = bath_cfg                # bath setup, temperature ...
         self.run = run                          # KMC related parameters
+        self.exec_plan = exec_plan              # execution plan
 
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
