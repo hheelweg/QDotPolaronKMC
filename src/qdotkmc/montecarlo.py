@@ -242,21 +242,21 @@ class KMCRunner():
 
     # build realization of QD lattice
     # TODO : make this a @staticmethod
-    def _build_grid_realization(self, bath : SpecDens, rid : int, seed : Optional[int] = None):
+    def _build_grid_realization(self, bath : SpecDens, rid : int, seed : Optional[int]):
 
         assert isinstance(bath, SpecDens), "Need to make sure we have a proper \
                                             bath set up to build QDLattice instance"
 
-        # get random seef from realization id (rid), if no seed already specified
-        if seed is None:
-            rnd_seed = self._spawn_realization_seed(rid)
-        else:
-            rnd_seed = seed
+        # # get random seef from realization id (rid), if no seed already specified
+        # if seed is None:
+        #     rnd_seed = self._spawn_realization_seed(rid)
+        # else:
+        #     rnd_seed = seed
 
-        print('rnd seed', rnd_seed) 
+        print('rnd seed', seed) 
         
         # initialize instance of QDLattice class
-        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, seed_realization=rnd_seed)
+        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, seed_realization=seed)
 
         # attach GPU/CPU backend
         qd.backend = self.backend
@@ -264,7 +264,7 @@ class KMCRunner():
         # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
         qd._setup(bath)
 
-        return qd, rnd_seed
+        return qd, seed
     
     
     # NOTE : if periodic = True, this incorporates periodic boundary conditions
@@ -402,12 +402,13 @@ class KMCRunner():
     # create specific realization (instance) of QDLattice and run many trajectories
     def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, simulated_time, seed = None):
 
-        # build QD lattice realization based on seed
+        # (1) build QDLattice realization based on seed
+        # (1.1) get random seef from realization id (rid), if no seed already specified
         if seed is None:
             rnd_seed = self._spawn_realization_seed(realization_id)
         else:
             rnd_seed = seed
-
+        # (1.2) build QDLattice according to rnd_seed
         qd_lattice, real_seed = self._build_grid_realization(bath, rid = realization_id, seed = rnd_seed)
 
         # get trajectory seed sequence
