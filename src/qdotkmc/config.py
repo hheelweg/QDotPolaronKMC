@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import numpy as np
 from typing import Any, Optional, Literal
+from qdotkmc.backend import get_backend
 
 @dataclass(frozen=True)
 class GeometryConfig:
@@ -66,12 +67,6 @@ class RunConfig:
     t_final: float = 5                      # time for each trajectory (units ?)
     time_grid_density: int = 200            # points per unit time for MSD time grid
 
-    # HPC execution parameters
-    prefer_gpu : bool = True                # try to use GPU if available
-    gpu_use_c64 : bool = True               # TODO : what does this parameter do?
-    do_parallel : bool = True               
-    max_workers: Optional[int] = None       # max_workers to conduct parallel work
-
     # mode selector to compute rates in KMC 
     # the selection here determines the simplification scheme for the Redfield rates
     rates_by: RatesBy = "radius"
@@ -95,10 +90,9 @@ class ExecutionPlan:
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
                                             # if None, decide automatically from env/GPU count
 
-    # build a backend on demand (in the calling process)
+    # build a backend on demand
     def build_backend(self):
         # local import to avoid side-effects at module import time
-        from qdotkmc.backend import get_backend
         return get_backend(prefer_gpu=self.prefer_gpu,
                            use_c64=self.gpu_use_c64)
                         #    do_parallel=self.do_parallel,
