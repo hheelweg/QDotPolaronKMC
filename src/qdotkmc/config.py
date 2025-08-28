@@ -57,6 +57,7 @@ class BathConfig:
 
 RatesBy = Literal["radius", "weight"]
 
+
 @dataclass(frozen=False)
 class RunConfig:
 
@@ -68,6 +69,7 @@ class RunConfig:
     # HPC execution parameters
     prefer_gpu : bool = True                # try to use GPU if available
     gpu_use_c64 : bool = True               # TODO : what does this parameter do?
+    do_parallel : bool = True               
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
 
     # mode selector to compute rates in KMC 
@@ -86,7 +88,7 @@ class RunConfig:
 @dataclass(frozen=True)
 class ConvergenceTuneConfig:
     """
-    immutable configuration for convergence tuning of KMC hyperparameters parameters(θ_sites, θ_pol).
+    immutable configuration for convergence tuning of KMC hyperparameters parameters (θ_sites, θ_pol).
     bundles algorithm parameters and execution controls.
     """
     # --- site cutoff tuning

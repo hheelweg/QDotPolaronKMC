@@ -14,19 +14,8 @@ from qdotkmc.backend import get_backend
 _BATH_GLOBAL = None
 
 # top-level worker for a single lattice realization
-# def _one_lattice_worker(args):
-#     (geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed) = args
-#     runner = KMCRunner(geom, dis, bath_cfg, run)
-#     return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
-#                                             bath = _BATH_GLOBAL,
-#                                             t_final = run.t_final,
-#                                             times = times_msds,
-#                                             realization_id = rid,
-#                                             simulated_time = sim_time,
-#                                             seed = seed)
-
 def _one_lattice_worker(args):
-    
+
     # (a) CPU has 8 arguments
     if len(args) == 8:
         geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed = args
@@ -42,7 +31,6 @@ def _one_lattice_worker(args):
 
     # TODO : can we avoid setting this function
     runner = KMCRunner(geom, dis, bath_cfg, run)
-
     # (a) CPU path:
     if device_id is None:
         msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
@@ -461,49 +449,6 @@ class KMCRunner():
             return self.simulate_kmc_parallel()
 
     # parallel KMC
-    def simulate_kmc_parallel_cpu(self):
-        """Parallel over realizations on CPU (one process per realization)."""
-
-        os.environ.setdefault("OMP_NUM_THREADS", "1")
-        os.environ.setdefault("MKL_NUM_THREADS", "1")
-        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-
-
-        R = self.run.nrealizations
-        times_msds = self._make_time_grid()
-        msds = np.zeros((R, len(times_msds)))
-        sim_time = 0.0
-
-        # Build bath ONCE in parent
-        bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
-
-        # Expose it to workers via module-global, then FORK the pool
-        global _BATH_GLOBAL
-        _BATH_GLOBAL = bath
-
-        # Use fork context so children inherit memory instead of pickling args
-        ctx = mp.get_context("fork")
-
-        # create seeds for lattice realizations, its important to feed them here
-        # in order to have parallel execution yield the same results as serial
-        seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
-
-        # dispatch configs + indices
-        jobs = [(self.geom, self.dis, self.bath_cfg, self.run, times_msds, rid,
-                 sim_time, seeds[rid]) for rid in range(R)]
-
-        with ProcessPoolExecutor(max_workers=self.run.max_workers, mp_context=ctx) as ex:
-            futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
-            for fut in as_completed(futs):
-                rid, msd_r, sim_time = fut.result()
-                msds[rid] = msd_r
-
-        # print total time spent on Redfield rates
-        print(print_utils.simulated_time(sim_time))
-
-        return times_msds, msds
-    
-
     def simulate_kmc_parallel(self):
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
 
@@ -519,7 +464,7 @@ class KMCRunner():
         # decide backend mode
         use_gpu = getattr(self.backend, "use_gpu", False)
 
-        # (a) CPU path
+        # (a)  -------  CPU path ---------
         if not use_gpu:
 
             # build bath ONCE in parent and share via fork 
@@ -542,12 +487,7 @@ class KMCRunner():
                     rid, msd_r, sim_time = fut.result()
                     msds[rid] = msd_r
 
-            # # print total time spent on Redfield rates
-            # print(print_utils.simulated_time(sim_time))
-
-            # return times_msds, msds
-
-        # (b) GPU path
+        # (b) --------- GPU path ---------------
         elif use_gpu:
 
             # GPU: spawn + one process per GPU
@@ -586,7 +526,6 @@ class KMCRunner():
 
         return times_msds, msds
 
-
     # serial KMC
     def simulate_kmc_serial(self):
 
@@ -621,7 +560,6 @@ class KMCRunner():
 
         return times_msds, msds
 
-    
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
     # NOTE : this can likely be deleted as it not doing much, which we couldn't implement directly
