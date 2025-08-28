@@ -482,7 +482,7 @@ class KMCRunner():
             return self.simulate_kmc_parallel()
 
     # parallel KMC
-    def simulate_kmc_parallel_old(self):
+    def simulate_kmc_parallel(self):
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
 
         os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -560,7 +560,7 @@ class KMCRunner():
         return times_msds, msds
     
     # parallel KMC
-    def simulate_kmc_parallel(self):
+    def simulate_kmc_parallel_new(self):
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
@@ -579,12 +579,14 @@ class KMCRunner():
         # or use spawn (for GPU) 
         ctx = mp.get_context(self.backend.plan.context)
         jobs = []
-        if self.backend.plan.device_ids:  # GPU path
+        # (a) GPU bath
+        if self.backend.plan.device_ids:  
             for rid in range(R):
                 dev = self.backend.plan.device_ids[rid % len(self.backend.plan.device_ids)]
                 jobs.append((self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
                             times_msds, rid, sim_time, seeds[rid], dev))
-        else:                 # CPU path
+        # (b) CPU path
+        else:
             jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
                     times_msds, rid, sim_time, seeds[rid]) for rid in range(R)]
         
