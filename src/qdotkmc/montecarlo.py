@@ -525,7 +525,7 @@ class KMCRunner():
                     rid, msd_r, sim_time = fut.result()
                     msds[rid] = msd_r
 
-            print(print_utils.format_sim_time(sim_time))
+            print(print_utils.simulated_time(sim_time))
             return times_msds, msds
 
         # (b) GPU path
@@ -556,7 +556,7 @@ class KMCRunner():
                 rid, msd_r, sim_time = fut.result()
                 msds[rid] = msd_r
 
-        print(print_utils.format_sim_time(sim_time))
+        print(print_utils.simulated_time(sim_time))
 
         return times_msds, msds
 
