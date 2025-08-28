@@ -410,10 +410,10 @@ class KMCRunner():
     # execute parallel if available based on max_worker (otherwise serial)
     def _simulate_kmc(self):
         if self.run.max_workers is None or self.run.max_workers == 1:
-            print('run serial')
+            print('run serial', flush=True)
             return self.simulate_kmc_serial()
         else:
-            print('run parallel')
+            print('run parallel', flush=True)
             return self.simulate_kmc_parallel()
 
     # parallel KMC
