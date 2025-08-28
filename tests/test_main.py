@@ -55,14 +55,11 @@ def main():
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations,
                                     rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 
-                                    t_final = t_final
-                                    )
+                                    t_final = t_final)
     
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
                                              gpu_use_c64 = True,
-                                             do_parallel = True
-                                             )
-    
+                                             do_parallel = True)
     
     # set up KMC simulation
     kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan)
