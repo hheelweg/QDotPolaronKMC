@@ -410,8 +410,10 @@ class KMCRunner():
     # execute parallel if available based on max_worker (otherwise serial)
     def _simulate_kmc(self):
         if self.run.max_workers is None or self.run.max_workers == 1:
+            print('run serial')
             return self.simulate_kmc_serial()
         else:
+            print('run parallel')
             return self.simulate_kmc_parallel()
 
     # parallel KMC
@@ -453,11 +455,9 @@ class KMCRunner():
                 rid, msd_r, sim_time = fut.result()
                 msds[rid] = msd_r
 
+        # print total time spent on Redfield rates
         print(print_utils.simulated_time(sim_time))
-        # print('----------------------------------')
-        # print('---- SIMULATED TIME SUMMARY -----')
-        # print(f'total simulated time {sim_time:.3f}')
-        # print('----------------------------------')
+
         return times_msds, msds
 
     # serial KMC
@@ -489,8 +489,9 @@ class KMCRunner():
             # store mean squared displacement for QDLattice realization r
             msds[r] = msd
 
+        # print total time spent on Redfield rates
         print(print_utils.simulated_time(sim_time))
-        
+
         return times_msds, msds
 
     
