@@ -8,6 +8,7 @@ from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, Execu
 from numpy.random import SeedSequence, default_rng
 from . import hamiltonian, lattice, const, utils, print_utils
 from .hamiltonian import SpecDens
+from qdotkmc.backend import Backend
 
 
 # top-level worker for a single lattice realization
@@ -242,24 +243,21 @@ class KMCRunner():
 
     # build realization of QD lattice
     # TODO : make this a @staticmethod
-    def _build_grid_realization(self, bath : SpecDens, rid : int, seed : Optional[int]):
+    @staticmethod
+    def _build_grid_realization(geom : GeometryConfig,
+                                dis : DisorderConfig,
+                                bath : SpecDens, 
+                                seed : Optional[int], 
+                                backend : Backend):
 
         assert isinstance(bath, SpecDens), "Need to make sure we have a proper \
                                             bath set up to build QDLattice instance"
-
-        # # get random seef from realization id (rid), if no seed already specified
-        # if seed is None:
-        #     rnd_seed = self._spawn_realization_seed(rid)
-        # else:
-        #     rnd_seed = seed
-
-        print('rnd seed', seed) 
         
-        # initialize instance of QDLattice class
-        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, seed_realization=seed)
+        # initialize instance of QDLattice class based on random seed
+        qd = lattice.QDLattice(geom = geom, dis = dis, seed_realization=seed)
 
-        # attach GPU/CPU backend
-        qd.backend = self.backend
+        # attach GPU/CPU backend to QDLattice
+        qd.backend = backend
 
         # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
         qd._setup(bath)
@@ -409,14 +407,19 @@ class KMCRunner():
         else:
             rnd_seed = seed
         # (1.2) build QDLattice according to rnd_seed
-        qd_lattice, real_seed = self._build_grid_realization(bath, rid = realization_id, seed = rnd_seed)
+        qd_lattice, real_seed = KMCRunner._build_grid_realization(geom = self.geom,
+                                                                  dis = self.dis, 
+                                                                  bath = bath, 
+                                                                  seed = rnd_seed,
+                                                                  backend = self.backend)
 
-        # get trajectory seed sequence
+        # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
 
-        # initialize mean squared displacement
+        # (3) initialize mean squared displacement
         msd = np.zeros_like(times)
 
+        # (4) loop through trajectories
         for t in range(ntrajs):
             # random generator for trajectory
             rng_traj = default_rng(traj_ss[t])
