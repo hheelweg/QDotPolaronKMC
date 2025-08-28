@@ -133,8 +133,7 @@ def _slurm_cpus_per_task(default : int = 1) -> int:
 def _recommend_parallel_plan(*,
                     use_gpu: bool,
                     do_parallel: bool,
-                    max_workers: Optional[int],
-                    nrealizations: int
+                    max_workers: Optional[int]
                     ) -> ParallelPlan:
     
     # (1) serial execution
@@ -156,7 +155,7 @@ def _recommend_parallel_plan(*,
         n_gpus = 1
     # match number of workers to number of availbale GPUs
     nw = max_workers if max_workers is not None else n_gpus
-    nw = max(1, min(nw, n_gpus, nrealizations))
+    nw = max(1, min(nw, n_gpus))
     return ParallelPlan(context="spawn", n_workers=nw, device_ids=list(range(nw)), use_gpu=True)
 
 
@@ -180,12 +179,11 @@ def get_backend(*,
                 prefer_gpu: bool = True, 
                 use_c64: bool = False,
                 do_parallel: bool = True,
-                max_workers: Optional[int] = None,
-                nrealizations: int = 1
+                max_workers: Optional[int] = None
                 ):
     """
-    Return a Backend bound to CuPy (GPU) if requested & available, else NumPy (CPU).
-    Sets cuBLAS env early for deterministic kernels and TF32 policy.
+    returns a Backend bound to CuPy (GPU) if requested else available, else NumPy (CPU).
+    attaches ParallelPlan to steer parallel execution (if desired).
     """
     # (1) choose xp (numpy or cupy)
     xp = None
@@ -208,8 +206,8 @@ def get_backend(*,
     # (3) compute and attach parallel plan
     plan = _recommend_parallel_plan(use_gpu=be.use_gpu,
                                     do_parallel=do_parallel,
-                                    max_workers=max_workers,
-                                    nrealizations=nrealizations)
+                                    max_workers=max_workers
+                                    )
     be.plan = plan 
 
     return be
