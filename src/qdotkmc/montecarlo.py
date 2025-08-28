@@ -578,7 +578,7 @@ class KMCRunner():
         # use fork context so children inherit memory instead of pickling args (for CPU)
         # or use spawn (for GPU) 
         ctx = mp.get_context(self.backend.plan.context)
-
+        jobs = []
         if self.backend.plan.device_ids:  # GPU path
             for rid in range(R):
                 dev = self.backend.plan.device_ids[rid % len(self.backend.plan.device_ids)]
