@@ -34,13 +34,13 @@ def _rate_score_worker(args):
 
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker_new(args):
-    (geom, dis, bath_cfg, run_like, exec_plan,
+    (geom, dis, bath_cfg, backend,
      start_idx, theta_pol, theta_site, criterion, weight,
-     conv_rid_seed, use_shared_parent_lattice, device_id) = args
+     rnd_seed, use_shared_parent_lattice, device_id) = args
 
-    import os
+
     qd_lattice = None
-
+    # TODO : use backend-specific boolena variable to select CPU/GPU path
     if use_shared_parent_lattice:
         # CPU/fork path — use the global lattice ptr inherited from the parent.
         qd_lattice = _QDLAT_GLOBAL
@@ -50,16 +50,18 @@ def _rate_score_worker_new(args):
             os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
             os.environ["QDOT_USE_GPU"] = "1"   # if your code reads this
 
-        backend = exec_plan.build_backend()     # initialize CUDA in child if GPU
-        from qdotkmc.hamiltonian import SpecDens
-        from qdotkmc import const
+        # set up bath
         bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
 
         # Build a minimal runner in the child to reuse your lattice builder
-        runner = KMCRunner(geom, dis, bath_cfg, run_like, exec_plan)
-        qd_lattice, _ = runner._build_grid_realization(bath, rid=int(conv_rid_seed))
+        # TODO : need to load in rnd_seed as well
+        qd_lattice, _ = KMCRunner._build_grid_realization(geom = geom,
+                                                          dis = dis,
+                                                          bath = bath,
+                                                          seed = rnd_seed,
+                                                          backend = backend)
 
-    # compute rates for this start index
+    # compute rates for this qd_lattice and specified start_index
     rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
                                                                    theta_pol=theta_pol, theta_site=theta_site,
                                                                    selection_info=True)
@@ -96,7 +98,7 @@ class ConvergenceAnalysis(KMCRunner):
 
     
     # build setu-uop for obtaining convergence
-    def _build_rate_convergenc_env(self):
+    def _build_rate_convergenc_env(self, rnd_seed : int):
 
         # (0) build bath
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)

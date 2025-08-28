@@ -57,6 +57,7 @@ class KMCRunner():
         # backend selection
         self.backend = self.exec_plan.build_backend()
 
+        # TODO : only for debugging, remove this eventually!
         print(self.backend.plan.n_workers, self.backend.plan.device_ids, self.backend.plan.use_gpu)
 
         # print which backend we end up using for KMC
@@ -258,7 +259,7 @@ class KMCRunner():
         # attach GPU/CPU backend to QDLattice
         qd.backend = backend
 
-        # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
+        # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield ...
         qd._setup(bath)
 
         return qd, seed
