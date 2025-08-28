@@ -9,8 +9,6 @@ from numpy.random import SeedSequence, default_rng
 from . import hamiltonian, lattice, const, utils, print_utils
 from .hamiltonian import SpecDens
 
-# # global variable to allow parallel workers to use the same bath setup
-# _BATH_GLOBAL = None
 
 # top-level worker for a single lattice realization
 def _one_lattice_worker(args):
@@ -55,7 +53,7 @@ class KMCRunner():
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
 
-        # backend selection (GPU/CPU)
+        # backend selection
         self.backend = self.exec_plan.build_backend()
 
         print(self.backend.plan.n_workers, self.backend.plan.device_ids, self.backend.plan.use_gpu)
@@ -176,7 +174,6 @@ class KMCRunner():
         return rates, final_states, tot_time, sel_info
 
     
-
     def _make_rates(self, qd_lattice, center_global, *, selection_info=False, **kwargs):
         """
         dynamically switch between rate modii 

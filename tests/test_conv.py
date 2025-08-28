@@ -45,6 +45,9 @@ def main():
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, J_c = J_c)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, w_c = w_c, reorg_nrg = reorg_nrg)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations)
+    exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
+                                             gpu_use_c64 = True,
+                                             do_parallel = True)
    
     # input parameter configuration for convergence
     # NOTE : this convergence is currenly only implemented for weight-based rate modus
@@ -55,7 +58,7 @@ def main():
                                                     theta_pol_start = 0.30,
                                                     theta_pol_min   = 0.001,
                                                     rho             = 0.8,
-                                                    delta           = 0.05,
+                                                    delta           = 0.2,              # used to be 0.05
                                                     max_workers     = max_workers
                                                     )
 
