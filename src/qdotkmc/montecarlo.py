@@ -241,8 +241,7 @@ class KMCRunner():
         return start_pol, end_pol, clock, tot_time
     
 
-    # build realization of QD lattice
-    # TODO : make this a @staticmethod
+    # build realization of QD lattice based on seed 
     @staticmethod
     def _build_grid_realization(geom : GeometryConfig,
                                 dis : DisorderConfig,
