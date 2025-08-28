@@ -62,7 +62,7 @@ def _one_lattice_worker_old(args):
 def _one_lattice_worker(args):
 
      # (a) CPU has 9 arguments
-    if len(args) == 8:
+    if len(args) == 9:
         geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed = args
         device_id = None
     # (b) GPU has 10 arguments (new: device_id)
