@@ -443,7 +443,7 @@ class KMCRunner():
 
     # execute parallel if available based on max_worker (otherwise serial)
     def _simulate_kmc(self):
-        if self.run.max_workers is None or self.run.max_workers == 1:
+        if self.exec_plan.max_workers is None or self.exec_plan.max_workers == 1:
             return self.simulate_kmc_serial()
         else:
             return self.simulate_kmc_parallel()
@@ -481,7 +481,7 @@ class KMCRunner():
             jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan, times_msds, rid, sim_time, seeds[rid])
                     for rid in range(R)]
 
-            with ProcessPoolExecutor(max_workers=self.run.max_workers, mp_context=ctx) as ex:
+            with ProcessPoolExecutor(max_workers=self.exec_plan.max_workers, mp_context=ctx) as ex:
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
                     rid, msd_r, sim_time = fut.result()
@@ -503,7 +503,7 @@ class KMCRunner():
 
             # cap workers to # of GPUs (one process per GPU recommended)
             # TODO : can we change this to make code even faster?
-            max_workers = max(1, min(self.run.max_workers, n_gpus))
+            max_workers = max(1, min(self.exec_plan.max_workers, n_gpus))
 
             # create seeds for lattice realizations, its important to feed them here
             # in order to have parallel execution yield the same results as serial
