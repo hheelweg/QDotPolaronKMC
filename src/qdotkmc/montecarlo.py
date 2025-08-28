@@ -109,6 +109,8 @@ class KMCRunner():
         # backend selection (GPU/CPU)
         self.backend = self.exec_plan.build_backend()
 
+        print(self.backend.plan.n_workers, self.backend.plan.device_ids, self.backend.plan.use_gpu)
+
         # print which backend we end up using for KMC
         # TODO : maybe move this to main?
         mode = "GPU" if self.backend.use_gpu else "CPU"
