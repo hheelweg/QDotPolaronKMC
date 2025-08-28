@@ -590,6 +590,7 @@ class KMCRunner():
                             times_msds, rid, sim_time, seeds[rid], dev))
         # (b) CPU path
         else:
+            print('do CPU path')
             jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
                     times_msds, rid, sim_time, seeds[rid]) for rid in range(R)]
         
