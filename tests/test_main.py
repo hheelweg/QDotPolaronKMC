@@ -55,11 +55,12 @@ def main():
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations,
                                     rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 
-                                    max_workers = max_workers, t_final = t_final
+                                    t_final = t_final
                                     )
     
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
-                                             gpu_use_c64 = True)
+                                             gpu_use_c64 = True,
+                                             max_workers = max_workers)
     
     
     # set up KMC simulation
