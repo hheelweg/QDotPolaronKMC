@@ -61,13 +61,7 @@ def _one_lattice_worker_old(args):
 # top-level worker for a single lattice realization
 def _one_lattice_worker(args):
 
-     # (a) CPU has 9 arguments
-    if len(args) == 9:
-        geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed = args
-        device_id = None
-    # (b) GPU has 10 arguments (new: device_id)
-    else:
-        geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed, device_id = args
+    geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed, device_id = args
 
     if device_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
@@ -591,8 +585,9 @@ class KMCRunner():
         # (b) CPU path
         else:
             print('do CPU path')
+            dev = self.backend.plan.device_ids                                              # should be None for CPU path
             jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
-                    times_msds, rid, sim_time, seeds[rid]) for rid in range(R)]
+                    times_msds, rid, sim_time, seeds[rid], dev) for rid in range(R)]
         
         with ProcessPoolExecutor(max_workers=self.exec_plan.max_workers, mp_context=ctx) as ex:
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
