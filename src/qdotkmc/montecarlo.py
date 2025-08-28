@@ -533,8 +533,8 @@ class KMCRunner():
 
         # detect how many GPUs are visible (fallback to 1 if detection fails)
         try:
-            import cupy as cp
-            n_gpus = int(cp.cuda.runtime.getDeviceCount())
+            #import cupy as cp
+            n_gpus = int(self.backend.cp.cuda.runtime.getDeviceCount())
         except Exception:
             n_gpus = 1
 
