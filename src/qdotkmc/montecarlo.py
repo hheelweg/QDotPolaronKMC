@@ -14,16 +14,44 @@ from qdotkmc.backend import get_backend
 _BATH_GLOBAL = None
 
 # top-level worker for a single lattice realization
+# def _one_lattice_worker(args):
+#     (geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed) = args
+#     runner = KMCRunner(geom, dis, bath_cfg, run)
+#     return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
+#                                             bath = _BATH_GLOBAL,
+#                                             t_final = run.t_final,
+#                                             times = times_msds,
+#                                             realization_id = rid,
+#                                             simulated_time = sim_time,
+#                                             seed = seed)
+
 def _one_lattice_worker(args):
-    (geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed) = args
+    # CPU: 8 args; GPU: 9 args (last is device_id)
+    if len(args) == 8:
+        geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed = args
+        device_id = None
+    else:
+        geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed, device_id = args
+
+    # GPU binding (only if a device is assigned)
+    if device_id is not None:
+        import os
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)  # this child sees a single GPU as id 0
+        os.environ["QDOT_USE_GPU"] = "1"                     # your code already reads this
+
+    # Construct after env is set so CUDA initializes in the child
     runner = KMCRunner(geom, dis, bath_cfg, run)
-    return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
-                                            bath = _BATH_GLOBAL,
-                                            t_final = run.t_final,
-                                            times = times_msds,
-                                            realization_id = rid,
-                                            simulated_time = sim_time,
-                                            seed = seed)
+
+    # Rebuild bath in child (spawn path); for CPU/fork this is also fine
+    from qdotkmc.hamiltonian import SpecDens
+    from qdotkmc import const
+    bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+
+    rid_out, msd_r, sim_time_out = runner._run_single_lattice(
+        ntrajs=run.ntrajs, bath=bath, t_final=run.t_final, times=times_msds,
+        realization_id=rid, simulated_time=sim_time, seed=seed,
+    )
+    return rid_out, msd_r, sim_time_out
 
 
 class KMCRunner():
@@ -417,7 +445,7 @@ class KMCRunner():
             return self.simulate_kmc_parallel()
 
     # parallel KMC
-    def simulate_kmc_parallel(self):
+    def simulate_kmc_parallel_cpu(self):
         """Parallel over realizations on CPU (one process per realization)."""
 
         os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -448,7 +476,6 @@ class KMCRunner():
         jobs = [(self.geom, self.dis, self.bath_cfg, self.run, times_msds, rid,
                  sim_time, seeds[rid]) for rid in range(R)]
 
-        #msds = None
         with ProcessPoolExecutor(max_workers=self.run.max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
             for fut in as_completed(futs):
@@ -459,6 +486,80 @@ class KMCRunner():
         print(print_utils.simulated_time(sim_time))
 
         return times_msds, msds
+    
+
+    def simulate_kmc_parallel(self):
+        """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
+
+
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+        R = self.run.nrealizations
+        times_msds = self._make_time_grid()
+        msds = np.zeros((R, len(times_msds)))
+        sim_time = 0.0
+
+        # decide backend mode
+        use_gpu = getattr(self.backend, "use_gpu", False)
+
+        # (a) CPU path
+        if not use_gpu:
+            # Build bath ONCE in parent and share via fork
+            from qdotkmc.hamiltonian import SpecDens
+            import qdotkmc.const as const
+            bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
+            global _BATH_GLOBAL
+            _BATH_GLOBAL = bath
+
+            ctx = mp.get_context("fork")
+
+            seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
+            jobs = [(self.geom, self.dis, self.bath_cfg, self.run, times_msds, rid, sim_time, seeds[rid])
+                    for rid in range(R)]
+
+            with ProcessPoolExecutor(max_workers=self.run.max_workers, mp_context=ctx) as ex:
+                futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
+                for fut in as_completed(futs):
+                    rid, msd_r, sim_time = fut.result()
+                    msds[rid] = msd_r
+
+            print(print_utils.format_sim_time(sim_time))
+            return times_msds, msds
+
+        # (b) GPU path
+        ctx = mp.get_context("spawn")
+
+        # detect how many GPUs are visible (fallback to 1 if detection fails)
+        try:
+            import cupy as cp
+            n_gpus = int(cp.cuda.runtime.getDeviceCount())
+        except Exception:
+            n_gpus = 1
+
+        # cap workers to # of GPUs (one process per GPU recommended)
+        max_workers = max(1, min(self.run.max_workers, n_gpus))
+
+        # pre-generate seeds to keep determinism
+        seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
+
+        # assign each job a device id round-robin over [0..n_gpus-1]
+        jobs = []
+        for rid in range(R):
+            dev = rid % n_gpus
+            jobs.append((self.geom, self.dis, self.bath_cfg, self.run, times_msds, rid, sim_time, seeds[rid], dev))
+
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
+            futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
+            for fut in as_completed(futs):
+                rid, msd_r, sim_time = fut.result()
+                msds[rid] = msd_r
+
+        print(print_utils.format_sim_time(sim_time))
+
+        return times_msds, msds
+
 
     # serial KMC
     def simulate_kmc_serial(self):
