@@ -15,7 +15,7 @@ _QDLAT_GLOBAL = None
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker(args):
     (start_idx, theta_pol, theta_site, criterion, weight) = args
-    # Compute rates for this start index
+    # compute rates for this start index
     qd_lattice = _QDLAT_GLOBAL
     rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
                                                                    theta_pol=theta_pol, theta_site=theta_site,
@@ -31,7 +31,52 @@ def _rate_score_worker(args):
     
     return lamda * weight, sel_info['nsites_sel'], sel_info['npols_sel']
 
-# TODO : only implemented for rates_by = "weight". 
+
+# top-level worker for computing the rate scores from a single lattice site
+def _rate_score_worker_new(args):
+    (geom, dis, bath_cfg, run_like, exec_plan,
+     start_idx, theta_pol, theta_site, criterion, weight,
+     conv_rid_seed, use_shared_parent_lattice, device_id) = args
+
+    import os
+    qd_lattice = None
+
+    if use_shared_parent_lattice:
+        # CPU/fork path — use the global lattice ptr inherited from the parent.
+        qd_lattice = _QDLAT_GLOBAL
+    else:
+        # GPU/spawn path — bind to a GPU (if provided) and rebuild locally.
+        if device_id is not None:
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
+            os.environ["QDOT_USE_GPU"] = "1"   # if your code reads this
+
+        backend = exec_plan.build_backend()     # initialize CUDA in child if GPU
+        from qdotkmc.hamiltonian import SpecDens
+        from qdotkmc import const
+        bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+
+        # Build a minimal runner in the child to reuse your lattice builder
+        runner = KMCRunner(geom, dis, bath_cfg, run_like, exec_plan)
+        qd_lattice, _ = runner._build_grid_realization(bath, rid=int(conv_rid_seed))
+
+    # compute rates for this start index
+    rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
+                                                                   theta_pol=theta_pol, theta_site=theta_site,
+                                                                   selection_info=True)
+
+    # evaluate convergence criterion on rates vector
+    if criterion == "rate-displacement":
+        start_loc = qd_lattice.qd_locations[int(start_idx)]
+        sq_disp = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis=1)
+        lamda = (rates * sq_disp).sum() / (2 * qd_lattice.geom.dims)
+    else:
+        raise ValueError("please specify valid convergence criterion for rates!")
+
+    return lamda * float(weight), int(sel_info['nsites_sel']), int(sel_info['npols_sel'])
+
+
+
+# TODO : only implemented for rates_by = "weight" so far 
 class ConvergenceAnalysis(KMCRunner):
 
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, exec_plan : ExecutionPlan,
