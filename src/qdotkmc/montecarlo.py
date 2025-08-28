@@ -241,6 +241,7 @@ class KMCRunner():
     
 
     # build realization of QD lattice
+    # TODO : make this a @staticmethod
     def _build_grid_realization(self, bath : SpecDens, rid : int, seed : Optional[int] = None):
 
         assert isinstance(bath, SpecDens), "Need to make sure we have a proper \
@@ -250,7 +251,9 @@ class KMCRunner():
         if seed is None:
             rnd_seed = self._spawn_realization_seed(rid)
         else:
-            rnd_seed = seed 
+            rnd_seed = seed
+
+        print('rnd seed', rnd_seed) 
         
         # initialize instance of QDLattice class
         qd = lattice.QDLattice(geom=self.geom, dis=self.dis, seed_realization=rnd_seed)
