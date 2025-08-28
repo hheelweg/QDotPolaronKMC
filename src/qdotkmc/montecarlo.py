@@ -402,8 +402,13 @@ class KMCRunner():
     # create specific realization (instance) of QDLattice and run many trajectories
     def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, simulated_time, seed = None):
 
-        # build QD lattice realization
-        qd_lattice, real_seed = self._build_grid_realization(bath, rid = realization_id, seed = seed)
+        # build QD lattice realization based on seed
+        if seed is None:
+            rnd_seed = self._spawn_realization_seed(realization_id)
+        else:
+            rnd_seed = seed
+
+        qd_lattice, real_seed = self._build_grid_realization(bath, rid = realization_id, seed = rnd_seed)
 
         # get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
