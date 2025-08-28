@@ -482,7 +482,7 @@ class KMCRunner():
             return self.simulate_kmc_parallel()
 
     # parallel KMC
-    def simulate_kmc_parallel(self):
+    def simulate_kmc_parallel_old(self):
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
 
         os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -560,7 +560,7 @@ class KMCRunner():
         return times_msds, msds
     
     # parallel KMC
-    def simulate_kmc_parallel_new(self):
+    def simulate_kmc_parallel(self):
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
