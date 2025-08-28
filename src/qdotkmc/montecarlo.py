@@ -74,11 +74,11 @@ class KMCRunner():
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
 
-
         # backend selection (GPU/CPU)
         # TODO : maybe add prefer_parallel here as well
-        self.backend = get_backend(prefer_gpu=self.run.prefer_gpu,
-                                   use_c64=self.run.gpu_use_c64)   
+        self.backend = self.exec_plan.build_backend()
+        # self.backend = get_backend(prefer_gpu=self.run.prefer_gpu,
+        #                            use_c64=self.run.gpu_use_c64)   
 
         # print which backend we end up using for KMC
         mode = "GPU" if self.backend.use_gpu else "CPU"
