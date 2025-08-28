@@ -122,7 +122,9 @@ class ConvergenceTuneConfig:
     # --- execution control
     no_samples: int = 20                    # number of lattice sites we average over when computing
                                             # the rate-score metric to check for convergence
-    max_workers: Optional[int] = None       # max_workers to conduct parallel work
     criterion: str  = "rate-displacement"
     verbose: bool   = True
+
+    # TODO : can we remove this here?
+    max_workers: Optional[int] = None       # max_workers to conduct parallel work
 

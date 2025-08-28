@@ -38,10 +38,13 @@ class ConvergenceAnalysis(KMCRunner):
                  tune_cfg : ConvergenceTuneConfig):
 
         super().__init__(geom, dis, bath_cfg, run, exec_plan)
-        # NOTE : maybe also specify which algortihm type we use radial versus overlap cutoff?
         self.tune_cfg = tune_cfg
+        self.exec_plan = exec_plan
 
         assert geom.n_sites >= tune_cfg.no_samples, "cannot have no_sample >= number of sites in lattice"
+
+        # backend selection
+        self.backend = self.exec_plan.build_backend()
 
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
@@ -71,7 +74,8 @@ class ConvergenceAnalysis(KMCRunner):
 
     # compute rate score in parallel (if available) or in serial
     def _rate_score(self, *args, **kwargs):
-        if self.tune_cfg.max_workers is None or self.tune_cfg.max_workers == 1:
+        #if self.tune_cfg.max_workers is None or self.tune_cfg.max_workers == 1:
+        if not self.exec_plan.do_parallel:
             return self._rate_score_serial(*args, **kwargs)
         else:
             return self._rate_score_parallel(*args, **kwargs)
