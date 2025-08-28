@@ -26,29 +26,48 @@ _BATH_GLOBAL = None
 #                                             seed = seed)
 
 def _one_lattice_worker(args):
-    # CPU: 8 args; GPU: 9 args (last is device_id)
+    
+    # (a) CPU has 8 arguments
     if len(args) == 8:
         geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed = args
         device_id = None
+    # (b) GPU has 9 arguments (new: device_id)
     else:
         geom, dis, bath_cfg, run, times_msds, rid, sim_time, seed, device_id = args
 
     # GPU binding (only if a device is assigned)
     if device_id is not None:
-        import os
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)  # this child sees a single GPU as id 0
-        os.environ["QDOT_USE_GPU"] = "1"                     # your code already reads this
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id) 
+        os.environ["QDOT_USE_GPU"] = "1"                    
 
-    # Construct after env is set so CUDA initializes in the child
+    # TODO : can we avoid setting this function
     runner = KMCRunner(geom, dis, bath_cfg, run)
 
-    # Rebuild bath in child (spawn path); for CPU/fork this is also fine
-    bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+    # (a) CPU path:
+    if device_id is None:
+        msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
+                                                         bath=_BATH_GLOBAL, 
+                                                         t_final=run.t_final, 
+                                                         times=times_msds,
+                                                         realization_id=rid, 
+                                                         simulated_time=sim_time, 
+                                                         seed=seed,
+                                                         )
+    # (b) GPU path:
+    elif device_id is not None:
+        # rebuild bath in child (spawn path)
+        bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+        msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
+                                                         bath=bath, 
+                                                         t_final=run.t_final, 
+                                                         times=times_msds,
+                                                         realization_id=rid, 
+                                                         simulated_time=sim_time, 
+                                                         seed=seed,
+                                                         )
+    else:
+        raise NotImplementedError('Need to attach each process to device ID')
 
-    msd_r, sim_time_out = runner._run_single_lattice(
-        ntrajs=run.ntrajs, bath=bath, t_final=run.t_final, times=times_msds,
-        realization_id=rid, simulated_time=sim_time, seed=seed,
-    )
     return rid, msd_r, sim_time_out
 
 
