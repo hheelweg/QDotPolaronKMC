@@ -194,12 +194,11 @@ def get_backend(*,
             import cupy as cp
             if cp.cuda.runtime.getDeviceCount() > 0:
                 xp = cp
-                #return Backend(cp, use_c64=use_c64)
         except Exception:
-            #pass
             xp = None
     if xp is None:
         import numpy as np
+        xp = np
     
     # (2) build Backend as before
     be = Backend(xp, use_c64=use_c64)
