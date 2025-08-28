@@ -14,7 +14,7 @@ from qdotkmc.backend import get_backend
 _BATH_GLOBAL = None
 
 # top-level worker for a single lattice realization
-def _one_lattice_worker(args):
+def _one_lattice_worker_old(args):
 
     # (a) CPU has 9 arguments
     if len(args) == 8:
@@ -56,6 +56,38 @@ def _one_lattice_worker(args):
     else:
         raise NotImplementedError('Need to attach each process to device ID')
 
+    return rid, msd_r, sim_time_out
+
+# top-level worker for a single lattice realization
+def _one_lattice_worker(args):
+
+     # (a) CPU has 9 arguments
+    if len(args) == 8:
+        geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed = args
+        device_id = None
+    # (b) GPU has 10 arguments (new: device_id)
+    else:
+        geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed, device_id = args
+
+    if device_id is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
+        os.environ["QDOT_USE_GPU"] = "1"
+
+    # TODO : can we avoid setting this function
+    runner = KMCRunner(geom, dis, bath_cfg, run, exec_plan)
+
+    # set up bath
+    bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+
+    # run KMC on sinfle lattice realization
+    msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
+                                                     bath=bath, 
+                                                     t_final=run.t_final, 
+                                                     times=times_msds,
+                                                     realization_id=rid, 
+                                                     simulated_time=sim_time, 
+                                                     seed=seed,
+                                                     )
     return rid, msd_r, sim_time_out
 
 
@@ -450,7 +482,7 @@ class KMCRunner():
             return self.simulate_kmc_parallel()
 
     # parallel KMC
-    def simulate_kmc_parallel(self):
+    def simulate_kmc_parallel_old(self):
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
 
         os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -526,6 +558,47 @@ class KMCRunner():
         print(print_utils.simulated_time(sim_time))
 
         return times_msds, msds
+    
+    # parallel KMC
+    def simulate_kmc_parallel(self):
+        """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+        R = self.run.nrealizations
+        times_msds = self._make_time_grid()
+        msds = np.zeros((R, len(times_msds)))
+        sim_time = 0.0
+
+        # create seeds for lattice realizations, its important to feed them here
+        # in order to have parallel execution yield the same results as serial
+        seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
+
+        # use fork context so children inherit memory instead of pickling args (for CPU)
+        # or use spawn (for GPU) 
+        ctx = mp.get_context(self.backend.plan.context)
+
+        if self.backend.plan.device_ids:  # GPU path
+            for rid in range(R):
+                dev = self.backend.plan.device_ids[rid % len(self.backend.plan.device_ids)]
+                jobs.append((self.geom, self.dis, self.bath_cfg, self.run,
+                            times_msds, rid, sim_time, seeds[rid], dev))
+            else:                 # CPU path
+                jobs = [(self.geom, self.dis, self.bath_cfg, self.run,
+                        times_msds, rid, sim_time, seeds[rid]) for rid in range(R)]
+        
+        with ProcessPoolExecutor(max_workers=self.exec_plan.max_workers, mp_context=ctx) as ex:
+                futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
+                for fut in as_completed(futs):
+                    rid, msd_r, sim_time = fut.result()
+                    msds[rid] = msd_r
+        
+        # print total time spent on Redfield rates
+        print(print_utils.simulated_time(sim_time))
+
+        return times_msds, msds
+        
 
     # serial KMC
     def simulate_kmc_serial(self):
