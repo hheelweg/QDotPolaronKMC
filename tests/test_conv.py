@@ -68,7 +68,11 @@ def main():
 
     #  ---------    automatically optimize thetas    ----------
     # set verbose = False/True to avoid/enable printing updates on convergence
+    import time
+    start = time.time()
     thetas_result = convergence_setup.auto_tune_thetas(verbose=True)
+    end = time.time()
+    print(f'time for convergence: {end-start:.6f}')
 
     theta_site_opt = thetas_result['theta_site']
     theta_pol_opt = thetas_result['theta_pol']
