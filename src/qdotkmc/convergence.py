@@ -170,7 +170,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
+    def _rate_score_parallel_old(self, theta_pol, theta_site, score_info = True):
         """
         Parallel version of _rate_score over self.start_sites.
         Returns the same aggregate score and selection counts.
@@ -218,8 +218,10 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel_new(self, theta_pol, theta_site, score_info = True):
+    def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
+
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
+
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
@@ -253,7 +255,10 @@ class ConvergenceAnalysis(KMCRunner):
         with ProcessPoolExecutor(max_workers=self.backend.plan.n_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_rate_score_worker_new, job) for job in jobs]
             for fut in as_completed(futs):
+
+                # let worker obtain weighted convergence criterion
                 lam_w, nsite_sel, npol_sel = fut.result()
+
                 rates_criterion += lam_w
                 nsites_sel      += nsite_sel
                 npols_sel       += npol_sel
