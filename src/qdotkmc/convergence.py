@@ -13,7 +13,7 @@ from .montecarlo import KMCRunner
 _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rate scores from a single lattice site
-def _rate_score_worker(args):
+def _rate_score_worker_old(args):
     (start_idx, theta_pol, theta_site, criterion, weight) = args
     # compute rates for this start index
     qd_lattice = _QDLAT_GLOBAL
@@ -33,7 +33,7 @@ def _rate_score_worker(args):
 
 
 # top-level worker for computing the rate scores from a single lattice site
-def _rate_score_worker_new(args):
+def _rate_score_worker(args):
 
     (geom, dis, bath_cfg, exec_plan,
      start_idx, theta_pol, theta_site, criterion, weight,
@@ -174,7 +174,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
+    def _rate_score_parallel_old(self, theta_pol, theta_site, score_info = True):
         """
         Parallel version of _rate_score over self.start_sites.
         Returns the same aggregate score and selection counts.
@@ -222,7 +222,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel_new(self, theta_pol, theta_site, score_info = True):
+    def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
 
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
 
