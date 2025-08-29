@@ -87,7 +87,7 @@ def _rate_score_worker_new(args):
     return lamda * float(weight), int(sel_info['nsites_sel']), int(sel_info['npols_sel'])
 
 
-def start_gpu_worker(frozen, prefer_gpu: bool, use_c64: bool, device_id: int,
+def start_gpu_worker(frozen, backend, prefer_gpu: bool, use_c64: bool, device_id: int,
                      in_q, out_q):
     """Run in child process: bind GPU, build once, then serve batch requests."""
     # 1) Bind device & set pools once
@@ -120,7 +120,7 @@ def start_gpu_worker(frozen, prefer_gpu: bool, use_c64: bool, device_id: int,
     # 4) Attach Redfield once; it will use your GPU codepaths internally
     L.redfield = redfield.Redfield(
         ham, L.polaron_locs, L.qd_locations, float(frozen.kappa_polaron),
-        backend=None, time_verbose=False,
+        backend=backend, time_verbose=False,
     )
 
     # 5) Serve batches until sentinel arrives
@@ -336,7 +336,7 @@ class ConvergenceAnalysis(KMCRunner):
             out_q = ctx.Queue()
             p = ctx.Process(
                 target=start_gpu_worker,
-                args=(frozen, prefer_gpu, use_c64, dev, in_q, out_q)
+                args=(frozen, self.backend, prefer_gpu, use_c64, dev, in_q, out_q)
             )
             p.start()
             procs.append(p); inqs.append(in_q); outqs.append(out_q)
