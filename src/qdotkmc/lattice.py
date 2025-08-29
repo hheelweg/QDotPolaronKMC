@@ -83,11 +83,10 @@ class FrozenQDLattice:
     polaron_locs: np.ndarray    # (N, d) 
     qd_locations: np.ndarray    # (N, d)
     kappa_polaron: float
-    beta: float                 # optional; 0 if unused
+    beta: float                 
 
     # bath data to reproduce SpecDens
     spectrum: Tuple             # add format
-    temp_K: float               # temperature in Kelvin
 
 
 # class to set up QD Lattice 
