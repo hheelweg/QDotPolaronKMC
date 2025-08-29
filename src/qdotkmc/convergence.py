@@ -10,9 +10,7 @@ from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, Conve
 from . import const
 from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
-import qdotkmc.redfield as redfield 
-from qdotkmc import hamiltonian
-from qdotkmc.backend import get_backend
+from qdotkmc.backend import Backend, get_backend
 
 
 # global variable to allow parallel workers to use the same QDLattice for convergence tests
@@ -185,20 +183,24 @@ def _chunks(seq, k):
     return [seq[i:i+m] for i in range(0, n, m)]
 
 class GpuRatePool:
-    def __init__(self, prefer_gpu=True, use_c64=False, max_procs: Optional[int] = None):
+    def __init__(self, backend : Backend, 
+                 prefer_gpu=True, use_c64=False, max_procs: Optional[int] = None):
 
-        self.prefer_gpu = bool(prefer_gpu)
-        self.use_c64 = bool(use_c64)
-        self.max_procs = max_procs
+        # load from backend 
+        self.use_gpu = backend.use_gpu#bool(prefer_gpu)
+        self.use_c64 = backend.gpu_use_c64#bool(use_c64)
+        self.max_procs = backend.plan.n_workers #max_procs
         print('max_proc', self.max_procs)
-        self.ctx = mp.get_context("spawn")  # CUDA-safe
+        self.ctx = backend.plan.context #mp.get_context("spawn")  # CUDA-safe
+
+        # initialize GpuPool attributes
         self.procs = []
         self.inqs = []
         self.outqs = []
         self.device_ids = []
 
     def _detect_devices(self) -> int:
-        if not self.prefer_gpu:
+        if not use.prefer_gpu:
             return 0
         try:
             import cupy as cp
