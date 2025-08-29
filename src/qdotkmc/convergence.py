@@ -8,6 +8,7 @@ from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, Conve
 from . import const
 from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
+import qdotkmc.redfield as redfield
 
 import threading
 _tls = threading.local()
