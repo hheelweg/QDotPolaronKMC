@@ -367,7 +367,7 @@ class ConvergenceAnalysis(KMCRunner):
         nsites_sel, npols_sel = 0, 0
 
         with ProcessPoolExecutor(max_workers=self.tune_cfg.max_workers, mp_context=ctx) as ex:
-            futs = [ex.submit(_rate_score_worker, job) for job in jobs]
+            futs = [ex.submit(_rate_score_worker_cpu, job) for job in jobs]
             for fut in as_completed(futs):
 
                 # let worker obtain weighted convergence criterion
@@ -393,39 +393,42 @@ class ConvergenceAnalysis(KMCRunner):
 
         weights_map = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
-        # Preferred: persistent GPU pool (reuses lattice on device; very low overhead)
-        if self._gpu_pool is not None:
-            lam_total, ns_total, np_total = self._gpu_pool.run_batches(
+        # (a) GPU path (reused QDLattice on device to prevent overhead)
+        if self.backend.use_gpu:
+            lam_sum, nsites_sum, npols_sum = self._gpu_pool.run_batches(
                 self.start_sites, theta_pol, theta_site, self.tune_cfg.criterion, weights_map
             )
-            info = {}
-            if score_info and self.tune_cfg.no_samples > 0:
-                info["ave_sites"] = ns_total / float(self.tune_cfg.no_samples)
-                info["ave_pols"] = np_total / float(self.tune_cfg.no_samples)
-            return lam_total, info
 
-        # Fallback: CPU ProcessPool (shares parent lattice by FORK)
-        os.environ.setdefault("OMP_NUM_THREADS", "1")
-        os.environ.setdefault("MKL_NUM_THREADS", "1")
-        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+            # info = {}
+            # if score_info and self.tune_cfg.no_samples > 0:
+            #     info["ave_sites"] = ns_total / float(self.tune_cfg.no_samples)
+            #     info["ave_pols"] = np_total / float(self.tune_cfg.no_samples)
+            # return lam_total, info
+        
+        # (b) CPU path; else fallback to simple CPU ProcessPool
+        else:
 
-        global _QDLAT_GLOBAL
-        _QDLAT_GLOBAL = self.qd_lattice
+            os.environ.setdefault("OMP_NUM_THREADS", "1")
+            os.environ.setdefault("MKL_NUM_THREADS", "1")
+            os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
-        ctx = mp.get_context("fork")
-        jobs = [
-            (int(idx), float(theta_pol), float(theta_site), self.tune_cfg.criterion,
-             float(weights_map[int(idx)]))
-            for idx in self.start_sites
-        ]
+            # expose QDLattice as global variable to workers to simplify work
+            global _QDLAT_GLOBAL
+            _QDLAT_GLOBAL = self.qd_lattice
 
-        lam_sum = 0.0; nsites_sum = 0; npols_sum = 0
-        max_workers = self.exec_plan.max_workers or os.cpu_count() or 1
-        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
-            futs = [ex.submit(_rate_score_worker_cpu, job) for job in jobs]
-            for fut in as_completed(futs):
-                lam, ns, np_ = fut.result()
-                lam_sum += lam; nsites_sum += ns; npols_sum += np_
+            ctx = mp.get_context(self.backend.plan.context)         # 'fork' for CPU 
+            jobs = [(idx, theta_pol, theta_site, self.tune_cfg.criterion, weights_map[int(idx)]) 
+                    for idx in self.start_sites]
+
+            lam_sum = 0.0; nsites_sum = 0; npols_sum = 0
+
+            # TODO : how to set max wokers??
+            max_workers = self.exec_plan.max_workers
+            with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
+                futs = [ex.submit(_rate_score_worker_cpu, job) for job in jobs]
+                for fut in as_completed(futs):
+                    lam, ns, np_ = fut.result()
+                    lam_sum += lam; nsites_sum += ns; npols_sum += np_
 
         info = {}
         if score_info and self.tune_cfg.no_samples > 0:
