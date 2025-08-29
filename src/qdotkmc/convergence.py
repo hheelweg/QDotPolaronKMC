@@ -55,6 +55,8 @@ def _rate_score_worker_new(args):
         bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
         # build backend locally
         backend = exec_plan.build_backend()
+        end = time.time()
+        print(f'build backend: {end-start:.6f}', flush=True)
         # create lattice 
         qd_lattice, _ = KMCRunner._build_grid_realization(geom = geom,
                                                           dis = dis,
@@ -62,8 +64,7 @@ def _rate_score_worker_new(args):
                                                           seed = rnd_seed,
                                                           backend = backend)
 
-    end = time.time()
-    print(f'build lattice: {end-start:.6f}', flush=True)
+    
     # compute rates for this qd_lattice and specified start_index
     rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
                                                                    theta_pol=theta_pol, theta_site=theta_site,
