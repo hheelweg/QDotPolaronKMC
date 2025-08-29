@@ -244,6 +244,7 @@ class GpuRatePool:
 
         return lam_total, nsites_total, npols_total
 
+
     def close(self):
         for q in self.inqs:
             q.put(("stop", None))
@@ -733,7 +734,12 @@ class ConvergenceAnalysis(KMCRunner):
 
         # TODO : maybe put this somewhere else; we need this to close the GPU pool
         if self.backend.use_gpu:
+            import time
+            start = time.time()
             self.close_pool()
+            end = time.time()
+            print(f"time taking for stopping: {end-start:.6f}")
+
         
         return dict(theta_site=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
                     nsites=int(info_star['ave_sites']), npols=int(info_star['ave_pols']))
