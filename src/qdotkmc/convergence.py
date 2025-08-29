@@ -86,30 +86,28 @@ def _rate_score_worker_new(args):
 
     return lamda * float(weight), int(sel_info['nsites_sel']), int(sel_info['npols_sel'])
 
+
 def _gpu_build_once(geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id):
     """
     Bind device (if GPU), create backend, build bath and ONE QDLattice realization.
     Returns (backend, qd_lattice).
     We import get_backend locally to avoid hard dependency at module import time.
     """
-    if prefer_gpu:
-        import cupy as cp
-        cp.cuda.Device(int(device_id)).use()
-        cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
-        try:
-            cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-        except Exception:
-            pass
+    import cupy as cp
+    cp.cuda.Device(int(device_id)).use()
+    cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
+    try:
+        cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+    except Exception:
+        pass
 
-    from qdotkmc.backend import get_backend
     backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
 
     bath = SpecDens(bath_cfg.spectrum, const.kB * float(bath_cfg.temp))
-    #runner = KMCRunner(geom_cfg, dis_cfg, bath_cfg, run=None)
     qd_lattice, _ = KMCRunner._build_grid_realization(
         geom=geom_cfg, dis=dis_cfg, bath=bath, seed=int(seed), backend=backend
     )
-    return backend, qd_lattice
+    return qd_lattice
 
 
 def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
@@ -119,7 +117,6 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
       - 'batch', payload -> computes batch result and returns tuple
       - 'stop' -> terminates
     """
-    backend = None
     qd_lattice = None
 
     while True:
@@ -134,7 +131,7 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
         if tag == "init":
             (geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id) = msg[1]
             try:
-                backend, qd_lattice = _gpu_build_once(
+                qd_lattice = _gpu_build_once(
                     geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id
                 )
                 out_q.put(("ok", None))
@@ -176,11 +173,6 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
             out_q.put(("error", f"unknown tag: {tag}"))
 
 
-def _chunks(seq, k):
-    n = len(seq)
-    if n == 0: return []
-    m = math.ceil(n / k)
-    return [seq[i:i+m] for i in range(0, n, m)]
 
 class GpuRatePool:
     def __init__(self, backend : Backend):
@@ -196,22 +188,20 @@ class GpuRatePool:
         self.procs = []
         self.inqs = []
         self.outqs = []
-        #self.device_ids = []
 
-    def _detect_devices(self) -> int:
-        if not self.use_gpu:
-            return 0
-        try:
-            import cupy as cp
-            return cp.cuda.runtime.getDeviceCount()
-        except Exception:
-            return 0
+    @staticmethod
+    def _chunks(seq, k):
+        n = len(seq)
+        if n == 0: return []
+        m = math.ceil(n / k)
+        return [seq[i:i+m] for i in range(0, n, m)]
+
 
     def start(self, geom_cfg, dis_cfg, bath_cfg, seed):
         
         # spawn workers
         for i in range(self.max_procs):
-            
+
             in_q = self.ctx.Queue()
             out_q = self.ctx.Queue()
             p = self.ctx.Process(target=gpu_worker_loop, args=(in_q, out_q))
@@ -228,7 +218,7 @@ class GpuRatePool:
 
 
     def run_batches(self, start_indices, theta_pol, theta_site, criterion, weights: Dict[int, float]):
-        batches = _chunks(list(map(int, start_indices)), max(1, len(self.inqs)))
+        batches = GpuRatePool._chunks(list(map(int, start_indices)), max(1, len(self.inqs)))
         # send work
         for i, batch in enumerate(batches):
             self.inqs[i].put(("batch", (batch, float(theta_pol), float(theta_site), criterion, weights)))
