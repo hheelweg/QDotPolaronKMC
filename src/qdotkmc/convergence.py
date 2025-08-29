@@ -32,6 +32,26 @@ def _rate_score_worker(args):
     return lamda * weight, sel_info['nsites_sel'], sel_info['npols_sel']
 
 
+def _rate_score_worker_thread(args):
+    # same signature as your process worker, but it runs in-thread and
+    # can access self.qd_lattice directly (no pickling, no rebuilds).
+    (qd_lattice, start_idx, theta_pol, theta_site, criterion, weight) = args
+
+    rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
+        qd_lattice, int(start_idx),
+        theta_pol=float(theta_pol), theta_site=float(theta_site),
+        selection_info=True
+    )
+
+    if criterion == "rate-displacement":
+        s0   = qd_lattice.qd_locations[int(start_idx)]
+        dr2  = ((qd_lattice.qd_locations[final_sites] - s0)**2).sum(axis=1)
+        lam  = (rates * dr2).sum() / (2 * qd_lattice.geom.dims)
+    else:
+        raise ValueError("invalid convergence criterion")
+
+    return lam * float(weight), int(sel_info['nsites_sel']), int(sel_info['npols_sel'])
+
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker_gpuswitch(args):
 
