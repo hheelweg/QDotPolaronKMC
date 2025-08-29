@@ -227,7 +227,7 @@ class ConvergenceAnalysis(KMCRunner):
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
         # expose QDLattice to workers via module-global, then fork it in CPU path
-        if not self.exec_plan.use_gpu:
+        if not self.backend.use_gpu:
             global _QDLAT_GLOBAL
             _QDLAT_GLOBAL = self.qd_lattice
 
