@@ -200,7 +200,7 @@ class GpuRatePool:
         self.device_ids = []
 
     def _detect_devices(self) -> int:
-        if not use.prefer_gpu:
+        if not self.use_gpu:
             return 0
         try:
             import cupy as cp
@@ -210,8 +210,8 @@ class GpuRatePool:
 
     def start(self, geom_cfg, dis_cfg, bath_cfg, seed):
         n_dev = self._detect_devices()
-        self.prefer_gpu = self.prefer_gpu and (n_dev > 0)
-        self.device_ids = list(range(max(1, n_dev))) if self.prefer_gpu else [0]
+        self.use_gpu = self.use_gpu and (n_dev > 0)
+        self.device_ids = list(range(max(1, n_dev))) if self.use_gpu else [0]
         n_workers = self.max_procs or len(self.device_ids)
 
         # spawn workers
@@ -225,7 +225,7 @@ class GpuRatePool:
             # init each worker with the same config/seed, pinned to a device
             dev = self.device_ids[i % len(self.device_ids)]
             in_q.put(("init", (geom_cfg, dis_cfg, bath_cfg, int(seed),
-                               self.prefer_gpu, self.use_c64, dev)))
+                               self.use_gpu, self.use_c64, dev)))
             tag, payload = out_q.get()
             if tag != "ok":
                 raise RuntimeError(f"GPU worker init failed: {payload}")
