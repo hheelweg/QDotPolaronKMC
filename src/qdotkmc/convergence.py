@@ -209,15 +209,9 @@ class GpuRatePool:
 
     def start(self, geom_cfg, dis_cfg, bath_cfg, seed):
         
-        # n_dev = self._detect_devices()
-        # self.device_ids = list(range(max(1, n_dev))) if self.use_gpu else [0]
-        # print(self.device_ids, self.test)
-        n_workers = self.max_procs or len(self.device_ids)
-        print('workers', n_workers, self.max_procs)
-        print(self.device_ids)
-
         # spawn workers
-        for i in range(8):
+        for i in range(self.max_procs):
+            
             in_q = self.ctx.Queue()
             out_q = self.ctx.Queue()
             p = self.ctx.Process(target=gpu_worker_loop, args=(in_q, out_q))
