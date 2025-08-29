@@ -127,7 +127,7 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
                                                               seed=seed, 
                                                               backend=backend)
 
-            out_q.put(("ok", None))
+            #out_q.put(("ok", None))
 
         # if we are in batch mode, we use created qd_lattice
         elif msg[0] == "batch":
@@ -197,9 +197,9 @@ class GpuRatePool:
             dev = self.device_ids[i % len(self.device_ids)]
             in_q.put(("init", (geom_cfg, dis_cfg, bath_cfg, seed,
                                self.use_gpu, self.use_c64, dev)))
-            tag, payload = out_q.get()
-            if tag != "ok":
-                raise RuntimeError(f"GPU worker init failed: {payload}")
+            #tag, payload = out_q.get()
+            # if tag != "ok":
+            #     raise RuntimeError(f"GPU worker init failed: {payload}")
 
 
     def run_batches(self, start_indices, theta_pol, theta_site, criterion, weights: Dict[int, float]):
