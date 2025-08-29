@@ -324,6 +324,11 @@ class ConvergenceAnalysis(KMCRunner):
 
     def _rate_score_parallel(self, theta_pol, theta_site, score_info=True):
 
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+        print('run new parallel function')
 
         use_gpu = self.backend.plan.use_gpu and self.exec_plan.do_parallel
 
