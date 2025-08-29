@@ -197,13 +197,14 @@ class ConvergenceAnalysis(KMCRunner):
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
 
-        # start GPU pool if requested in backend by running GPU
+        # start GPU pool for parallel GPU execution if desired
         self._gpu_pool = None
         if self.backend.use_gpu and self.exec_plan.do_parallel:
             self._gpu_pool = GPU_RatePool(backend=self.backend)
             self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
 
     
+    # TODO : move this somewhere?
     def close_pool(self):
         """Call at end of script or when geometry/disorder/bath/seed changes."""
         if self._gpu_pool is not None:
@@ -338,7 +339,7 @@ class ConvergenceAnalysis(KMCRunner):
 
     def _rate_score_parallel(self, theta_pol: float, theta_site: float, score_info: bool = True):
 
-
+        # weighted sum uses the Boltzmann weights you precomputed per start index.
         weights_map = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
         # (a) GPU path (reused QDLattice on device to prevent overhead)
