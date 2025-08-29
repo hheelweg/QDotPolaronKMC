@@ -14,9 +14,9 @@ _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker(args):
-    (start_idx, theta_pol, theta_site, criterion, weight) = args
+    (qd_lattice, start_idx, theta_pol, theta_site, criterion, weight) = args
     # compute rates for this start index
-    qd_lattice = _QDLAT_GLOBAL
+    # qd_lattice = _QDLAT_GLOBAL
     rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
                                                                    theta_pol=theta_pol, theta_site=theta_site,
                                                                    selection_info = True)
@@ -183,8 +183,8 @@ class ConvergenceAnalysis(KMCRunner):
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
         # Expose QDLattice to workers via module-global, then FORK the pool
-        global _QDLAT_GLOBAL
-        _QDLAT_GLOBAL = self.qd_lattice
+        # global _QDLAT_GLOBAL
+        # _QDLAT_GLOBAL = self.qd_lattice
 
         # Use fork context so children inherit memory instead of pickling args
         ctx = mp.get_context("fork")   
@@ -193,7 +193,7 @@ class ConvergenceAnalysis(KMCRunner):
         weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
         # dispatch configs + indices to parallelize over
-        jobs = [(int(start_idx), float(theta_pol), float(theta_site), self.tune_cfg.criterion, weight_by_idx[start_idx]) 
+        jobs = [(self.qd_lattice, int(start_idx), float(theta_pol), float(theta_site), self.tune_cfg.criterion, weight_by_idx[start_idx]) 
                 for start_idx in self.start_sites]
 
         rates_criterion = 0
