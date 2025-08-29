@@ -330,6 +330,7 @@ class ConvergenceAnalysis(KMCRunner):
             return self._rate_score_parallel(*args, **kwargs)
 
     
+    # compute rate score serial (suited for both CPU/GPU)
     def _rate_score_serial(self, theta_pol, theta_site, score_info = True):
 
         # get rates starting from each polaron starting index and analyze by criterion

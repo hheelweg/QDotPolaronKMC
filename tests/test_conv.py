@@ -47,7 +47,7 @@ def main():
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations)
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
                                              gpu_use_c64 = True,
-                                             do_parallel = True)
+                                             do_parallel = False)
    
     # input parameter configuration for convergence
     # NOTE : this convergence is currenly only implemented for weight-based rate modus
