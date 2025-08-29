@@ -41,7 +41,6 @@ def _rate_score_worker_new(args):
      rnd_seed, device_id) = args
 
     import time 
-    start = time.time()
     qd_lattice = None
     # CPU path (fork): fork qd_lattice from global environment (inherited from parent)
     if device_id is None:
@@ -52,8 +51,12 @@ def _rate_score_worker_new(args):
         os.environ["QDOT_USE_GPU"] = "1"  
 
         # set up bath
+        start = time.time()
         bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+        end = time.time()
+        print(f'build SpecDens: {end-start:.6f}', flush=True)
         # build backend locally
+        start = time.time()
         backend = exec_plan.build_backend()
         end = time.time()
         print(f'build backend: {end-start:.6f}', flush=True)
