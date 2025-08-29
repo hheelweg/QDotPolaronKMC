@@ -262,6 +262,8 @@ class ConvergenceAnalysis(KMCRunner):
         self.tune_cfg = tune_cfg
         self.exec_plan = exec_plan
 
+        self._gpu_pool = None
+
         assert geom.n_sites >= tune_cfg.no_samples, "cannot have no_sample >= number of sites in lattice"
 
         # backend selection
@@ -270,8 +272,7 @@ class ConvergenceAnalysis(KMCRunner):
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
 
-
-        self._gpu_pool = None
+    
     
 
     # build setu-uop for obtaining convergence
