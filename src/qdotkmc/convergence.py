@@ -11,6 +11,7 @@ from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
 import qdotkmc.redfield as redfield 
 from qdotkmc import hamiltonian
+from qdotkmc.backend import get_backend
 
 
 # global variable to allow parallel workers to use the same QDLattice for convergence tests
@@ -116,6 +117,9 @@ def start_gpu_worker(frozen, backend, prefer_gpu: bool, use_c64: bool, device_id
     L.polaron_locs  = np.asarray(frozen.polaron_locs)
     L.qd_locations  = np.asarray(frozen.qd_locations)
     L.geom = type("G", (), {"dims": int(frozen.qd_locations.shape[1])})()
+
+    # --- build a backend for this worker ---
+    backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64, do_parallel=True)
 
     # 4) Attach Redfield once; it will use your GPU codepaths internally
     L.redfield = redfield.Redfield(
@@ -336,7 +340,7 @@ class ConvergenceAnalysis(KMCRunner):
             out_q = ctx.Queue()
             p = ctx.Process(
                 target=start_gpu_worker,
-                args=(frozen, self.backend, prefer_gpu, use_c64, dev, in_q, out_q)
+                args=(frozen, prefer_gpu, use_c64, dev, in_q, out_q)
             )
             p.start()
             procs.append(p); inqs.append(in_q); outqs.append(out_q)
