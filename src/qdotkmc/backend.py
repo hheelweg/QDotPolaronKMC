@@ -161,6 +161,7 @@ def _recommend_parallel_plan(*,
     return ParallelPlan(context="spawn", n_workers=nw, device_ids=list(range(nw)), use_gpu=True)
 
 
+# configure CuBLAS environment for GPU path to enable replicability
 def _configure_cublas_env(*, deterministic: Optional[bool] = None,
                           allow_tf32: Optional[bool] = None):
     """
