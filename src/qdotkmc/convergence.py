@@ -114,7 +114,8 @@ class ConvergenceAnalysis(KMCRunner):
                                                                seed = self.rnd_seed,
                                                                backend = self.backend)
         
-        # (2) freeze QDLattice
+        
+        # (2) freeze QDLattice; need to attach bath configuration manually for this procedure
         self.qd_lattice_frozen = self.qd_lattice.to_frozen(self.bath_cfg)
         print('succesfully froze QDLattice')
 

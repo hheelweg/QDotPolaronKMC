@@ -83,10 +83,11 @@ class FrozenQDLattice:
     polaron_locs: np.ndarray    # (N, d) 
     qd_locations: np.ndarray    # (N, d)
     kappa_polaron: float
-    beta: float                 
+    #beta: float                 
 
     # bath data to reproduce SpecDens
     spectrum: Tuple             # add format
+    temp: float                 # temp in Kelvin
 
 
 # class to set up QD Lattice 
@@ -152,14 +153,16 @@ class QDLattice():
         assert isinstance(bath_cfg, BathConfig), "Need to specify valid bath configuration to lattice \
                                                   to make QDLattice frozen."
         self.spectrum = bath_cfg.spectrum
+        self.temp = bath_cfg.temp
         return FrozenQDLattice(evals=self.full_ham.evals,
                                Umat=self.full_ham.Umat,
                                J_dense=self.full_ham.J_dense,
                                polaron_locs=self.polaron_locs,
                                qd_locations=self.qd_locations,
                                kappa_polaron=self.kappa_polaron,
-                               beta=self.beta,
-                               spectrum=self.spectrum)
+                               #beta=self.beta,
+                               spectrum=self.spectrum,
+                               temp=self.temp)
 
     
 
