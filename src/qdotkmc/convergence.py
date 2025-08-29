@@ -133,7 +133,7 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
             qd_lattice = _gpu_build_once(
                 geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id
             )
-            #out_q.put(("ok", None))
+            out_q.put(("ok", None))
 
         elif tag == "batch":
             (batch_indices, theta_pol, theta_site, criterion, weights) = msg[1]
@@ -160,7 +160,7 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
                 nsites_sum += int(sel_info['nsites_sel'])
                 npols_sum += int(sel_info['npols_sel'])
 
-        #     out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
+            out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
 
         # else:
         #     out_q.put(("error", f"unknown tag: {tag}"))
