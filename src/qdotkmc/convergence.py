@@ -105,7 +105,9 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
             out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
 
 
-
+# class to steer GPU Parallelization for rate scores, driven by _rate_score_worker_gpu
+# NOTE : due to spawn nature of GPU parallel processes, loading non-pickable QDLattice is non-trivial,
+# we use a Queue process architecture here
 class GPU_RatePool:
     def __init__(self, backend : Backend):
 
@@ -204,13 +206,6 @@ class ConvergenceAnalysis(KMCRunner):
             self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
 
     
-    # # TODO : move this somewhere?
-    # def close_pool(self):
-    #     """Call at end of script or when geometry/disorder/bath/seed changes."""
-    #     if self._gpu_pool is not None:
-    #         self._gpu_pool.close()
-    #         self._gpu_pool = None
-
     # build setu-uop for obtaining convergence
     def _build_rate_convergenc_env(self):
 
@@ -577,16 +572,19 @@ class ConvergenceAnalysis(KMCRunner):
         # finalize at hi (largest θ_sites in bracket with gain <= 𝛿)
         tp_star, lam_star, info_star = self._tune_theta_pol(hi, verbose=verbose)
 
-        # TODO : maybe put this somewhere else; we need this to close the GPU pool if we run GPU & parallel
-        if self.backend.use_gpu and self.exec_plan.do_parallel:
-            self._gpu_pool.close()
-            self._gpu_pool = None
-            # device-wide cleanup in CuPy after pool closure
-            self.backend.cp.get_default_memory_pool().free_all_blocks()
-            self.backend.cp.get_default_pinned_memory_pool().free_all_blocks()
-
-        
+       
         return dict(theta_site=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
                     nsites=int(info_star['ave_sites']), npols=int(info_star['ave_pols']))
 
-    
+
+    def _clean(self):
+
+        # we need this to close the GPU pool if we run GPU & parallel
+        if self.backend.use_gpu and self.exec_plan.do_parallel:
+            self._gpu_pool.close()
+            self._gpu_pool = None
+            # device-wide cleanup in CuPy after pool closure; this makes 
+            self.backend.cp.get_default_memory_pool().free_all_blocks()
+            self.backend.cp.get_default_pinned_memory_pool().free_all_blocks()
+        else:
+            pass

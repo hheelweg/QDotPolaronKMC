@@ -70,7 +70,10 @@ def main():
     # set verbose = False/True to avoid/enable printing updates on convergence
     import time
     start = time.time()
+    
     thetas_result = convergence_setup.auto_tune_thetas(verbose=True)
+    convergence_setup._clean()
+
     end = time.time()
     print(f'time for convergence: {end-start:.6f}')
 
