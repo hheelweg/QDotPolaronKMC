@@ -730,7 +730,7 @@ class ConvergenceAnalysis(KMCRunner):
         # finalize at hi (largest θ_sites in bracket with gain <= 𝛿)
         tp_star, lam_star, info_star = self._tune_theta_pol(hi, verbose=verbose)
 
-        # TODO : maybe put this somewhere else
+        # TODO : maybe put this somewhere else; we need this to close the GPU pool
         if self.backend.use_gpu:
             self.close_pool()
         
