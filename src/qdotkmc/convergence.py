@@ -191,6 +191,7 @@ class GpuRatePool:
         self.max_procs = backend.plan.n_workers
         self.ctx = mp.get_context(backend.plan.context)
         self.device_ids = backend.plan.device_ids
+        print('testt', self.device_ids)
 
         # initialize GpuPool attributes
         self.procs = []
@@ -321,7 +322,6 @@ class ConvergenceAnalysis(KMCRunner):
 
         # (4) Start GPU pool if requested in backend
         if self.backend.use_gpu and self._gpu_pool is None:
-            print('testt', self.backend.plan.device_ids)
             self._gpu_pool = GpuRatePool(backend=self.backend)
             self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
 
