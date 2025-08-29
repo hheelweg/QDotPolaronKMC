@@ -8,57 +8,7 @@ from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, Conve
 from . import const
 from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
-import qdotkmc.redfield as redfield
-import qdotkmc.hamiltonian as hamiltonian
 
-import threading
-_tls = threading.local()
-
-
-class _QDView:
-    """Proxy that forwards attrs to base lattice, but overrides `.redfield`."""
-    def __init__(self, base, rf):
-        self._base = base
-        self.redfield = rf
-    def __getattr__(self, name):
-        return getattr(self._base, name)
-
-def _make_thread_redfield(base, backend):
-    """New Hamiltonian+SpecDens per thread (reusing arrays) + Redfield."""
-    # Reuse big arrays by view, but avoid sharing objects with state.
-    # E = base.full_ham.evals
-    # U = base.full_ham.Umat
-    # J = base.J_dense
-    # ham = hamiltonian.Hamiltonian(E, U, J_dense=J)
-
-    # # Fresh SpecDens (avoid sharing any FFT/plan caches)
-    # spec = hamiltonian.SpecDens(base.bath_cfg.spectrum, const.kB * base.bath_cfg.temp)
-    # ham.spec = spec
-    # # Optional: copy beta if your code reads it
-    # ham.beta = getattr(base.full_ham, "beta", 0.0)
-
-    return redfield.Redfield(
-        base.full_ham,
-        base.polaron_locs,
-        base.qd_locations,
-        base.kappa_polaron,
-        backend,
-        time_verbose=False,
-    )
-
-def _thread_gpu_setup(backend, device_id: int, base_lattice):
-    """Bind thread to GPU + create per-thread stream and Redfield clone once."""
-    cp = backend.cp
-    if getattr(_tls, "device_id", None) != device_id:
-        cp.cuda.Device(int(device_id)).use()
-        _tls.device_id = int(device_id)
-        _tls.stream = cp.cuda.Stream(non_blocking=True)
-        _tls.redfield = None  # force rebuild below
-
-    if _tls.redfield is None:
-        _tls.redfield = _make_thread_redfield(base_lattice, backend)
-
-    return _tls.stream, _tls.redfield
 
 # global variable to allow parallel workers to use the same QDLattice for convergence tests
 _QDLAT_GLOBAL = None
@@ -82,32 +32,6 @@ def _rate_score_worker(args):
     
     return lamda * weight, sel_info['nsites_sel'], sel_info['npols_sel']
 
-
-def _rate_score_worker_thread(args):
-    (qd_lattice, start_idx, theta_pol, theta_site, criterion, weight,
-     backend, device_id) = args
-
-    stream, rf = _thread_gpu_setup(backend, device_id, qd_lattice)
-
-    # Thread-local view that only overrides .redfield
-    qd_view = _QDView(qd_lattice, rf)
-
-    with stream:
-        rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
-            qd_view, int(start_idx),
-            theta_pol=float(theta_pol), theta_site=float(theta_site),
-            selection_info=True
-        )
-    stream.synchronize()
-
-    if criterion == "rate-displacement":
-        s0   = qd_lattice.qd_locations[int(start_idx)]
-        dr2  = ((qd_lattice.qd_locations[final_sites] - s0)**2).sum(axis=1)
-        lam  = (rates * dr2).sum() / (2 * qd_lattice.geom.dims)
-    else:
-        raise ValueError("invalid convergence criterion")
-
-    return lam * float(weight), int(sel_info['nsites_sel']), int(sel_info['npols_sel'])
 
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker_gpuswitch(args):
@@ -174,8 +98,8 @@ class ConvergenceAnalysis(KMCRunner):
 
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
-
     
+
     # build setu-uop for obtaining convergence
     def _build_rate_convergenc_env(self):
 
@@ -189,13 +113,15 @@ class ConvergenceAnalysis(KMCRunner):
                                                                bath = bath,
                                                                seed = self.rnd_seed,
                                                                backend = self.backend)
+        
+        # (2) freeze QDLattice
 
-        # (2) produce no_samples starting indices from where to compute rate vectors
+        # (3) produce no_samples starting indices from where to compute rate vectors
         ss_conv = self._ss_root.spawn(1)[0]
         rng_conv = default_rng(ss_conv)
         self.start_sites = rng_conv.integers(0, self.qd_lattice.geom.n_sites, size=self.tune_cfg.no_samples)
 
-        # (3) get Boltzmann weights for each start polaron in start_sites
+        # (4) get Boltzmann weights for each start polaron in start_sites
         E = self.qd_lattice.full_ham.evals
         beta = self.qd_lattice.full_ham.beta
         w = np.exp(- beta * E[self.start_sites])

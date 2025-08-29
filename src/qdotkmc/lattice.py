@@ -1,8 +1,11 @@
 import numpy as np
 import math
 from scipy import integrate
+from dataclasses import dataclass
+from typing import Tuple
+
 from . import hamiltonian, redfield, utils
-from .config import GeometryConfig, DisorderConfig
+from .config import GeometryConfig, DisorderConfig, BathConfig
 from .hamiltonian import SpecDens
 from qdotkmc.backend import Backend
 
@@ -68,6 +71,25 @@ void buildJ_upper(
 }
 ''';
 
+
+# contains only frozen host-side data of the QDLattice object we want to use for convergence calculations
+@dataclass(frozen=True)
+class FrozenQDLattice:
+
+    # minimal, read-only payload
+    evals: np.ndarray           # (N,)
+    Umat: np.ndarray            # (N,N) columns = eigenvectors
+    J_dense: np.ndarray         # (N,N)
+    polaron_locs: np.ndarray    # (N, d) 
+    qd_locations: np.ndarray    # (N, d)
+    kappa_polaron: float
+    beta: float                 # optional; 0 if unused
+
+    # bath data to reproduce SpecDens
+    spectrum: Tuple             # add format
+    temp_K: float               # temperature in Kelvin
+
+
 # class to set up QD Lattice 
 class QDLattice():
 
@@ -124,6 +146,22 @@ class QDLattice():
         self.stored_npolarons_box = np.zeros(self.geom.n_sites)
         self.stored_polaron_sites = [np.array([]) for _ in np.arange(self.geom.n_sites)]
         self.stored_rate_vectors = [np.array([]) for _ in np.arange(self.geom.n_sites)]
+    
+
+    # convert QDLattice with applied _setup() into FrozenQDLattice
+    def to_frozen(self, bath_cfg):
+        assert isinstance(bath_cfg, BathConfig), "Need to specify valid bath configuration to lattice \
+                                                  to make QDLattice frozen."
+        self.spectrum = bath_cfg.spectrum
+        return FrozenQDLattice(evals=self.full_ham.evals,
+                               Umat=self.full_ham.Umat,
+                               J_dense=self.full_ham.J_dense,
+                               polaron_locs=self.polaron_locs,
+                               qd_locations=self.qd_locations,
+                               kappa_polaron=self.kappa_polaron,
+                               beta=self.beta,
+                               spectrum=self.spectrum)
+
     
 
     @staticmethod
