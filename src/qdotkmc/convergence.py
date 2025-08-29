@@ -318,7 +318,7 @@ class ConvergenceAnalysis(KMCRunner):
             # keep moderate workers (4–8); cuBLAS/cuSolver are already parallel
             #n_workers = min(self.tune_cfg.max_workers or 4, 8)
             print('GPU workers', self.backend.plan.n_workers, self.exec_plan.max_workers)
-            with ThreadPoolExecutor(max_workers=4) as ex:
+            with ThreadPoolExecutor(max_workers=8) as ex:
                 for fut in as_completed(ex.submit(_rate_score_worker_thread, j) for j in jobs):
                     lam_w, ns, np_ = fut.result()
                     rates_criterion += lam_w; nsites_sel += ns; npols_sel += np_
