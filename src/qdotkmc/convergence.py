@@ -17,7 +17,7 @@ from qdotkmc.backend import Backend, get_backend
 _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rate scores from a single lattice site
-def _rate_score_worker(args):
+def _rate_score_worker_cpu(args):
     (start_idx, theta_pol, theta_site, criterion, weight) = args
     # compute rates for this start index
     qd_lattice = _QDLAT_GLOBAL
@@ -276,11 +276,6 @@ class ConvergenceAnalysis(KMCRunner):
                                                                seed = self.rnd_seed,
                                                                backend = self.backend)
         
-
-        # # freeze QDLattice; need to attach bath configuration manually for this procedure
-        # self.qd_lattice_frozen = self.qd_lattice.to_frozen(self.bath_cfg)
-        # print('succesfully froze QDLattice')
-
         # (2) produce no_samples starting indices from where to compute rate vectors
         ss_conv = self._ss_root.spawn(1)[0]
         rng_conv = default_rng(ss_conv)
@@ -427,7 +422,7 @@ class ConvergenceAnalysis(KMCRunner):
         lam_sum = 0.0; nsites_sum = 0; npols_sum = 0
         max_workers = self.exec_plan.max_workers or os.cpu_count() or 1
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
-            futs = [ex.submit(_rate_score_worker, job) for job in jobs]
+            futs = [ex.submit(_rate_score_worker_cpu, job) for job in jobs]
             for fut in as_completed(futs):
                 lam, ns, np_ = fut.result()
                 lam_sum += lam; nsites_sum += ns; npols_sum += np_
