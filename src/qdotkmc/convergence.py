@@ -9,6 +9,19 @@ from . import const
 from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
 
+import threading
+_tls = threading.local()
+
+def _thread_gpu_init(backend, device_id: int):
+    """Bind the calling thread to a GPU device and create a stream once."""
+    cp = backend.cp                       # CuPy module from your backend
+    if getattr(_tls, "device_id", None) != device_id:
+        cp.cuda.Device(int(device_id)).use()
+        _tls.device_id = int(device_id)
+        _tls.stream = cp.cuda.Stream(non_blocking=True)  # optional
+    return _tls.stream
+
+
 # global variable to allow parallel workers to use the same QDLattice for convergence tests
 _QDLAT_GLOBAL = None
 
@@ -33,15 +46,29 @@ def _rate_score_worker(args):
 
 
 def _rate_score_worker_thread(args):
-    # same signature as your process worker, but it runs in-thread and
-    # can access self.qd_lattice directly (no pickling, no rebuilds).
-    (qd_lattice, start_idx, theta_pol, theta_site, criterion, weight) = args
+    (qd_lattice, start_idx, theta_pol, theta_site, criterion, weight,
+     backend, device_id) = args
 
-    rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
-        qd_lattice, int(start_idx),
-        theta_pol=float(theta_pol), theta_site=float(theta_site),
-        selection_info=True
-    )
+    # bind this thread to the right GPU
+    if backend.use_gpu:
+        stream = _thread_gpu_init(backend, device_id)
+    else:
+        stream = None
+
+    # run your existing code; optionally wrap GPU ops under the stream
+    if stream is not None:
+        with stream:
+            rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
+                qd_lattice, int(start_idx),
+                theta_pol=float(theta_pol), theta_site=float(theta_site),
+                selection_info=True
+            )
+    else:
+        rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
+            qd_lattice, int(start_idx),
+            theta_pol=float(theta_pol), theta_site=float(theta_site),
+            selection_info=True
+        )
 
     if criterion == "rate-displacement":
         s0   = qd_lattice.qd_locations[int(start_idx)]
@@ -315,11 +342,28 @@ class ConvergenceAnalysis(KMCRunner):
 
         # CPU = processes (fork), GPU = threads (one process, shared CUDA context)
         if use_gpu:
-            # keep moderate workers (4–8); cuBLAS/cuSolver are already parallel
-            #n_workers = min(self.tune_cfg.max_workers or 4, 8)
-            print('GPU workers', self.backend.plan.n_workers, self.exec_plan.max_workers)
-            with ThreadPoolExecutor(max_workers=8) as ex:
-                for fut in as_completed(ex.submit(_rate_score_worker_thread, j) for j in jobs):
+            # detect devices from backend plan or runtime
+            device_ids = self.backend.plan.device_ids
+            if not device_ids:
+                device_ids = list(range(self.backend.cp.cuda.runtime.getDeviceCount()))
+
+            # keep threads modest: 2–4 per GPU is usually enough
+            per_gpu = max(1, min(4, (self.tune_cfg.max_workers or 4) // max(1, len(device_ids))))
+            max_workers = per_gpu * max(1, len(device_ids))
+            # fallback if user overrode max_workers directly:
+            if self.tune_cfg.max_workers:
+                max_workers = self.tune_cfg.max_workers
+
+            jobs = []
+            for k, idx in enumerate(self.start_sites):
+                dev = device_ids[k % len(device_ids)]
+                jobs.append((self.qd_lattice, int(idx), float(theta_pol), float(theta_site),
+                            self.tune_cfg.criterion, weights[int(idx)], self.backend, dev))
+
+            rates_criterion = 0.0; nsites_sel = 0; npols_sel = 0
+            with ThreadPoolExecutor(max_workers=max_workers) as ex:
+                futs = [ex.submit(_rate_score_worker_thread, j) for j in jobs]
+                for fut in as_completed(futs):
                     lam_w, ns, np_ = fut.result()
                     rates_criterion += lam_w; nsites_sel += ns; npols_sel += np_
         else:
