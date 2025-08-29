@@ -27,7 +27,7 @@ def _make_thread_redfield(base, backend):
     """New Hamiltonian+SpecDens per thread (reusing arrays) + Redfield."""
     # Reuse big arrays by view, but avoid sharing objects with state.
     E = base.full_ham.evals
-    U = base.full_ham.eigstates
+    U = base.full_ham.Umat
     J = base.J_dense
     ham = hamiltonian.Hamiltonian(E, U, J_dense=J)
 
