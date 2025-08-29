@@ -475,6 +475,7 @@ class KMCRunner():
                     times_msds, rid, sim_time, seeds[rid], dev) for rid in range(R)]
         
         # allocate jobs to workers
+        print('max workers', self.backend.plan.n_workers, self.exec_plan.max_workers)
         with ProcessPoolExecutor(max_workers=self.backend.plan.n_workers, mp_context=ctx) as ex:
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
