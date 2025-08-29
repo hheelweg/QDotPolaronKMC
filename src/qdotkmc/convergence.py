@@ -128,7 +128,7 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
 
             out_q.put(("ok", None))
 
-        # if we are in batch mode, we use created qd_lattice
+        # if we are in batch mode, we use created qd_lattice and compute rates
         elif msg[0] == "batch":
             (batch_indices, theta_pol, theta_site, criterion, weights) = msg[1]
             lam_sum = 0.0
@@ -158,7 +158,7 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
 
 
 
-class GpuRatePool:
+class GPU_RatePool:
     def __init__(self, backend : Backend):
 
         # load from backend 
@@ -202,13 +202,15 @@ class GpuRatePool:
 
 
     def run_batches(self, start_indices, theta_pol, theta_site, criterion, weights: Dict[int, float]):
-        batches = GpuRatePool._chunks(list(map(int, start_indices)), max(1, len(self.inqs)))
+
+        # create batches for workers
+        batches = GPU_RatePool._chunks(list(map(int, start_indices)), max(1, len(self.inqs)))
 
         # send work to workers
         for i, batch in enumerate(batches):
             self.inqs[i].put(("batch", (batch, float(theta_pol), float(theta_site), criterion, weights)))
 
-        # collect
+        # collect results
         lam_total = 0.0; nsites_total = 0; npols_total = 0
         for i in range(len(batches)):
             tag, payload = self.outqs[i].get()
@@ -239,16 +241,19 @@ class ConvergenceAnalysis(KMCRunner):
         self.tune_cfg = tune_cfg
         self.exec_plan = exec_plan
 
-        self._gpu_pool = None
-
         assert geom.n_sites >= tune_cfg.no_samples, "cannot have no_sample >= number of sites in lattice"
 
         # backend selection
         self.backend = self.exec_plan.build_backend()
-        print(self.backend.plan.device_ids)
 
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
+
+        # start GPU pool if requested in backend by running GPU
+        self._gpu_pool = None
+        if self.backend.use_gpu and self._gpu_pool is None:
+            self._gpu_pool = GPU_RatePool(backend=self.backend)
+            self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
 
     
     def close_pool(self):
@@ -288,10 +293,6 @@ class ConvergenceAnalysis(KMCRunner):
         Z = np.sum(np.exp(- beta * E))
         self.weights = w / Z
 
-        # (4) Start GPU pool if requested in backend
-        if self.backend.use_gpu and self._gpu_pool is None:
-            self._gpu_pool = GpuRatePool(backend=self.backend)
-            self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
 
 
     # compute rate score in parallel (if available) or in serial
