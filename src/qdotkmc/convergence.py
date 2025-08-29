@@ -273,7 +273,11 @@ class ConvergenceAnalysis(KMCRunner):
         self._build_rate_convergenc_env()
 
     
-    
+    def close_pool(self):
+        """Call at end of script or when geometry/disorder/bath/seed changes."""
+        if self._gpu_pool is not None:
+            self._gpu_pool.close()
+            self._gpu_pool = None
 
     # build setu-uop for obtaining convergence
     def _build_rate_convergenc_env(self):
@@ -725,6 +729,10 @@ class ConvergenceAnalysis(KMCRunner):
         #  -------------------------    (3) obtain θ_sites^*, θ_pol^*, Λ^*     ----------------------------------
         # finalize at hi (largest θ_sites in bracket with gain <= 𝛿)
         tp_star, lam_star, info_star = self._tune_theta_pol(hi, verbose=verbose)
+
+        # TODO : maybe put this somewhere else
+        if self.backend.use_gpu:
+            self.close_pool()
         
         return dict(theta_site=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
                     nsites=int(info_star['ave_sites']), npols=int(info_star['ave_pols']))
