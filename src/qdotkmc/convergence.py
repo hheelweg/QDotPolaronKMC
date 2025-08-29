@@ -191,7 +191,6 @@ class GpuRatePool:
         self.max_procs = backend.plan.n_workers
         self.ctx = mp.get_context(backend.plan.context)
         self.device_ids = backend.plan.device_ids
-        print('testt', self.device_ids)
 
         # initialize GpuPool attributes
         self.procs = []
@@ -218,7 +217,7 @@ class GpuRatePool:
         print(self.device_ids)
 
         # spawn workers
-        for i in range(self.max_procs):
+        for i in range(8):
             in_q = self.ctx.Queue()
             out_q = self.ctx.Queue()
             p = self.ctx.Process(target=gpu_worker_loop, args=(in_q, out_q))
