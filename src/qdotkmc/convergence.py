@@ -204,12 +204,12 @@ class ConvergenceAnalysis(KMCRunner):
             self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
 
     
-    # TODO : move this somewhere?
-    def close_pool(self):
-        """Call at end of script or when geometry/disorder/bath/seed changes."""
-        if self._gpu_pool is not None:
-            self._gpu_pool.close()
-            self._gpu_pool = None
+    # # TODO : move this somewhere?
+    # def close_pool(self):
+    #     """Call at end of script or when geometry/disorder/bath/seed changes."""
+    #     if self._gpu_pool is not None:
+    #         self._gpu_pool.close()
+    #         self._gpu_pool = None
 
     # build setu-uop for obtaining convergence
     def _build_rate_convergenc_env(self):
@@ -580,6 +580,7 @@ class ConvergenceAnalysis(KMCRunner):
         # TODO : maybe put this somewhere else; we need this to close the GPU pool if we run GPU & parallel
         if self.backend.use_gpu and self.exec_plan.do_parallel:
             self._gpu_pool.close()
+            self._gpu_pool = None
 
         
         return dict(theta_site=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
