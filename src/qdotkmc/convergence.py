@@ -4,7 +4,7 @@ import os
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import math
-from typing import Optional
+from typing import Optional, Dict
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, ConvergenceTuneConfig, ExecutionPlan
 from . import const
