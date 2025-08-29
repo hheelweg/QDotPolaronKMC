@@ -394,53 +394,53 @@ class ConvergenceAnalysis(KMCRunner):
             return lam_total, info
 
 
-        os.environ.setdefault("OMP_NUM_THREADS", "1")
-        os.environ.setdefault("MKL_NUM_THREADS", "1")
-        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+        # os.environ.setdefault("OMP_NUM_THREADS", "1")
+        # os.environ.setdefault("MKL_NUM_THREADS", "1")
+        # os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
-        # expose QDLattice to workers via module-global, then fork it in CPU path
-        if not self.backend.use_gpu:
-            global _QDLAT_GLOBAL
-            _QDLAT_GLOBAL = self.qd_lattice
+        # # expose QDLattice to workers via module-global, then fork it in CPU path
+        # if not self.backend.use_gpu:
+        #     global _QDLAT_GLOBAL
+        #     _QDLAT_GLOBAL = self.qd_lattice
 
-        # weights lookup for start sites
-        weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
+        # # weights lookup for start sites
+        # weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
-        # build jobs for CPU/GPU path and define context (spawn/fork)
-        ctx = mp.get_context(self.backend.plan.context)
-        devs = self.backend.plan.device_ids if self.backend.use_gpu else [None]
-        jobs = []
-        for k, start_idx in enumerate(self.start_sites):
-            device_id = devs[k % len(devs)]
-            jobs.append((
-                self.geom, self.dis, self.bath_cfg, self.exec_plan,
-                start_idx, theta_pol, theta_site, self.tune_cfg.criterion, weight_by_idx[start_idx],
-                self.rnd_seed,                                                  # deterministic lattice rebuild
-                (None if not self.backend.use_gpu else device_id),
-            ))
+        # # build jobs for CPU/GPU path and define context (spawn/fork)
+        # ctx = mp.get_context(self.backend.plan.context)
+        # devs = self.backend.plan.device_ids if self.backend.use_gpu else [None]
+        # jobs = []
+        # for k, start_idx in enumerate(self.start_sites):
+        #     device_id = devs[k % len(devs)]
+        #     jobs.append((
+        #         self.geom, self.dis, self.bath_cfg, self.exec_plan,
+        #         start_idx, theta_pol, theta_site, self.tune_cfg.criterion, weight_by_idx[start_idx],
+        #         self.rnd_seed,                                                  # deterministic lattice rebuild
+        #         (None if not self.backend.use_gpu else device_id),
+        #     ))
 
-        rates_criterion = 0
-        nsites_sel, npols_sel = 0, 0
+        # rates_criterion = 0
+        # nsites_sel, npols_sel = 0, 0
 
-        # allocate jobs to workers
-        # TODO : 
-        with ProcessPoolExecutor(max_workers=self.exec_plan.max_workers, mp_context=ctx) as ex:
-            futs = [ex.submit(_rate_score_worker_new, job) for job in jobs]
-            for fut in as_completed(futs):
+        # # allocate jobs to workers
+        # # TODO : 
+        # with ProcessPoolExecutor(max_workers=self.exec_plan.max_workers, mp_context=ctx) as ex:
+        #     futs = [ex.submit(_rate_score_worker_new, job) for job in jobs]
+        #     for fut in as_completed(futs):
 
-                # let worker obtain weighted convergence criterion
-                lam_w, nsite_sel, npol_sel = fut.result()
+        #         # let worker obtain weighted convergence criterion
+        #         lam_w, nsite_sel, npol_sel = fut.result()
 
-                rates_criterion += lam_w
-                nsites_sel      += nsite_sel
-                npols_sel       += npol_sel
+        #         rates_criterion += lam_w
+        #         nsites_sel      += nsite_sel
+        #         npols_sel       += npol_sel
 
-        info = {}
-        if score_info:
-            info['ave_sites'] = nsites_sel / float(self.tune_cfg.no_samples)
-            info['ave_pols']  = npols_sel  / float(self.tune_cfg.no_samples)
+        # info = {}
+        # if score_info:
+        #     info['ave_sites'] = nsites_sel / float(self.tune_cfg.no_samples)
+        #     info['ave_pols']  = npols_sel  / float(self.tune_cfg.no_samples)
 
-        return rates_criterion, info
+        # return rates_criterion, info
 
 
 
