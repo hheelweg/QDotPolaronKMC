@@ -87,30 +87,7 @@ def _rate_score_worker_new(args):
     return lamda * float(weight), int(sel_info['nsites_sel']), int(sel_info['npols_sel'])
 
 
-def _gpu_build_once(geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id):
-    """
-    Bind device (if GPU), create backend, build bath and ONE QDLattice realization.
-    Returns (backend, qd_lattice).
-    We import get_backend locally to avoid hard dependency at module import time.
-    """
-    import cupy as cp
-    cp.cuda.Device(int(device_id)).use()
-    cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
-    try:
-        cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-    except Exception:
-        pass
-
-    backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
-
-    bath = SpecDens(bath_cfg.spectrum, const.kB * float(bath_cfg.temp))
-    qd_lattice, _ = KMCRunner._build_grid_realization(
-        geom=geom_cfg, dis=dis_cfg, bath=bath, seed=int(seed), backend=backend
-    )
-    return qd_lattice
-
-
-def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
+def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
 
     qd_lattice = None
 
@@ -149,9 +126,7 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
                                                               bath=bath, 
                                                               seed=seed, 
                                                               backend=backend)
-            # qd_lattice = _gpu_build_once(
-            #     geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id
-            # )
+
             out_q.put(("ok", None))
 
         # if we are in batch mode, we use created qd_lattice
@@ -175,10 +150,10 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
                 dr2 = ((qd_lattice.qd_locations[final_sites] - s0) ** 2).sum(axis=1)
                 lam = (rates * dr2).sum() / (2 * qd_lattice.geom.dims)
 
-                w = float(weights.get(int(start_idx), 1.0))
+                w = weights.get(int(start_idx), 1.0)
                 lam_sum += lam * w
-                nsites_sum += int(sel_info['nsites_sel'])
-                npols_sum += int(sel_info['npols_sel'])
+                nsites_sum += sel_info['nsites_sel']
+                npols_sum += sel_info['npols_sel']
 
             out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
 
@@ -214,13 +189,13 @@ class GpuRatePool:
 
             in_q = self.ctx.Queue()
             out_q = self.ctx.Queue()
-            p = self.ctx.Process(target=gpu_worker_loop, args=(in_q, out_q))
+            p = self.ctx.Process(target=_rate_score_worker_gpu, args=(in_q, out_q))
             p.start()
             self.procs.append(p); self.inqs.append(in_q); self.outqs.append(out_q)
 
             # init each worker with the same config/seed, pinned to a device
             dev = self.device_ids[i % len(self.device_ids)]
-            in_q.put(("init", (geom_cfg, dis_cfg, bath_cfg, int(seed),
+            in_q.put(("init", (geom_cfg, dis_cfg, bath_cfg, seed,
                                self.use_gpu, self.use_c64, dev)))
             tag, payload = out_q.get()
             if tag != "ok":
