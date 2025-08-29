@@ -577,13 +577,9 @@ class ConvergenceAnalysis(KMCRunner):
         # finalize at hi (largest θ_sites in bracket with gain <= 𝛿)
         tp_star, lam_star, info_star = self._tune_theta_pol(hi, verbose=verbose)
 
-        # TODO : maybe put this somewhere else; we need this to close the GPU pool
-        if self.backend.use_gpu:
-            import time
-            start = time.time()
-            self.close_pool()
-            end = time.time()
-            print(f"time taking for stopping: {end-start:.6f}")
+        # TODO : maybe put this somewhere else; we need this to close the GPU pool if we run GPU & parallel
+        if self.backend.use_gpu and self.exec_plan.do_parallel:
+            self._gpu_pool.close()
 
         
         return dict(theta_site=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
