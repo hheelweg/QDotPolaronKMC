@@ -255,6 +255,7 @@ class ConvergenceAnalysis(KMCRunner):
         nsites_sel, npols_sel = 0, 0
 
         # allocate jobs to workers
+        # TODO : 
         with ProcessPoolExecutor(max_workers=self.exec_plan.max_workers, mp_context=ctx) as ex:
             futs = [ex.submit(_rate_score_worker_new, job) for job in jobs]
             for fut in as_completed(futs):
