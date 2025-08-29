@@ -190,7 +190,7 @@ class GpuRatePool:
         self.use_c64 = backend.gpu_use_c64
         self.max_procs = backend.plan.n_workers
         self.ctx = mp.get_context(backend.plan.context)
-        self.test = backend.plan.device_ids
+        self.device_ids = backend.plan.device_ids
 
         # initialize GpuPool attributes
         self.procs = []
@@ -209,14 +209,14 @@ class GpuRatePool:
 
     def start(self, geom_cfg, dis_cfg, bath_cfg, seed):
         
-        n_dev = self._detect_devices()
-        self.device_ids = list(range(max(1, n_dev))) if self.use_gpu else [0]
-        print(self.device_ids, self.test)
+        # n_dev = self._detect_devices()
+        # self.device_ids = list(range(max(1, n_dev))) if self.use_gpu else [0]
+        # print(self.device_ids, self.test)
         n_workers = self.max_procs or len(self.device_ids)
         print('workers', n_workers, self.max_procs)
 
         # spawn workers
-        for i in range(n_workers):
+        for i in range(self.max_procs):
             in_q = self.ctx.Queue()
             out_q = self.ctx.Queue()
             p = self.ctx.Process(target=gpu_worker_loop, args=(in_q, out_q))
