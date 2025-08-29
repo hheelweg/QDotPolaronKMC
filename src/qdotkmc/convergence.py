@@ -9,7 +9,7 @@ from . import const
 from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
 import qdotkmc.redfield as redfield
-import qdotkmc.redfield as hamiltonian
+import qdotkmc.hamiltonian as hamiltonian
 
 import threading
 _tls = threading.local()
