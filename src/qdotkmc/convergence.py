@@ -13,18 +13,17 @@ import qdotkmc.redfield as redfield
 import threading
 _tls = threading.local()
 
+
 def _thread_gpu_setup(backend, device_id: int):
-    """Bind thread to GPU + create per-thread stream and Redfield clone."""
     cp = backend.cp
     if getattr(_tls, "device_id", None) != device_id:
         cp.cuda.Device(int(device_id)).use()
         _tls.device_id = int(device_id)
         _tls.stream = cp.cuda.Stream(non_blocking=True)
-        _tls.redfield = None  # force new Redfield below
-    # per-thread Redfield clone avoids cache races
+        _tls.redfield = None  # force fresh Redfield for this thread
+
     if _tls.redfield is None:
-        # build a new Redfield bound to the same arrays/backend
-        base = _tls.base_qd_lattice  # set by launcher (see below)
+        base = _tls.base_qd_lattice   # set by worker entry
         _tls.redfield = redfield.Redfield(
             base.full_ham,
             base.polaron_locs,
@@ -34,6 +33,14 @@ def _thread_gpu_setup(backend, device_id: int):
             time_verbose=False,
         )
     return _tls.stream, _tls.redfield
+
+class _QDView:
+    """Proxy all attributes to base lattice, but carry a thread-local Redfield."""
+    def __init__(self, base, rf):
+        self._base = base
+        self.redfield = rf
+    def __getattr__(self, name):
+        return getattr(self._base, name)
 
 
 # global variable to allow parallel workers to use the same QDLattice for convergence tests
@@ -63,25 +70,21 @@ def _rate_score_worker_thread(args):
     (qd_lattice, start_idx, theta_pol, theta_site, criterion, weight,
      backend, device_id) = args
 
-    # stash base lattice once per thread so we can clone Redfield above
+    # stash base lattice once in TLS
     if getattr(_tls, "base_qd_lattice", None) is None:
         _tls.base_qd_lattice = qd_lattice
 
     stream, rf = _thread_gpu_setup(backend, device_id)
 
-    # Run GPU work under the thread's stream
+    # Build a thread-local view that overrides .redfield only
+    qd_view = _QDView(qd_lattice, rf)
+
     with stream:
-        # IMPORTANT: call the pathway that uses `rf` (the per-thread Redfield)
-        # attach redfield class to qd_lattice
-        qd_lattice.redfield = rf
-        # If your API only accepts qd_lattice, add a tiny helper that routes to rf.
         rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
-            qd_lattice, int(start_idx),
+            qd_view, int(start_idx),
             theta_pol=float(theta_pol), theta_site=float(theta_site),
             selection_info=True
         )
-
-    # Ensure kernels are done before touching results on host
     stream.synchronize()
 
     if criterion == "rate-displacement":
