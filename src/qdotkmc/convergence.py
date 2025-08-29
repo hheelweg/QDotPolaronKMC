@@ -186,6 +186,7 @@ def _chunks(seq, k):
 
 class GpuRatePool:
     def __init__(self, prefer_gpu=True, use_c64=False, max_procs: Optional[int] = None):
+
         self.prefer_gpu = bool(prefer_gpu)
         self.use_c64 = bool(use_c64)
         self.max_procs = max_procs
@@ -226,6 +227,7 @@ class GpuRatePool:
             if tag != "ok":
                 raise RuntimeError(f"GPU worker init failed: {payload}")
 
+
     def run_batches(self, start_indices, theta_pol, theta_site, criterion, weights: Dict[int, float]):
         batches = _chunks(list(map(int, start_indices)), max(1, len(self.inqs)))
 
@@ -245,6 +247,7 @@ class GpuRatePool:
         return lam_total, nsites_total, npols_total
 
 
+    # close GPU pool
     def close(self):
         for q in self.inqs:
             q.put(("stop", None))
@@ -312,14 +315,13 @@ class ConvergenceAnalysis(KMCRunner):
         self.weights = w / Z
 
         # (4) Start persistent GPU pool if requested
-        if self.exec_plan.do_parallel and self.exec_plan.prefer_gpu:
-            if self._gpu_pool is None:
-                self._gpu_pool = GpuRatePool(
-                    prefer_gpu=self.exec_plan.prefer_gpu,
-                    use_c64=self.exec_plan.gpu_use_c64,
-                    max_procs=self.exec_plan.max_workers,
-                )
-                self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
+        if self.backend.use_gpu and self._gpu_pool is None:
+            self._gpu_pool = GpuRatePool(
+                                         prefer_gpu=self.exec_plan.prefer_gpu,
+                                         use_c64=self.exec_plan.gpu_use_c64,
+                                         max_procs=self.exec_plan.max_workers,
+                                         )
+            self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
 
 
     # compute rate score in parallel (if available) or in serial
@@ -418,80 +420,11 @@ class ConvergenceAnalysis(KMCRunner):
 
         return rates_criterion, info
 
-    def rate_score_parallel_gpu_persistent(self, theta_pol, theta_site,
-                                       *, prefer_gpu=True, use_c64=False,
-                                       max_procs=None, score_info=True):
-            # Detect GPU count
-            n_dev = 0
-            if prefer_gpu:
-                try:
-                    import cupy as cp
-                    n_dev = cp.cuda.runtime.getDeviceCount()
-                except Exception:
-                    n_dev = 0
-            prefer_gpu = prefer_gpu and (n_dev > 0)
-            device_ids = list(range(max(1, n_dev))) if prefer_gpu else [0]
-
-            # Processes to launch (default: one per GPU)
-            if max_procs is None:
-                max_procs = len(device_ids)
-
-            # Build the convergence environment ONCE in parent (to get seed, start_sites, weights)
-            # You already have this in your _build_rate_convergenc_env; we assume you've called it.
-            # Here we just use the values it prepared:
-            #   self.rnd_seed, self.start_sites, self.weights, self.backend, etc.
-            # If you haven't called it yet, call it before this function.
-
-            starts  = list(map(int, self.start_sites))
-            batches = _chunks(starts, max_procs)
-
-            weights = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
-
-            ctx = mp.get_context("spawn")  # CUDA-safe
-            procs, inqs, outqs = [], [], []
-
-            # Launch workers: pass configs + the SAME seed you used
-            for i in range(len(batches)):
-                dev  = device_ids[i % len(device_ids)]
-                in_q  = ctx.Queue()
-                out_q = ctx.Queue()
-                p = ctx.Process(
-                    target=start_gpu_worker,
-                    args=(
-                        self.geom, self.dis, self.bath_cfg, int(self.rnd_seed),
-                        prefer_gpu, use_c64, dev, in_q, out_q
-                    )
-                )
-                p.start()
-                procs.append(p); inqs.append(in_q); outqs.append(out_q)
-
-            # Dispatch batches (one per worker here; can send multiple per worker if you want)
-            for i, batch in enumerate(batches):
-                inqs[i].put((batch, float(theta_pol), float(theta_site),
-                            self.tune_cfg.criterion, weights))
-
-            # Tell each worker to exit after its batch
-            for q in inqs:
-                q.put(None)
-
-            # Collect results
-            lam_total = 0.0; nsites_total = 0; npols_total = 0
-            for out_q in outqs:
-                lam, ns, np_ = out_q.get()
-                lam_total += lam; nsites_total += ns; npols_total += np_
-
-            for p in procs:
-                p.join()
-
-            info = {}
-            if score_info and self.tune_cfg.no_samples > 0:
-                info["ave_sites"] = nsites_total / float(self.tune_cfg.no_samples)
-                info["ave_pols"]  = npols_total  / float(self.tune_cfg.no_samples)
-            return lam_total, info
-
-
+    
 
     def _rate_score_parallel(self, theta_pol: float, theta_site: float, score_info: bool = True):
+
+
         weights_map = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
         # Preferred: persistent GPU pool (reuses lattice on device; very low overhead)
