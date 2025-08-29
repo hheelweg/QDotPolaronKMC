@@ -120,22 +120,23 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
     qd_lattice = None
 
     while True:
+
         msg = in_q.get()
-        if msg is None:
+
+        # decide if we stop loop
+        if msg[0] == "stop":
             break
 
-        tag = msg[0]
-        if tag == "stop":
-            break
-
-        if tag == "init":
+        # if we are in init mode, we create qd_lattice once
+        if msg[0] == "init":
             (geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id) = msg[1]
             qd_lattice = _gpu_build_once(
                 geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id
             )
             out_q.put(("ok", None))
 
-        elif tag == "batch":
+        # if we are in batch mode, we use created qd_lattice
+        elif msg[0] == "batch":
             (batch_indices, theta_pol, theta_site, criterion, weights) = msg[1]
             lam_sum = 0.0
             nsites_sum = 0
@@ -162,8 +163,6 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
 
             out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
 
-        # else:
-        #     out_q.put(("error", f"unknown tag: {tag}"))
 
 
 
@@ -212,7 +211,8 @@ class GpuRatePool:
 
     def run_batches(self, start_indices, theta_pol, theta_site, criterion, weights: Dict[int, float]):
         batches = GpuRatePool._chunks(list(map(int, start_indices)), max(1, len(self.inqs)))
-        # send work
+
+        # send work to workers
         for i, batch in enumerate(batches):
             self.inqs[i].put(("batch", (batch, float(theta_pol), float(theta_site), criterion, weights)))
 
