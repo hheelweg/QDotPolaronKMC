@@ -2,7 +2,7 @@ import numpy as np
 from numpy.random import default_rng
 import os
 import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, ConvergenceTuneConfig, ExecutionPlan
 from . import const
@@ -222,7 +222,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
+    def _rate_score_parallel_gpuswitch(self, theta_pol, theta_site, score_info = True):
 
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
 
@@ -274,6 +274,49 @@ class ConvergenceAnalysis(KMCRunner):
 
         return rates_criterion, info
 
+
+    def _rate_score_parallel(self, theta_pol, theta_site, score_info=True):
+
+
+        use_gpu = self.backend.plan.use_gpu and self.exec_plan.do_parallel
+
+        # Expose QDLattice to workers via module-global, then FORK the pool
+        global _QDLAT_GLOBAL
+        _QDLAT_GLOBAL = self.qd_lattice
+
+        weights = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
+
+        jobs = [(self.qd_lattice, int(idx), float(theta_pol), float(theta_site),
+                self.tune_cfg.criterion, weights[int(idx)]) for idx in self.start_sites]
+
+        rates_criterion = 0.0
+        nsites_sel = 0
+        npols_sel  = 0
+
+        # CPU = processes (fork), GPU = threads (one process, shared CUDA context)
+        if use_gpu:
+            # keep moderate workers (4–8); cuBLAS/cuSolver are already parallel
+            #n_workers = min(self.tune_cfg.max_workers or 4, 8)
+            with ThreadPoolExecutor(max_workers=self.backend.plan.n_workers) as ex:
+                for fut in as_completed(ex.submit(_rate_score_worker_thread, j) for j in jobs):
+                    lam_w, ns, np_ = fut.result()
+                    rates_criterion += lam_w; nsites_sel += ns; npols_sel += np_
+        else:
+            # your existing process-based path (fork)
+            ctx = mp.get_context(self.backend.plan.context)
+            with ProcessPoolExecutor(max_workers=self.backend.plan.n_workers, mp_context=ctx) as ex:
+                for fut in as_completed(ex.submit(_rate_score_worker, (
+                        int(idx), float(theta_pol), float(theta_site),
+                        self.tune_cfg.criterion, weights[int(idx)]
+                )) for idx in self.start_sites):
+                    lam_w, ns, np_ = fut.result()
+                    rates_criterion += lam_w; nsites_sel += ns; npols_sel += np_
+
+        info = {}
+        if score_info:
+            info['ave_sites'] = nsites_sel / float(self.tune_cfg.no_samples)
+            info['ave_pols']  = npols_sel  / float(self.tune_cfg.no_samples)
+        return rates_criterion, info
 
     @staticmethod
     def _per_oct_gain(lam_from: float, lam_to: float, span_factor: float):
