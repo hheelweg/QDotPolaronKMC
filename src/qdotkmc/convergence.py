@@ -241,9 +241,8 @@ class ConvergenceAnalysis(KMCRunner):
         for k, start_idx in enumerate(self.start_sites):
             device_id = devs[k % len(devs)]
             jobs.append((
-                self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
-                start_idx, theta_pol, theta_site,
-                self.tune_cfg.criterion, weight_by_idx[start_idx],
+                self.geom, self.dis, self.bath_cfg, self.exec_plan,
+                start_idx, theta_pol, theta_site, self.tune_cfg.criterion, weight_by_idx[start_idx],
                 self.rnd_seed,                                                  # deterministic lattice rebuild
                 (None if not self.backend.use_gpu else device_id),
             ))
