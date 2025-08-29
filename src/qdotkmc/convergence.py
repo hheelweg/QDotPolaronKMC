@@ -581,6 +581,9 @@ class ConvergenceAnalysis(KMCRunner):
         if self.backend.use_gpu and self.exec_plan.do_parallel:
             self._gpu_pool.close()
             self._gpu_pool = None
+            # device-wide cleanup in CuPy after pool closure
+            self.backend.cp.get_default_memory_pool().free_all_blocks()
+            self.backend.cp.get_default_pinned_memory_pool().free_all_blocks()
 
         
         return dict(theta_site=hi, theta_pol=tp_star, lambda_final=float(lam_star), 
