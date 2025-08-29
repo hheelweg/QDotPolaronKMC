@@ -69,12 +69,15 @@ def _rate_score_worker_thread(args):
 
     stream, rf = _thread_gpu_setup(backend, device_id)
 
+    # attache nredfield class to qd_lattice
+    qd_lattice.redfield = rf
+
     # Run GPU work under the thread's stream
     with stream:
         # IMPORTANT: call the pathway that uses `rf` (the per-thread Redfield)
         # If your API only accepts qd_lattice, add a tiny helper that routes to rf.
-        rates, final_sites, _, sel_info = KMCRunner._make_rates_weight_with_redfield(
-            rf, qd_lattice, int(start_idx),
+        rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
+            qd_lattice, int(start_idx),
             theta_pol=float(theta_pol), theta_site=float(theta_site),
             selection_info=True
         )
