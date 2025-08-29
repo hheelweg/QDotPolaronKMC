@@ -62,7 +62,7 @@ def _rate_score_worker_new(args):
                                                           backend = backend)
 
     end = time.time()
-    print(f'build lattice: {end-start:.6f}')
+    print(f'build lattice: {end-start:.6f}', flush=True)
     # compute rates for this qd_lattice and specified start_index
     rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
                                                                    theta_pol=theta_pol, theta_site=theta_site,
