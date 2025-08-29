@@ -189,7 +189,7 @@ class GpuRatePool:
         # load from backend 
         self.use_gpu = backend.use_gpu#bool(prefer_gpu)
         self.use_c64 = backend.gpu_use_c64#bool(use_c64)
-        self.max_procs = backend.plan.n_workers #max_procs
+        self.max_procs = 8#backend.plan.n_workers #max_procs
         print('max_proc', self.max_procs)
         self.ctx = mp.get_context(backend.plan.context) #mp.get_context("spawn")  # CUDA-safe
 
