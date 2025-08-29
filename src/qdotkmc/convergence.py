@@ -197,7 +197,7 @@ class GpuRatePool:
         self.procs = []
         self.inqs = []
         self.outqs = []
-        self.device_ids = []
+        #self.device_ids = []
 
     def _detect_devices(self) -> int:
         if not self.use_gpu:
