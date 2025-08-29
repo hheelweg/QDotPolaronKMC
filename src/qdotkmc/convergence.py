@@ -282,56 +282,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         return rates_criterion, info
 
-
-    def _rate_score_parallel_old(self, theta_pol, theta_site, score_info = True):
-        """
-        Parallel version of _rate_score over self.start_sites.
-        Returns the same aggregate score and selection counts.
-        """
-        
-        os.environ.setdefault("OMP_NUM_THREADS", "1")
-        os.environ.setdefault("MKL_NUM_THREADS", "1")
-        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-
-        # Expose QDLattice to workers via module-global, then FORK the pool
-        global _QDLAT_GLOBAL
-        _QDLAT_GLOBAL = self.qd_lattice
-
-        # Use fork context so children inherit memory instead of pickling args
-        ctx = mp.get_context("fork")   
-
-        # Weighted sum uses the Boltzmann weights you precomputed per start index.
-        weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
-
-        # dispatch configs + indices to parallelize over
-        jobs = [(int(start_idx), float(theta_pol), float(theta_site), self.tune_cfg.criterion, weight_by_idx[start_idx]) 
-                for start_idx in self.start_sites]
-
-        rates_criterion = 0
-        nsites_sel, npols_sel = 0, 0
-
-        with ProcessPoolExecutor(max_workers=self.tune_cfg.max_workers, mp_context=ctx) as ex:
-            futs = [ex.submit(_rate_score_worker_cpu, job) for job in jobs]
-            for fut in as_completed(futs):
-
-                # let worker obtain weighted convergence criterion
-                weighted_criterion, nsite_sel, npol_sel = fut.result()
-
-                nsites_sel += nsite_sel
-                npols_sel += npol_sel
-                rates_criterion += weighted_criterion
-                
-
-        # optional : store additional information
-        info = {}
-        if score_info:
-            info['ave_sites'] = nsites_sel / self.tune_cfg.no_samples
-            info['ave_pols'] = npols_sel / self.tune_cfg.no_samples
-
-        return rates_criterion, info
-
-    
-
+    # compute rate score parallel (need to carefully distinguish CPU/GPU path)
     def _rate_score_parallel(self, theta_pol: float, theta_site: float, score_info: bool = True):
 
         # weighted sum uses the Boltzmann weights you precomputed per start index.
@@ -373,7 +324,6 @@ class ConvergenceAnalysis(KMCRunner):
             info["ave_sites"] = nsites_sum / float(self.tune_cfg.no_samples)
             info["ave_pols"] = npols_sum / float(self.tune_cfg.no_samples)
         return lam_sum, info
-
 
 
     @staticmethod
