@@ -190,6 +190,7 @@ class GpuRatePool:
         self.use_c64 = backend.gpu_use_c64
         self.max_procs = backend.plan.n_workers
         self.ctx = mp.get_context(backend.plan.context)
+        self.test = backend.plan.device_ids
 
         # initialize GpuPool attributes
         self.procs = []
@@ -210,6 +211,7 @@ class GpuRatePool:
         
         n_dev = self._detect_devices()
         self.device_ids = list(range(max(1, n_dev))) if self.use_gpu else [0]
+        print(self.device_ids, self.test)
         n_workers = self.max_procs or len(self.device_ids)
         print('workers', n_workers, self.max_procs)
 
@@ -232,7 +234,6 @@ class GpuRatePool:
 
     def run_batches(self, start_indices, theta_pol, theta_site, criterion, weights: Dict[int, float]):
         batches = _chunks(list(map(int, start_indices)), max(1, len(self.inqs)))
-
         # send work
         for i, batch in enumerate(batches):
             self.inqs[i].put(("batch", (batch, float(theta_pol), float(theta_site), criterion, weights)))
