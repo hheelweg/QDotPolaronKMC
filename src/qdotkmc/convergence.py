@@ -26,19 +26,19 @@ class _QDView:
 def _make_thread_redfield(base, backend):
     """New Hamiltonian+SpecDens per thread (reusing arrays) + Redfield."""
     # Reuse big arrays by view, but avoid sharing objects with state.
-    E = base.full_ham.evals
-    U = base.full_ham.Umat
-    J = base.J_dense
-    ham = hamiltonian.Hamiltonian(E, U, J_dense=J)
+    # E = base.full_ham.evals
+    # U = base.full_ham.Umat
+    # J = base.J_dense
+    # ham = hamiltonian.Hamiltonian(E, U, J_dense=J)
 
-    # Fresh SpecDens (avoid sharing any FFT/plan caches)
-    spec = hamiltonian.SpecDens(base.bath_cfg.spectrum, const.kB * base.bath_cfg.temp)
-    ham.spec = spec
-    # Optional: copy beta if your code reads it
-    ham.beta = getattr(base.full_ham, "beta", 0.0)
+    # # Fresh SpecDens (avoid sharing any FFT/plan caches)
+    # spec = hamiltonian.SpecDens(base.bath_cfg.spectrum, const.kB * base.bath_cfg.temp)
+    # ham.spec = spec
+    # # Optional: copy beta if your code reads it
+    # ham.beta = getattr(base.full_ham, "beta", 0.0)
 
     return redfield.Redfield(
-        ham,
+        base.full_ham,
         base.polaron_locs,
         base.qd_locations,
         base.kappa_polaron,

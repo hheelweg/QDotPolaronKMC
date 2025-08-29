@@ -85,7 +85,7 @@ class QDLattice():
         # initialize lattice
         self._make_lattice()
 
-        # computing backend for QDLattice (GPU/CPU)
+        # intialize backend for QDLattice (GPU/CPU)
         self.backend = None
 
 
