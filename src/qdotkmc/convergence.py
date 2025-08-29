@@ -9,39 +9,56 @@ from . import const
 from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
 import qdotkmc.redfield as redfield
+import qdotkmc.redfield as hamiltonian
 
 import threading
 _tls = threading.local()
 
 
-def _thread_gpu_setup(backend, device_id: int):
-    cp = backend.cp
-    if getattr(_tls, "device_id", None) != device_id:
-        cp.cuda.Device(int(device_id)).use()
-        _tls.device_id = int(device_id)
-        _tls.stream = cp.cuda.Stream(non_blocking=True)
-        _tls.redfield = None  # force fresh Redfield for this thread
-
-    if _tls.redfield is None:
-        base = _tls.base_qd_lattice   # set by worker entry
-        _tls.redfield = redfield.Redfield(
-            base.full_ham,
-            base.polaron_locs,
-            base.qd_locations,
-            base.kappa_polaron,
-            backend,
-            time_verbose=False,
-        )
-    return _tls.stream, _tls.redfield
-
 class _QDView:
-    """Proxy all attributes to base lattice, but carry a thread-local Redfield."""
+    """Proxy that forwards attrs to base lattice, but overrides `.redfield`."""
     def __init__(self, base, rf):
         self._base = base
         self.redfield = rf
     def __getattr__(self, name):
         return getattr(self._base, name)
 
+def _make_thread_redfield(base, backend):
+    """New Hamiltonian+SpecDens per thread (reusing arrays) + Redfield."""
+    # Reuse big arrays by view, but avoid sharing objects with state.
+    E = base.full_ham.evals
+    U = base.full_ham.eigstates
+    J = base.J_dense
+    ham = hamiltonian.Hamiltonian(E, U, J_dense=J)
+
+    # Fresh SpecDens (avoid sharing any FFT/plan caches)
+    spec = hamiltonian.SpecDens(base.bath_cfg.spectrum, const.kB * base.bath_cfg.temp)
+    ham.spec = spec
+    # Optional: copy beta if your code reads it
+    ham.beta = getattr(base.full_ham, "beta", 0.0)
+
+    return redfield.Redfield(
+        ham,
+        base.polaron_locs,
+        base.qd_locations,
+        base.kappa_polaron,
+        backend,
+        time_verbose=False,
+    )
+
+def _thread_gpu_setup(backend, device_id: int, base_lattice):
+    """Bind thread to GPU + create per-thread stream and Redfield clone once."""
+    cp = backend.cp
+    if getattr(_tls, "device_id", None) != device_id:
+        cp.cuda.Device(int(device_id)).use()
+        _tls.device_id = int(device_id)
+        _tls.stream = cp.cuda.Stream(non_blocking=True)
+        _tls.redfield = None  # force rebuild below
+
+    if _tls.redfield is None:
+        _tls.redfield = _make_thread_redfield(base_lattice, backend)
+
+    return _tls.stream, _tls.redfield
 
 # global variable to allow parallel workers to use the same QDLattice for convergence tests
 _QDLAT_GLOBAL = None
@@ -70,13 +87,9 @@ def _rate_score_worker_thread(args):
     (qd_lattice, start_idx, theta_pol, theta_site, criterion, weight,
      backend, device_id) = args
 
-    # stash base lattice once in TLS
-    if getattr(_tls, "base_qd_lattice", None) is None:
-        _tls.base_qd_lattice = qd_lattice
+    stream, rf = _thread_gpu_setup(backend, device_id, qd_lattice)
 
-    stream, rf = _thread_gpu_setup(backend, device_id)
-
-    # Build a thread-local view that overrides .redfield only
+    # Thread-local view that only overrides .redfield
     qd_view = _QDView(qd_lattice, rf)
 
     with stream:
