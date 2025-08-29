@@ -87,7 +87,30 @@ def _rate_score_worker_new(args):
     return lamda * float(weight), int(sel_info['nsites_sel']), int(sel_info['npols_sel'])
 
 
-def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
+def _gpu_build_once(geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id):
+    """
+    Bind device (if GPU), create backend, build bath and ONE QDLattice realization.
+    Returns (backend, qd_lattice).
+    We import get_backend locally to avoid hard dependency at module import time.
+    """
+    import cupy as cp
+    cp.cuda.Device(int(device_id)).use()
+    cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
+    try:
+        cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+    except Exception:
+        pass
+
+    backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
+
+    bath = SpecDens(bath_cfg.spectrum, const.kB * float(bath_cfg.temp))
+    qd_lattice, _ = KMCRunner._build_grid_realization(
+        geom=geom_cfg, dis=dis_cfg, bath=bath, seed=int(seed), backend=backend
+    )
+    return qd_lattice
+
+
+def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
 
     qd_lattice = None
 
@@ -105,29 +128,26 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
             # (0) load arguments
             (geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id) = msg[1]
 
-            # (1) intialize cuda/cupy
-            import cupy as cp
-            cp.cuda.Device(int(device_id)).use()
-            cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
-            try:
-                cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-            except Exception:
-                pass
+            # # (1) intialize cuda/cupy
+            # import cupy as cp
+            # cp.cuda.Device(int(device_id)).use()
+            # cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
+            # try:
+            #     cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+            # except Exception:
+            #     pass
             
-            # (2) build backend on selected device with device_id
-            backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
+            # # (2) build backend on selected device with device_id
+            # backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
 
-            # (3) build SpecDens
-            bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+            # # (3) build SpecDens
+            # bath = SpecDens(bath_cfg.spectrum, const.kB * float(bath_cfg.temp))
+            
 
-            # (4) build qd_lattice
-            qd_lattice, _ = KMCRunner._build_grid_realization(geom=geom_cfg, 
-                                                              dis=dis_cfg, 
-                                                              bath=bath, 
-                                                              seed=seed, 
-                                                              backend=backend)
-
-            #out_q.put(("ok", None))
+            qd_lattice = _gpu_build_once(
+                geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id
+            )
+            out_q.put(("ok", None))
 
         # if we are in batch mode, we use created qd_lattice
         elif msg[0] == "batch":
@@ -150,10 +170,10 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
                 dr2 = ((qd_lattice.qd_locations[final_sites] - s0) ** 2).sum(axis=1)
                 lam = (rates * dr2).sum() / (2 * qd_lattice.geom.dims)
 
-                w = weights.get(int(start_idx), 1.0)
+                w = float(weights.get(int(start_idx), 1.0))
                 lam_sum += lam * w
-                nsites_sum += sel_info['nsites_sel']
-                npols_sum += sel_info['npols_sel']
+                nsites_sum += int(sel_info['nsites_sel'])
+                npols_sum += int(sel_info['npols_sel'])
 
             out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
 
@@ -165,7 +185,7 @@ class GpuRatePool:
         # load from backend 
         self.use_gpu = backend.use_gpu 
         self.use_c64 = backend.gpu_use_c64
-        self.max_procs = 8#backend.plan.n_workers
+        self.max_procs = backend.plan.n_workers
         self.ctx = mp.get_context(backend.plan.context)
         self.device_ids = backend.plan.device_ids
 
@@ -189,17 +209,17 @@ class GpuRatePool:
 
             in_q = self.ctx.Queue()
             out_q = self.ctx.Queue()
-            p = self.ctx.Process(target=_rate_score_worker_gpu, args=(in_q, out_q))
+            p = self.ctx.Process(target=gpu_worker_loop, args=(in_q, out_q))
             p.start()
             self.procs.append(p); self.inqs.append(in_q); self.outqs.append(out_q)
 
             # init each worker with the same config/seed, pinned to a device
             dev = self.device_ids[i % len(self.device_ids)]
-            in_q.put(("init", (geom_cfg, dis_cfg, bath_cfg, seed,
+            in_q.put(("init", (geom_cfg, dis_cfg, bath_cfg, int(seed),
                                self.use_gpu, self.use_c64, dev)))
-            #tag, payload = out_q.get()
-            # if tag != "ok":
-            #     raise RuntimeError(f"GPU worker init failed: {payload}")
+            tag, payload = out_q.get()
+            if tag != "ok":
+                raise RuntimeError(f"GPU worker init failed: {payload}")
 
 
     def run_batches(self, start_indices, theta_pol, theta_site, criterion, weights: Dict[int, float]):
@@ -213,8 +233,8 @@ class GpuRatePool:
         lam_total = 0.0; nsites_total = 0; npols_total = 0
         for i in range(len(batches)):
             tag, payload = self.outqs[i].get()
-            # if tag != "batch_done":
-            #     raise RuntimeError(f"worker error: {payload}")
+            if tag != "batch_done":
+                raise RuntimeError(f"worker error: {payload}")
             lam, ns, np_ = payload
             lam_total += lam; nsites_total += ns; npols_total += np_
 
