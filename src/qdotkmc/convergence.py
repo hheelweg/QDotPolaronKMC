@@ -214,6 +214,7 @@ class GpuRatePool:
         # print(self.device_ids, self.test)
         n_workers = self.max_procs or len(self.device_ids)
         print('workers', n_workers, self.max_procs)
+        print(self.device_ids)
 
         # spawn workers
         for i in range(self.max_procs):
