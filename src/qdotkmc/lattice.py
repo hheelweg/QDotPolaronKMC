@@ -82,8 +82,7 @@ class FrozenQDLattice:
     J_dense: np.ndarray         # (N,N)
     polaron_locs: np.ndarray    # (N, d) 
     qd_locations: np.ndarray    # (N, d)
-    kappa_polaron: float
-    #beta: float                 
+    kappa_polaron: float            
 
     # bath data to reproduce SpecDens
     spectrum: Tuple             # add format
@@ -148,24 +147,23 @@ class QDLattice():
         self.stored_rate_vectors = [np.array([]) for _ in np.arange(self.geom.n_sites)]
     
 
-    # convert QDLattice with applied _setup() into FrozenQDLattice
-    def to_frozen(self, bath_cfg):
+    # convert QDLattice with applied _setup() into FrozenQDLattice with all-pickable attributes for GPU spawn
+    def to_frozen(self, bath_cfg : BathConfig) -> FrozenQDLattice:
+
         assert isinstance(bath_cfg, BathConfig), "Need to specify valid bath configuration to lattice \
                                                   to make QDLattice frozen."
         self.spectrum = bath_cfg.spectrum
         self.temp = bath_cfg.temp
-        return FrozenQDLattice(evals=self.full_ham.evals,
-                               Umat=self.full_ham.Umat,
-                               J_dense=self.full_ham.J_dense,
-                               polaron_locs=self.polaron_locs,
-                               qd_locations=self.qd_locations,
-                               kappa_polaron=self.kappa_polaron,
-                               #beta=self.beta,
-                               spectrum=self.spectrum,
-                               temp=self.temp)
+        return FrozenQDLattice(evals            = self.full_ham.evals,
+                               Umat             = self.full_ham.Umat,
+                               J_dense          = self.full_ham.J_dense,
+                               polaron_locs     = self.polaron_locs,
+                               qd_locations     = self.qd_locations,
+                               kappa_polaron    = self.kappa_polaron,
+                               spectrum         = self.spectrum,
+                               temp             = self.temp)
 
     
-
     @staticmethod
     def _init_box_dims(r_hop, r_ove, spacing, max_length):
         # convert to actual units (scaled r_hop/r_ove)

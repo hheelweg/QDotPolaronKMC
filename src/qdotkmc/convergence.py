@@ -34,7 +34,7 @@ def _rate_score_worker(args):
 
 
 # top-level worker for computing the rate scores from a single lattice site
-def _rate_score_worker_gpuswitch(args):
+def _rate_score_worker_new(args):
 
     (geom, dis, bath_cfg, exec_plan,
      start_idx, theta_pol, theta_site, criterion, weight,
@@ -114,7 +114,7 @@ class ConvergenceAnalysis(KMCRunner):
                                                                seed = self.rnd_seed,
                                                                backend = self.backend)
         
-        
+
         # (2) freeze QDLattice; need to attach bath configuration manually for this procedure
         self.qd_lattice_frozen = self.qd_lattice.to_frozen(self.bath_cfg)
         print('succesfully froze QDLattice')
@@ -228,7 +228,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel_gpuswitch(self, theta_pol, theta_site, score_info = True):
+    def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
 
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
 
@@ -281,71 +281,6 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel(self, theta_pol, theta_site, score_info=True):
-
-        os.environ.setdefault("OMP_NUM_THREADS", "1")
-        os.environ.setdefault("MKL_NUM_THREADS", "1")
-        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-
-
-        use_gpu = self.backend.plan.use_gpu and self.exec_plan.do_parallel
-
-        # Expose QDLattice to workers via module-global, then FORK the pool
-        global _QDLAT_GLOBAL
-        _QDLAT_GLOBAL = self.qd_lattice
-
-        weights = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
-
-        jobs = [(self.qd_lattice, int(idx), float(theta_pol), float(theta_site),
-                self.tune_cfg.criterion, weights[int(idx)]) for idx in self.start_sites]
-
-        rates_criterion = 0.0
-        nsites_sel = 0
-        npols_sel  = 0
-
-        # CPU = processes (fork), GPU = threads (one process, shared CUDA context)
-        if use_gpu:
-            # detect devices from backend plan or runtime
-            device_ids = self.backend.plan.device_ids
-            if not device_ids:
-                device_ids = list(range(self.backend.cp.cuda.runtime.getDeviceCount()))
-
-            # keep threads modest: 2–4 per GPU is usually enough
-            per_gpu = max(1, min(4, (self.tune_cfg.max_workers or 4) // max(1, len(device_ids))))
-            max_workers = per_gpu * max(1, len(device_ids))
-            # fallback if user overrode max_workers directly:
-            if self.tune_cfg.max_workers:
-                max_workers = self.tune_cfg.max_workers
-
-            jobs = []
-            for k, idx in enumerate(self.start_sites):
-                dev = device_ids[k % len(device_ids)]
-                jobs.append((self.qd_lattice, int(idx), float(theta_pol), float(theta_site),
-                            self.tune_cfg.criterion, weights[int(idx)], self.backend, dev))
-
-            rates_criterion = 0.0; nsites_sel = 0; npols_sel = 0
-            with ThreadPoolExecutor(max_workers=max_workers) as ex:
-                futs = [ex.submit(_rate_score_worker_thread, j) for j in jobs]
-                for fut in as_completed(futs):
-                    lam_w, ns, np_ = fut.result()
-                    rates_criterion += lam_w; nsites_sel += ns; npols_sel += np_
-        else:
-            # your existing process-based path (fork)
-            ctx = mp.get_context(self.backend.plan.context)
-            print('CPU workers', self.backend.plan.n_workers, self.exec_plan.max_workers)
-            with ProcessPoolExecutor(max_workers=8, mp_context=ctx) as ex:
-                for fut in as_completed(ex.submit(_rate_score_worker, (
-                        int(idx), float(theta_pol), float(theta_site),
-                        self.tune_cfg.criterion, weights[int(idx)]
-                )) for idx in self.start_sites):
-                    lam_w, ns, np_ = fut.result()
-                    rates_criterion += lam_w; nsites_sel += ns; npols_sel += np_
-
-        info = {}
-        if score_info:
-            info['ave_sites'] = nsites_sel / float(self.tune_cfg.no_samples)
-            info['ave_pols']  = npols_sel  / float(self.tune_cfg.no_samples)
-        return rates_criterion, info
 
     @staticmethod
     def _per_oct_gain(lam_from: float, lam_to: float, span_factor: float):
