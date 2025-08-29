@@ -115,7 +115,7 @@ def start_gpu_worker(geom_cfg, dis_cfg, bath_cfg, seed,
     bath = SpecDens(bath_cfg.spectrum, const.kB * float(bath_cfg.temp))
 
     # 4) Build ONE lattice realization ONCE (using your existing builder)
-    runner = KMCRunner(geom_cfg, dis_cfg, bath_cfg, run=None)  # or pass your RunConfig if needed
+    #runner = KMCRunner(geom_cfg, dis_cfg, bath_cfg, run=None)  # or pass your RunConfig if needed
     qd_lattice, _ = KMCRunner._build_grid_realization(
         geom=geom_cfg,
         dis=dis_cfg,
