@@ -35,59 +35,7 @@ def _rate_score_worker_cpu(args):
     
     return lamda * weight, sel_info['nsites_sel'], sel_info['npols_sel']
 
-
 # top-level worker for computing the rate scores from a single lattice site
-def _rate_score_worker_new(args):
-
-    (geom, dis, bath_cfg, exec_plan,
-     start_idx, theta_pol, theta_site, criterion, weight,
-     rnd_seed, device_id) = args
-
-    import time 
-    qd_lattice = None
-    # CPU path (fork): fork qd_lattice from global environment (inherited from parent)
-    if device_id is None:
-        qd_lattice = _QDLAT_GLOBAL
-    # GPU path (spawn): need to rebuild qd_lattice locally
-    else:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
-        os.environ["QDOT_USE_GPU"] = "1"  
-
-        # set up bath
-        start = time.time()
-        bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
-        end = time.time()
-        print(f'build SpecDens: {end-start:.6f}', flush=True)
-        # build backend locally
-        start = time.time()
-        backend = exec_plan.build_backend()
-        end = time.time()
-        print(f'build backend: {end-start:.6f}', flush=True)
-        # create lattice 
-        qd_lattice, _ = KMCRunner._build_grid_realization(geom = geom,
-                                                          dis = dis,
-                                                          bath = bath,
-                                                          seed = rnd_seed,
-                                                          backend = backend)
-
-    
-    # compute rates for this qd_lattice and specified start_index
-    rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
-                                                                   theta_pol=theta_pol, theta_site=theta_site,
-                                                                   selection_info=True)
-
-    # evaluate convergence criterion on rates vector
-    if criterion == "rate-displacement":
-        start_loc = qd_lattice.qd_locations[int(start_idx)]
-        sq_disp = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis=1)
-        lamda = (rates * sq_disp).sum() / (2 * qd_lattice.geom.dims)
-    else:
-        raise ValueError("please specify valid convergence criterion for rates!")
-
-    return lamda * float(weight), int(sel_info['nsites_sel']), int(sel_info['npols_sel'])
-
-
-
 def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
 
     qd_lattice = None
@@ -251,7 +199,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         # start GPU pool if requested in backend by running GPU
         self._gpu_pool = None
-        if self.backend.use_gpu and self._gpu_pool is None:
+        if self.backend.use_gpu and self.exec_plan.do_parallel:
             self._gpu_pool = GPU_RatePool(backend=self.backend)
             self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
 
@@ -398,12 +346,6 @@ class ConvergenceAnalysis(KMCRunner):
             lam_sum, nsites_sum, npols_sum = self._gpu_pool.run_batches(
                 self.start_sites, theta_pol, theta_site, self.tune_cfg.criterion, weights_map
             )
-
-            # info = {}
-            # if score_info and self.tune_cfg.no_samples > 0:
-            #     info["ave_sites"] = ns_total / float(self.tune_cfg.no_samples)
-            #     info["ave_pols"] = np_total / float(self.tune_cfg.no_samples)
-            # return lam_total, info
         
         # (b) CPU path; else fallback to simple CPU ProcessPool
         else:
