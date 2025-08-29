@@ -128,25 +128,29 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
             # (0) load arguments
             (geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id) = msg[1]
 
-            # # (1) intialize cuda/cupy
-            # import cupy as cp
-            # cp.cuda.Device(int(device_id)).use()
-            # cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
-            # try:
-            #     cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-            # except Exception:
-            #     pass
+            # (1) intialize cuda/cupy
+            import cupy as cp
+            cp.cuda.Device(int(device_id)).use()
+            cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
+            try:
+                cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+            except Exception:
+                pass
             
-            # # (2) build backend on selected device with device_id
-            # backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
+            # (2) build backend on selected device with device_id
+            backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
 
-            # # (3) build SpecDens
-            # bath = SpecDens(bath_cfg.spectrum, const.kB * float(bath_cfg.temp))
-            
+            # (3) build SpecDens
+            bath = SpecDens(bath_cfg.spectrum, const.kB * float(bath_cfg.temp))
 
-            qd_lattice = _gpu_build_once(
-                geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id
-            )
+            # (4) build lattice
+            qd_lattice, _ = KMCRunner._build_grid_realization(
+                    geom=geom_cfg, dis=dis_cfg, bath=bath, seed=int(seed), backend=backend
+                )
+
+            # qd_lattice = _gpu_build_once(
+            #     geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id
+            # )
             out_q.put(("ok", None))
 
         # if we are in batch mode, we use created qd_lattice
