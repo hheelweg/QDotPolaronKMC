@@ -14,9 +14,9 @@ _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker(args):
-    (qd_lattice, start_idx, theta_pol, theta_site, criterion, weight) = args
+    (start_idx, theta_pol, theta_site, criterion, weight) = args
     # compute rates for this start index
-    # qd_lattice = _QDLAT_GLOBAL
+    qd_lattice = _QDLAT_GLOBAL
     rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
                                                                    theta_pol=theta_pol, theta_site=theta_site,
                                                                    selection_info = True)
@@ -34,27 +34,25 @@ def _rate_score_worker(args):
 
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker_new(args):
-    (geom, dis, bath_cfg, backend,
-     start_idx, theta_pol, theta_site, criterion, weight,
-     rnd_seed, use_shared_parent_lattice, device_id) = args
 
+    (geom, dis, bath_cfg, exec_plan,
+     start_idx, theta_pol, theta_site, criterion, weight,
+     rnd_seed, device_id) = args
 
     qd_lattice = None
-    # TODO : use backend-specific boolena variable to select CPU/GPU path
-    if use_shared_parent_lattice:
-        # CPU/fork path — use the global lattice ptr inherited from the parent.
+    # CPU path (fork): fork qd_lattice from global environment (inherited from parent)
+    if device_id is None:
         qd_lattice = _QDLAT_GLOBAL
+    # GPU path (spawn): need to rebuild qd_lattice locally
     else:
-        # GPU/spawn path — bind to a GPU (if provided) and rebuild locally.
-        if device_id is not None:
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
-            os.environ["QDOT_USE_GPU"] = "1"   # if your code reads this
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
+        os.environ["QDOT_USE_GPU"] = "1"  
 
         # set up bath
         bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
-
-        # Build a minimal runner in the child to reuse your lattice builder
-        # TODO : need to load in rnd_seed as well
+        # build backend locally
+        backend = exec_plan.build_backend()
+        # create lattice 
         qd_lattice, _ = KMCRunner._build_grid_realization(geom = geom,
                                                           dis = dis,
                                                           bath = bath,
@@ -104,11 +102,11 @@ class ConvergenceAnalysis(KMCRunner):
         bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
 
         # (1) draw a lattice realization
-        rnd_seed = self._spawn_realization_seed(rid = 0)
+        self.rnd_seed = self._spawn_realization_seed(rid = 0)
         self.qd_lattice, _ = KMCRunner._build_grid_realization(geom = self.geom,
                                                                dis = self.dis,
                                                                bath = bath,
-                                                               seed = rnd_seed,
+                                                               seed = self.rnd_seed,
                                                                backend = self.backend)
 
         # (2) produce no_samples starting indices from where to compute rate vectors
@@ -183,8 +181,8 @@ class ConvergenceAnalysis(KMCRunner):
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
         # Expose QDLattice to workers via module-global, then FORK the pool
-        # global _QDLAT_GLOBAL
-        # _QDLAT_GLOBAL = self.qd_lattice
+        global _QDLAT_GLOBAL
+        _QDLAT_GLOBAL = self.qd_lattice
 
         # Use fork context so children inherit memory instead of pickling args
         ctx = mp.get_context("fork")   
@@ -193,7 +191,7 @@ class ConvergenceAnalysis(KMCRunner):
         weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
         # dispatch configs + indices to parallelize over
-        jobs = [(self.qd_lattice, int(start_idx), float(theta_pol), float(theta_site), self.tune_cfg.criterion, weight_by_idx[start_idx]) 
+        jobs = [(int(start_idx), float(theta_pol), float(theta_site), self.tune_cfg.criterion, weight_by_idx[start_idx]) 
                 for start_idx in self.start_sites]
 
         rates_criterion = 0
@@ -219,6 +217,53 @@ class ConvergenceAnalysis(KMCRunner):
 
         return rates_criterion, info
 
+
+    def _rate_score_parallel_new(self, theta_pol, theta_site, score_info = True):
+        """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+        # expose QDLattice to workers via module-global, then fork it in CPU path
+        if not self.exec_plan.use_gpu:
+            global _QDLAT_GLOBAL
+            _QDLAT_GLOBAL = self.qd_lattice
+
+        # weights lookup for start sites
+        weight_by_idx = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
+
+        # build jobs for CPU/GPU path and define context (spawn/fork)
+        ctx = mp.get_context(self.backend.plan.context)
+        devs = self.backend.plan.device_ids if self.exec_plan.use_gpu else [None]
+        jobs = []
+        for k, start_idx in enumerate(self.start_sites):
+            device_id = devs[k % len(devs)]
+            jobs.append((
+                self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
+                start_idx, theta_pol, theta_site,
+                self.tune_cfg.criterion, weight_by_idx[start_idx],
+                self.rnd_seed,                                                  # deterministic lattice rebuild
+                (None if not self.exec_plan.use_gpu else device_id),
+            ))
+
+        rates_criterion = 0
+        nsites_sel, npols_sel = 0, 0
+
+        # allocate jobs to workers
+        with ProcessPoolExecutor(max_workers=self.backend.plan.n_workers, mp_context=ctx) as ex:
+            futs = [ex.submit(_rate_score_worker_new, job) for job in jobs]
+            for fut in as_completed(futs):
+                lam_w, nsite_sel, npol_sel = fut.result()
+                rates_criterion += lam_w
+                nsites_sel      += nsite_sel
+                npols_sel       += npol_sel
+
+        info = {}
+        if score_info:
+            info['ave_sites'] = nsites_sel / float(self.tune_cfg.no_samples)
+            info['ave_pols']  = npols_sel  / float(self.tune_cfg.no_samples)
+
+        return rates_criterion, info
 
 
     @staticmethod
