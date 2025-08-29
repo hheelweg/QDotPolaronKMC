@@ -174,7 +174,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel_old(self, theta_pol, theta_site, score_info = True):
+    def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
         """
         Parallel version of _rate_score over self.start_sites.
         Returns the same aggregate score and selection counts.
@@ -222,7 +222,7 @@ class ConvergenceAnalysis(KMCRunner):
         return rates_criterion, info
 
 
-    def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
+    def _rate_score_parallel_new(self, theta_pol, theta_site, score_info = True):
 
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
 
