@@ -39,6 +39,8 @@ def _rate_score_worker_new(args):
      start_idx, theta_pol, theta_site, criterion, weight,
      rnd_seed, device_id) = args
 
+    import time 
+    start = time.time()
     qd_lattice = None
     # CPU path (fork): fork qd_lattice from global environment (inherited from parent)
     if device_id is None:
@@ -59,6 +61,8 @@ def _rate_score_worker_new(args):
                                                           seed = rnd_seed,
                                                           backend = backend)
 
+    end = time.time()
+    print(f'build lattice: {end-start:.6f}')
     # compute rates for this qd_lattice and specified start_index
     rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
                                                                    theta_pol=theta_pol, theta_site=theta_site,
