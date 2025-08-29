@@ -190,6 +190,7 @@ class GpuRatePool:
         self.prefer_gpu = bool(prefer_gpu)
         self.use_c64 = bool(use_c64)
         self.max_procs = max_procs
+        print('max_proc', self.max_procs)
         self.ctx = mp.get_context("spawn")  # CUDA-safe
         self.procs = []
         self.inqs = []
@@ -314,7 +315,7 @@ class ConvergenceAnalysis(KMCRunner):
         Z = np.sum(np.exp(- beta * E))
         self.weights = w / Z
 
-        # (4) Start persistent GPU pool if requested
+        # (4) Start GPU pool if requested in backend
         if self.backend.use_gpu and self._gpu_pool is None:
             self._gpu_pool = GpuRatePool(
                                          prefer_gpu=self.exec_plan.prefer_gpu,
