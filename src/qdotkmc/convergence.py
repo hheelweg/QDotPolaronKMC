@@ -276,6 +276,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         # backend selection
         self.backend = self.exec_plan.build_backend()
+        print(self.backend.plan.device_ids)
 
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
