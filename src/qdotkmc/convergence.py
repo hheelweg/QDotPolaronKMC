@@ -369,11 +369,13 @@ class ConvergenceAnalysis(KMCRunner):
             info["ave_pols"]  = npols_total  / float(self.tune_cfg.no_samples)
         return lam_total, info
 
+
     def _rate_score_parallel(self, theta_pol, theta_site, score_info = True):
 
         """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
 
         if self.backend.use_gpu:
+            print('execute GPU')
             lam_total, info = self.rate_score_parallel_gpu_persistent(self.qd_lattice_frozen, theta_pol, theta_site, score_info = True
                                                                       )
             return lam_total, info
