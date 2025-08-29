@@ -139,35 +139,31 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
                 out_q.put(("error", f"init failed: {e!r}"))
 
         elif tag == "batch":
-            if qd_lattice is None:
-                out_q.put(("error", "worker not initialized"))
-                continue
-
             (batch_indices, theta_pol, theta_site, criterion, weights) = msg[1]
             lam_sum = 0.0
             nsites_sum = 0
             npols_sum = 0
-            try:
-                for start_idx in batch_indices:
-                    rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
-                        qd_lattice, int(start_idx),
-                        theta_pol=float(theta_pol), theta_site=float(theta_site),
-                        selection_info=True
-                    )
-                    if criterion != "rate-displacement":
-                        raise ValueError("invalid criterion")
+            
+            for start_idx in batch_indices:
+                rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
+                            qd_lattice, start_idx,
+                            theta_pol = theta_pol, theta_site = theta_site,
+                            selection_info=True
+                            )
 
-                    s0 = qd_lattice.qd_locations[int(start_idx)]
-                    dr2 = ((qd_lattice.qd_locations[final_sites] - s0) ** 2).sum(axis=1)
-                    lam = (rates * dr2).sum() / (2 * qd_lattice.geom.dims)
+                if criterion != "rate-displacement":
+                    raise ValueError("invalid criterion")
 
-                    w = float(weights.get(int(start_idx), 1.0))
-                    lam_sum += lam * w
-                    nsites_sum += int(sel_info['nsites_sel'])
-                    npols_sum += int(sel_info['npols_sel'])
-                out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
-            except Exception as e:
-                out_q.put(("error", f"batch failed: {e!r}"))
+                s0 = qd_lattice.qd_locations[start_idx]
+                dr2 = ((qd_lattice.qd_locations[final_sites] - s0) ** 2).sum(axis=1)
+                lam = (rates * dr2).sum() / (2 * qd_lattice.geom.dims)
+
+                w = float(weights.get(int(start_idx), 1.0))
+                lam_sum += lam * w
+                nsites_sum += int(sel_info['nsites_sel'])
+                npols_sum += int(sel_info['npols_sel'])
+
+            out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
 
         else:
             out_q.put(("error", f"unknown tag: {tag}"))
