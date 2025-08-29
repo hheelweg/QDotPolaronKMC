@@ -88,10 +88,13 @@ def _rate_score_worker_new(args):
     return lamda * float(weight), int(sel_info['nsites_sel']), int(sel_info['npols_sel'])
 
 
-def start_gpu_worker(frozen, backend, prefer_gpu: bool, use_c64: bool, device_id: int,
+def start_gpu_worker(frozen, prefer_gpu: bool, use_c64: bool, device_id: int,
                      in_q, out_q):
-    """Run in child process: bind GPU, build once, then serve batch requests."""
-    # 1) Bind device & set pools once
+    """
+    Runs in a child process. Binds a GPU (if requested), builds Backend/Hamiltonian/SpecDens/Redfield ONCE,
+    then processes batches pulled from `in_q`, writing results to `out_q`.
+    """
+    # 1) Bind device & set pools once (if GPU requested)
     if prefer_gpu:
         import cupy as cp
         cp.cuda.Device(int(device_id)).use()
@@ -101,7 +104,10 @@ def start_gpu_worker(frozen, backend, prefer_gpu: bool, use_c64: bool, device_id
         except Exception:
             pass
 
-    # 2) Rebuild once from the snapshot (host arrays only)
+    # 2) Build a backend inside the worker (CPU or GPU)
+    backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
+
+    # 3) Rebuild Hamiltonian & SpecDens ONCE from the frozen snapshot (host arrays only)
     ham = hamiltonian.Hamiltonian(
         np.asarray(frozen.evals),
         np.asarray(frozen.Umat),
@@ -110,7 +116,7 @@ def start_gpu_worker(frozen, backend, prefer_gpu: bool, use_c64: bool, device_id
     ham.spec = hamiltonian.SpecDens(frozen.spectrum, const.kB * float(frozen.temp))
     ham.beta = getattr(ham, "beta", 0.0)
 
-    # 3) Minimal lattice view the runner expects
+    # 4) Minimal lattice view that KMCRunner expects
     class _L: pass
     L = _L()
     L.full_ham      = ham
@@ -118,41 +124,42 @@ def start_gpu_worker(frozen, backend, prefer_gpu: bool, use_c64: bool, device_id
     L.qd_locations  = np.asarray(frozen.qd_locations)
     L.geom = type("G", (), {"dims": int(frozen.qd_locations.shape[1])})()
 
-    # --- build a backend for this worker ---
-    backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64, do_parallel=True)
-
-    # 4) Attach Redfield once; it will use your GPU codepaths internally
+    # 5) Attach Redfield with the worker's backend
     L.redfield = redfield.Redfield(
         ham, L.polaron_locs, L.qd_locations, float(frozen.kappa_polaron),
-        backend=backend, time_verbose=False,
+        backend, time_verbose=False,
     )
 
-    # 5) Serve batches until sentinel arrives
+    # 6) Serve batches until sentinel arrives
     while True:
         task = in_q.get()
-        if task is None:              # sentinel => exit
+        if task is None:  # sentinel => exit
             break
+
         batch, theta_pol, theta_site, criterion, weights = task
 
-        lam_sum = 0.0
+        lam_sum   = 0.0
         nsites_sum = 0
         npols_sum  = 0
+
         for start_idx in batch:
             rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
                 L, int(start_idx),
                 theta_pol=float(theta_pol), theta_site=float(theta_site),
                 selection_info=True
             )
+
             if criterion != "rate-displacement":
                 raise ValueError("invalid convergence criterion")
+
             s0  = L.qd_locations[int(start_idx)]
             dr2 = ((L.qd_locations[final_sites] - s0)**2).sum(axis=1)
             lam = (rates * dr2).sum() / (2 * L.geom.dims)
 
             w = float(weights.get(int(start_idx), 1.0))
             lam_sum   += lam * w
-            nsites_sum += int(sel_info["nsites_sel"])
-            npols_sum  += int(sel_info["npols_sel"])
+            nsites_sum += int(sel_info['nsites_sel'])
+            npols_sum  += int(sel_info['npols_sel'])
 
         out_q.put((lam_sum, nsites_sum, npols_sum))
 
@@ -312,7 +319,7 @@ class ConvergenceAnalysis(KMCRunner):
     def rate_score_parallel_gpu_persistent(self, frozen, theta_pol, theta_site,
                                        *, prefer_gpu=True, use_c64=False,
                                        max_procs=None, score_info=True):
-        # Detect GPUs
+        # Detect how many GPUs we can use
         n_dev = 0
         if prefer_gpu:
             try:
@@ -323,54 +330,58 @@ class ConvergenceAnalysis(KMCRunner):
         prefer_gpu = prefer_gpu and (n_dev > 0)
         device_ids = list(range(max(1, n_dev))) if prefer_gpu else [0]
 
-        # One process per GPU (simple & fast)
+        # Number of worker processes (default = one per device)
         if max_procs is None:
             max_procs = len(device_ids)
 
+        # Split start indices into `max_procs` batches
         starts  = list(map(int, self.start_sites))
         batches = _chunks(starts, max_procs)
 
+        # Weights per start index (Boltzmann)
         weights = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
-        ctx = mp.get_context("spawn")  # CUDA-safe
 
+        ctx = mp.get_context("spawn")  # CUDA-safe
         procs, inqs, outqs = [], [], []
-        # Launch workers
-        for i, dev in enumerate(device_ids[:max_procs]):
+
+
+        # Launch workers (one per process; round-robin device assignment)
+        for i in range(len(batches)):
+            dev  = device_ids[i % len(device_ids)]
             in_q  = ctx.Queue()
             out_q = ctx.Queue()
             p = ctx.Process(
                 target=start_gpu_worker,
-                args=(frozen, prefer_gpu, use_c64, dev, in_q, out_q)
+                args=(frozen, prefer_gpu, use_c64, dev, in_q, out_q)  # <-- NOTE both in_q and out_q passed
             )
             p.start()
             procs.append(p); inqs.append(in_q); outqs.append(out_q)
 
-        # Dispatch each batch to a worker (round-robin if more batches than procs)
-        for k, batch in enumerate(batches):
-            widx = k % len(inqs)
-            inqs[widx].put((batch, float(theta_pol), float(theta_site),
-                            self.tune_cfg.criterion, weights))
+        # Dispatch batches (one batch per worker here; extend to multiple per worker if needed)
+        for i, batch in enumerate(batches):
+            inqs[i].put((batch, float(theta_pol), float(theta_site),
+                        self.tune_cfg.criterion, weights))
 
-        # Tell workers to exit when done
+        # Tell each worker to exit after finishing its batch
         for q in inqs:
             q.put(None)
 
         # Collect results
         lam_total = 0.0; nsites_total = 0; npols_total = 0
         for out_q in outqs:
-            try:
-                while True:
-                    lam, ns, np_ = out_q.get_nowait()
-                    lam_total += lam; nsites_total += ns; npols_total += np_
-            except mp.queues.Empty:
-                pass
+            # each worker will put exactly one tuple
+            lam, ns, np_ = out_q.get()
+            lam_total += lam; nsites_total += ns; npols_total += np_
 
-        for p in procs: p.join()
+        # Join
+        for p in procs:
+            p.join()
 
         info = {}
         if score_info and self.tune_cfg.no_samples > 0:
             info["ave_sites"] = nsites_total / float(self.tune_cfg.no_samples)
             info["ave_pols"]  = npols_total  / float(self.tune_cfg.no_samples)
+
         return lam_total, info
 
 
