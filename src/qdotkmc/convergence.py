@@ -111,12 +111,7 @@ def _gpu_build_once(geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, devi
 
 
 def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
-    """
-    Persistent child process:
-      - 'init', cfgs -> builds and caches qd_lattice on GPU (or CPU) once
-      - 'batch', payload -> computes batch result and returns tuple
-      - 'stop' -> terminates
-    """
+
     qd_lattice = None
 
     while True:
@@ -129,10 +124,34 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
 
         # if we are in init mode, we create qd_lattice once
         if msg[0] == "init":
+
+            # (0) load arguments
             (geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id) = msg[1]
-            qd_lattice = _gpu_build_once(
-                geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id
-            )
+
+            # (1) intialize cuda/cupy
+            import cupy as cp
+            cp.cuda.Device(int(device_id)).use()
+            cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
+            try:
+                cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+            except Exception:
+                pass
+            
+            # (2) build backend on selected device with device_id
+            backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
+
+            # (3) build SpecDens
+            bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+
+            # (4) build qd_lattice
+            qd_lattice, _ = KMCRunner._build_grid_realization(geom=geom_cfg, 
+                                                              dis=dis_cfg, 
+                                                              bath=bath, 
+                                                              seed=seed, 
+                                                              backend=backend)
+            # qd_lattice = _gpu_build_once(
+            #     geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id
+            # )
             out_q.put(("ok", None))
 
         # if we are in batch mode, we use created qd_lattice
@@ -162,7 +181,6 @@ def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
                 npols_sum += int(sel_info['npols_sel'])
 
             out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
-
 
 
 
