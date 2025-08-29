@@ -12,14 +12,27 @@ from .montecarlo import KMCRunner
 import threading
 _tls = threading.local()
 
-def _thread_gpu_init(backend, device_id: int):
-    """Bind the calling thread to a GPU device and create a stream once."""
-    cp = backend.cp                       # CuPy module from your backend
+def _thread_gpu_setup(backend, device_id: int):
+    """Bind thread to GPU + create per-thread stream and Redfield clone."""
+    cp = backend.cp
     if getattr(_tls, "device_id", None) != device_id:
         cp.cuda.Device(int(device_id)).use()
         _tls.device_id = int(device_id)
-        _tls.stream = cp.cuda.Stream(non_blocking=True)  # optional
-    return _tls.stream
+        _tls.stream = cp.cuda.Stream(non_blocking=True)
+        _tls.redfield = None  # force new Redfield below
+    # per-thread Redfield clone avoids cache races
+    if _tls.redfield is None:
+        # build a new Redfield bound to the same arrays/backend
+        base = _tls.base_qd_lattice  # set by launcher (see below)
+        _tls.redfield = redfield.Redfield(
+            base.full_ham,
+            base.polaron_locs,
+            base.qd_locations,
+            base.kappa_polaron,
+            backend,
+            time_verbose=False,
+        )
+    return _tls.stream, _tls.redfield
 
 
 # global variable to allow parallel workers to use the same QDLattice for convergence tests
@@ -49,26 +62,24 @@ def _rate_score_worker_thread(args):
     (qd_lattice, start_idx, theta_pol, theta_site, criterion, weight,
      backend, device_id) = args
 
-    # bind this thread to the right GPU
-    if backend.use_gpu:
-        stream = _thread_gpu_init(backend, device_id)
-    else:
-        stream = None
+    # stash base lattice once per thread so we can clone Redfield above
+    if getattr(_tls, "base_qd_lattice", None) is None:
+        _tls.base_qd_lattice = qd_lattice
 
-    # run your existing code; optionally wrap GPU ops under the stream
-    if stream is not None:
-        with stream:
-            rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
-                qd_lattice, int(start_idx),
-                theta_pol=float(theta_pol), theta_site=float(theta_site),
-                selection_info=True
-            )
-    else:
-        rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
-            qd_lattice, int(start_idx),
+    stream, rf = _thread_gpu_setup(backend, device_id)
+
+    # Run GPU work under the thread's stream
+    with stream:
+        # IMPORTANT: call the pathway that uses `rf` (the per-thread Redfield)
+        # If your API only accepts qd_lattice, add a tiny helper that routes to rf.
+        rates, final_sites, _, sel_info = KMCRunner._make_rates_weight_with_redfield(
+            rf, qd_lattice, int(start_idx),
             theta_pol=float(theta_pol), theta_site=float(theta_site),
             selection_info=True
         )
+
+    # Ensure kernels are done before touching results on host
+    stream.synchronize()
 
     if criterion == "rate-displacement":
         s0   = qd_lattice.qd_locations[int(start_idx)]
