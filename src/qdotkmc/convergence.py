@@ -236,7 +236,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         # build jobs for CPU/GPU path and define context (spawn/fork)
         ctx = mp.get_context(self.backend.plan.context)
-        devs = self.backend.plan.device_ids if self.exec_plan.use_gpu else [None]
+        devs = self.backend.plan.device_ids if self.backend.use_gpu else [None]
         jobs = []
         for k, start_idx in enumerate(self.start_sites):
             device_id = devs[k % len(devs)]
@@ -245,7 +245,7 @@ class ConvergenceAnalysis(KMCRunner):
                 start_idx, theta_pol, theta_site,
                 self.tune_cfg.criterion, weight_by_idx[start_idx],
                 self.rnd_seed,                                                  # deterministic lattice rebuild
-                (None if not self.exec_plan.use_gpu else device_id),
+                (None if not self.backend.use_gpu else device_id),
             ))
 
         rates_criterion = 0
