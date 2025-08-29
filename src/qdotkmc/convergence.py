@@ -110,13 +110,13 @@ def _gpu_build_once(geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, devi
     return qd_lattice
 
 
-def gpu_worker_loop(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
+def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
 
     qd_lattice = None
 
     while True:
 
-        msg = in_q.get()
+        msg = in_q.get()                                
 
         # decide if we stop loop
         if msg[0] == "stop":
@@ -213,7 +213,7 @@ class GpuRatePool:
 
             in_q = self.ctx.Queue()
             out_q = self.ctx.Queue()
-            p = self.ctx.Process(target=gpu_worker_loop, args=(in_q, out_q))
+            p = self.ctx.Process(target=_rate_score_worker_gpu, args=(in_q, out_q))
             p.start()
             self.procs.append(p); self.inqs.append(in_q); self.outqs.append(out_q)
 
