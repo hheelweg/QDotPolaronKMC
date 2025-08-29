@@ -115,6 +115,8 @@ class ConvergenceAnalysis(KMCRunner):
                                                                backend = self.backend)
         
         # (2) freeze QDLattice
+        self.qd_lattice_frozen = self.qd_lattice.to_frozen(self.bath_cfg)
+        print('succesfully froze QDLattice')
 
         # (3) produce no_samples starting indices from where to compute rate vectors
         ss_conv = self._ss_root.spawn(1)[0]
