@@ -317,11 +317,7 @@ class ConvergenceAnalysis(KMCRunner):
 
         # (4) Start GPU pool if requested in backend
         if self.backend.use_gpu and self._gpu_pool is None:
-            self._gpu_pool = GpuRatePool(backend=self.backend,
-                                         prefer_gpu=self.exec_plan.prefer_gpu,
-                                         use_c64=self.exec_plan.gpu_use_c64,
-                                         max_procs=self.exec_plan.max_workers,
-                                         )
+            self._gpu_pool = GpuRatePool(backend=self.backend)
             self._gpu_pool.start(self.geom, self.dis, self.bath_cfg, self.rnd_seed)
 
 
