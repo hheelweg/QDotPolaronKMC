@@ -462,12 +462,12 @@ class KMCRunner():
         # device_ids = self.backend.plan.device_ids or []                                     # [] on CPU
         # n_gpus = len(device_ids)
 
-        # --- choose pool size (single source of truth) ---
-        if self.exec_plan.max_workers is not None:
-            pool_workers = self.exec_plan.max_workers
-        else:
-            # “fast” default: many workers for CPU overlap even on GPU nodes
-            pool_workers = os.cpu_count() or 2
+        # # --- choose pool size (single source of truth) ---
+        # if self.exec_plan.max_workers is not None:
+        #     pool_workers = self.exec_plan.max_workers
+        # else:
+        #     # “fast” default: many workers for CPU overlap even on GPU nodes
+        #     pool_workers = os.cpu_count() or 2
 
         jobs = []
         # (a) GPU bath
@@ -483,9 +483,11 @@ class KMCRunner():
                     times_msds, rid, sim_time, seeds[rid], dev) for rid in range(R)]
         
         # allocate jobs to workers
-        print('max workers', self.backend.plan.n_workers, self.exec_plan.max_workers, pool_workers)
+        # print('max workers', self.backend.plan.n_workers, self.exec_plan.max_workers)
         # TODO : how do we set max_workers here, especially for GPU path?
-        with ProcessPoolExecutor(max_workers=None, mp_context=ctx) as ex:
+        # set max_workers to None for GPU path (seems the fastest), and to n_workers for CPU path
+        max_workers = None if self.backend.plan.device_ids else self.backend.plan.n_workers
+        with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
                     rid, msd_r, sim_time = fut.result()
