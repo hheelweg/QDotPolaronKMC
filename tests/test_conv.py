@@ -38,7 +38,6 @@ def main():
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
     #-------------------------------------------------------------------------
 
-    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
 
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N)
@@ -48,6 +47,11 @@ def main():
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
                                              gpu_use_c64 = True,
                                              do_parallel = True)
+    
+
+    # build backend according to execution plan
+    backend = exec_plan.build_backend()
+    
    
     # input parameter configuration for convergence
     # NOTE : this convergence is currenly only implemented for weight-based rate modus
@@ -58,8 +62,7 @@ def main():
                                                     theta_pol_start = 0.30,
                                                     theta_pol_min   = 0.001,
                                                     rho             = 0.8,
-                                                    delta           = 0.2,              # used to be 0.05
-                                                    #max_workers     = max_workers
+                                                    delta           = 0.2               # used to be 0.05
                                                     )
 
     # set up convergence

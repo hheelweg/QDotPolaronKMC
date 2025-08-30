@@ -90,7 +90,7 @@ class ExecutionPlan:
     max_workers: Optional[int] = None       # max_workers to conduct parallel work
                                             # if None, decide automatically from env/GPU count
 
-    # build a backend for execution
+    # build a backend from ExecutionPlan attributes
     def build_backend(self):
         return get_backend(prefer_gpu   = self.prefer_gpu,
                            use_c64      = self.gpu_use_c64,
@@ -125,6 +125,5 @@ class ConvergenceTuneConfig:
     criterion: str  = "rate-displacement"
     verbose: bool   = True
 
-    # # TODO : can we remove this here?
-    # max_workers: Optional[int] = None       # max_workers to conduct parallel work
+
 
