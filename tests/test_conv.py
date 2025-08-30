@@ -59,7 +59,7 @@ def main():
                                                     theta_pol_min   = 0.001,
                                                     rho             = 0.8,
                                                     delta           = 0.2,              # used to be 0.05
-                                                    max_workers     = max_workers
+                                                    #max_workers     = max_workers
                                                     )
 
     # set up convergence
@@ -68,14 +68,9 @@ def main():
 
     #  ---------    automatically optimize thetas    ----------
     # set verbose = False/True to avoid/enable printing updates on convergence
-    import time
-    start = time.time()
-    
+
     thetas_result = convergence_setup.auto_tune_thetas(verbose=True)
     convergence_setup._clean()
-
-    end = time.time()
-    print(f'time for convergence: {end-start:.6f}')
 
     theta_site_opt = thetas_result['theta_site']
     theta_pol_opt = thetas_result['theta_pol']

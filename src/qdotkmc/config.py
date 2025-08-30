@@ -125,6 +125,6 @@ class ConvergenceTuneConfig:
     criterion: str  = "rate-displacement"
     verbose: bool   = True
 
-    # TODO : can we remove this here?
-    max_workers: Optional[int] = None       # max_workers to conduct parallel work
+    # # TODO : can we remove this here?
+    # max_workers: Optional[int] = None       # max_workers to conduct parallel work
 

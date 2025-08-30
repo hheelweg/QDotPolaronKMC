@@ -4,7 +4,7 @@ import os
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import math
-from typing import Optional, Dict
+from typing import Dict
 
 from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, ConvergenceTuneConfig, ExecutionPlan
 from . import const
@@ -15,7 +15,7 @@ from qdotkmc.backend import Backend, get_backend
 # global variable to allow parallel CPU workers to use the same QDLattice for convergence tests
 _QDLAT_GLOBAL = None
 
-# top-level worker for computing the rate scores from a single lattice site
+# top-level worker for computing the rate scores from a single lattice site on CPU
 def _rate_score_worker_cpu(args):
     """
     CPU worker for rate-scoring tasks (single start index).
@@ -61,7 +61,7 @@ def _rate_score_worker_cpu(args):
     
     return lamda * weight, sel_info['nsites_sel'], sel_info['npols_sel']
 
-# top-level worker for computing the rate scores from a single lattice site
+# top-level worker for computing the rate scores from a single lattice site on GPU
 def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
     """
     GPU worker loop for rate-scoring tasks.
