@@ -37,22 +37,18 @@ def main():
     ntrajs = 20                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
     #-------------------------------------------------------------------------
-
-
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N)
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, J_c = J_c)
     bath_cfg = qdotkmc.config.BathConfig(temp = temp, w_c = w_c, reorg_nrg = reorg_nrg)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations)
+
+    # check .config to see defaults here
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
                                              gpu_use_c64 = True,
                                              do_parallel = True)
     
 
-    # # build backend according to execution plan
-    # backend = exec_plan.build_backend()
-    # print(qdotkmc.print_utils.backend_summary(backend))
-   
     # input parameter configuration for convergence
     # NOTE : this convergence is currenly only implemented for weight-based rate modus
     tune_cfg = qdotkmc.config.ConvergenceTuneConfig(no_samples      = 20,
@@ -62,7 +58,7 @@ def main():
                                                     theta_pol_start = 0.30,
                                                     theta_pol_min   = 0.001,
                                                     rho             = 0.8,
-                                                    delta           = 0.2               # used to be 0.05
+                                                    delta           = 0.05               
                                                     )
 
     # set up convergence
