@@ -37,24 +37,42 @@ def _rate_score_worker_cpu(args):
 
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
+    """
+    GPU worker loop for rate-scoring tasks.
 
+    Each worker process:
+      - Waits for commands from the parent (via in_q).
+      - On "init": binds to a specific GPU, sets up backend/memory pools,
+        builds SpecDens + QDLattice once, and caches them in local state.
+      - On "batch": reuses the cached QDLattice to compute rates for
+        a batch of start indices, returning weighted convergence scores.
+      - On "stop": exits cleanly.
+
+    Parameters
+    ----------
+    in_q : multiprocessing.Queue
+        Input queue, receives control messages ("init", "batch", "stop").
+    out_q : multiprocessing.Queue
+        Output queue, sends back results or status tags.
+    """
+
+    # persistent lattice, built once per worker
     qd_lattice = None
-
     while True:
 
         msg = in_q.get()                                
 
-        # decide if we stop loop
+        # (I) stop mode: terminate loop and exist
         if msg[0] == "stop":
             break
 
-        # if we are in init mode, we create qd_lattice once
+        # (II) init mode: build backend + lattice ONCE per worker
         if msg[0] == "init":
 
             # (0) load arguments
             (geom_cfg, dis_cfg, bath_cfg, seed, prefer_gpu, use_c64, device_id) = msg[1]
 
-            # (1) intialize cuda/cupy
+            # (1) bind worker to its GPU device and configure memory pools
             import cupy as cp
             cp.cuda.Device(int(device_id)).use()
             cp.cuda.set_allocator(cp.cuda.MemoryPool().malloc)
@@ -66,17 +84,17 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
             # (2) build backend on selected device with device_id
             backend = get_backend(prefer_gpu=prefer_gpu, use_c64=use_c64)
 
-            # (3) build SpecDens
+            # (3) rebuild bath and lattice on device
             bath = SpecDens(bath_cfg.spectrum, const.kB * float(bath_cfg.temp))
-
-            # (4) build lattice
-            qd_lattice, _ = KMCRunner._build_grid_realization(
-                    geom=geom_cfg, dis=dis_cfg, bath=bath, seed=int(seed), backend=backend
-                )
-
+            qd_lattice, _ = KMCRunner._build_grid_realization(geom=geom_cfg, 
+                                                              dis=dis_cfg, 
+                                                              bath=bath, 
+                                                              seed=int(seed), 
+                                                              backend=backend)
+            # signal back that init succeeded
             out_q.put(("ok", None))
 
-        # if we are in batch mode, we use created qd_lattice and compute rates
+        # (III) batch mode: compute rates using the cached lattice
         elif msg[0] == "batch":
             (batch_indices, theta_pol, theta_site, criterion, weights) = msg[1]
             lam_sum = 0.0
@@ -89,51 +107,87 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
                             theta_pol = theta_pol, theta_site = theta_site,
                             selection_info=True
                             )
+                
+                # evaluate convergence criterion on rates vector
+                if criterion == "rate-displacement":
+                    start_loc = qd_lattice.qd_locations[start_idx]                                                      # r(0)
+                    sq_displacments = ((qd_lattice.qd_locations[final_sites] - start_loc)**2).sum(axis = 1)             # ||Δr||^2 per destination
+                    lamda = (rates * sq_displacments).sum() / (2 * qd_lattice.geom.dims)
+                else:
+                    raise ValueError("please specify valid convergence criterion for rates!")
 
-                if criterion != "rate-displacement":
-                    raise ValueError("invalid criterion")
+                # if criterion != "rate-displacement":
+                #     raise ValueError("invalid criterion")
 
-                s0 = qd_lattice.qd_locations[start_idx]
-                dr2 = ((qd_lattice.qd_locations[final_sites] - s0) ** 2).sum(axis=1)
-                lam = (rates * dr2).sum() / (2 * qd_lattice.geom.dims)
+                # s0 = qd_lattice.qd_locations[start_idx]
+                # dr2 = ((qd_lattice.qd_locations[final_sites] - s0) ** 2).sum(axis=1)
+                # lam = (rates * dr2).sum() / (2 * qd_lattice.geom.dims)
 
                 w = float(weights.get(int(start_idx), 1.0))
-                lam_sum += lam * w
+                lam_sum += lamda * w
                 nsites_sum += int(sel_info['nsites_sel'])
                 npols_sum += int(sel_info['npols_sel'])
 
             out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
 
 
-# class to steer GPU Parallelization for rate scores, driven by _rate_score_worker_gpu
-# NOTE : due to spawn nature of GPU parallel processes, loading non-pickable QDLattice is non-trivial,
-# we use a Queue process architecture here
 class GPU_RatePool:
-    def __init__(self, backend : Backend):
+    """
+    GPU-parallel execution pool for rate-scoring tasks.
 
-        # load from backend 
-        self.use_gpu = backend.use_gpu 
+    Spawns multiple persistent worker processes bound to CUDA devices.  
+    Each worker hosts its own QDLattice/Redfield objects on the GPU, so 
+    repeated batches can be executed without re-initialization overhead.
+    NOTE :  due to spawn nature of parallel processes on GPUs and the fact that
+            QDLattice objects which we need as fixed inputs for parallel tasks
+            but which are un-pickable, we need to choose such an architecture for
+            the parallelization on GPU. 
+            
+    Parameters
+    ----------
+    backend : Backend
+        Backend instance controlling GPU/CPU settings and execution plan.
+    """
+
+    def __init__(self, backend : Backend):
+        """
+        Initialize a GPU rate pool (no workers started yet).
+        Extracts device assignment and process context from the backend's
+        execution plan.
+        """
+
+        # load execution information from backend 
+        self.use_gpu = backend.use_gpu                          # should be True
         self.use_c64 = backend.gpu_use_c64
         self.max_procs = backend.plan.n_workers
         self.ctx = mp.get_context(backend.plan.context)
         self.device_ids = backend.plan.device_ids
 
-        # initialize GpuPool attributes
+        # initialize processes, inputs, outputs
         self.procs = []
         self.inqs = []
         self.outqs = []
 
     @staticmethod
     def _chunks(seq, k):
+        """
+        Split a sequence into k nearly equal chunks.
+        Used to distribute start indices evenly across workers.
+        """
+
         n = len(seq)
         if n == 0: return []
         m = math.ceil(n / k)
         return [seq[i:i+m] for i in range(0, n, m)]
 
-
     def start(self, geom_cfg, dis_cfg, bath_cfg, seed):
-        
-        # spawn workers
+        """
+        Spawn GPU worker processes and initialize them with 
+        identical configs and same random seed. 
+        Each worker is bound to a GPU device (round-robin over device_ids)
+        and builds its own QDLattice/Redfield state on device.
+        """
+
         for i in range(self.max_procs):
 
             in_q = self.ctx.Queue()
@@ -152,6 +206,11 @@ class GPU_RatePool:
 
 
     def run_batches(self, start_indices, theta_pol, theta_site, criterion, weights: Dict[int, float]):
+        """
+        Distribute start indices across workers and compute rate scores in parallel, based
+        on start indices to evaluate, thetas, convergence criterion, and Boltzmann weights
+        for each start index
+        """
 
         # create batches for workers
         batches = GPU_RatePool._chunks(list(map(int, start_indices)), max(1, len(self.inqs)))
@@ -171,9 +230,13 @@ class GPU_RatePool:
 
         return lam_total, nsites_total, npols_total
 
-
-    # close GPU pool
     def close(self):
+        """
+        Shut down all GPU workers and release CUDA devices.
+        Sends a 'stop' signal to each worker, joins the processes, 
+        and clears local process/queue references.
+        """
+
         for q in self.inqs:
             q.put(("stop", None))
         for p in self.procs:
@@ -199,7 +262,7 @@ class ConvergenceAnalysis(KMCRunner):
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
 
-        # start GPU pool for parallel GPU execution if desired
+        # start GPU pool for parallel GPU execution if desired for convergence
         self._gpu_pool = None
         if self.backend.use_gpu and self.exec_plan.do_parallel:
             self._gpu_pool = GPU_RatePool(backend=self.backend)
