@@ -43,7 +43,7 @@ class KMCRunner():
     
     
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, 
-                 run : RunConfig, exec_plan : ExecutionPlan):
+                 run : RunConfig, exec_plan : ExecutionPlan, backend_verbose : bool = False):
 
         self.geom = geom                        # geometry for QDLattice
         self.dis = dis                          # energetic parameters for QDLattice
@@ -56,13 +56,9 @@ class KMCRunner():
 
         # backend selection
         self.backend = self.exec_plan.build_backend()
-        print(print_utils.backend_summary(self.backend))
-
-        # print which backend we end up using for KMC
-        # TODO : maybe move this to main?
-        mode = "GPU" if self.backend.use_gpu else "CPU"
-        parallel_mode = "parallel" if self.exec_plan.do_parallel else "serial"
-        print(f"[qdotkmc] backend: {mode} {parallel_mode} (use_c64={self.backend.gpu_use_c64})")                                
+        # print backend summary if desired
+        if backend_verbose:
+            print(print_utils.backend_summary(self.backend))
 
     
     # make join time-grid

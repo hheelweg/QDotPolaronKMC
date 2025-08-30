@@ -278,7 +278,8 @@ class ConvergenceAnalysis(KMCRunner):
         assert geom.n_sites >= tune_cfg.no_samples, "cannot have no_sample >= number of sites in lattice"
 
         # backend selection
-        self.backend = self.exec_plan.build_backend()
+        # self.backend = self.exec_plan.build_backend()
+        # print(self.backend)
 
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()
