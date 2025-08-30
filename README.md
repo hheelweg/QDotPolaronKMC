@@ -35,6 +35,9 @@ sbatch <SUBMIT_NAME>.sh
 
 This should get the job done and export all output files to `cwd`. All print command are directed to `.log` file in `cwd` specified in `output=test.log` of `.sh` script.
 
+#### GPU/CPU switch
+
+There is an automatic GPU/CPU switch implemented that switches to GPU mode once `prefer_GPU` is set to true in `ExecutionPlan` dataclass (see `.config.py`). One can easily set this flag to false, if no GPU resources are available. Note that one needs to use a different SLURM submit script in order to request resources necessary for GPU path.
 
 
 ### Functionality
