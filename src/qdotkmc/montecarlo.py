@@ -458,16 +458,26 @@ class KMCRunner():
         # or use spawn (for GPU) 
         ctx = mp.get_context(self.backend.plan.context)
 
-        # # determine number of GPUs if available
-        # device_ids = self.backend.plan.device_ids or []                                     # [] on CPU
-        # n_gpus = len(device_ids)
+        # determine number of GPUs if available
+        device_ids = self.backend.plan.device_ids or []                                     # [] on CPU
+        n_gpus = len(device_ids)
 
-        # --- choose pool size (single source of truth) ---
-        if self.exec_plan.max_workers is not None:
-            pool_workers = self.exec_plan.max_workers
-        else:
-            # “fast” default: many workers for CPU overlap even on GPU nodes
-            pool_workers = os.cpu_count() or 2
+        # allow broad CPU overlap on GPU: many processes
+        pool_workers = (os.cpu_count() or 2) if n_gpus > 0 else self.backend.plan.n_workers
+
+        # semaphore limits concurrent GPU users to #GPUs
+        gpu_sem = ctx.Semaphore(n_gpus) if n_gpus > 0 else None
+
+        def _worker_wrapper(job):
+            # acquire only if we’re on GPU (sem is None on CPU)
+            if gpu_sem is not None:
+                gpu_sem.acquire()
+            try:
+                return _one_lattice_worker(job)   # your existing function
+            finally:
+                if gpu_sem is not None:
+                    gpu_sem.release()
+
 
         jobs = []
         # (a) GPU bath
@@ -486,7 +496,7 @@ class KMCRunner():
         print('max workers', self.backend.plan.n_workers, self.exec_plan.max_workers, pool_workers)
         # TODO : how do we set max_workers here, especially for GPU path?
         with ProcessPoolExecutor(max_workers=pool_workers, mp_context=ctx) as ex:
-                futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
+                futs = [ex.submit(_worker_wrapper, j) for j in jobs]
                 for fut in as_completed(futs):
                     rid, msd_r, sim_time = fut.result()
                     msds[rid] = msd_r

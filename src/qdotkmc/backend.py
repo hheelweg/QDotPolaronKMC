@@ -83,11 +83,11 @@ class Backend:
     def asarray_c(self, a): return self.xp.asarray(a, dtype=self.c, order="C")
 
     def from_host(self, a, dtype=None, order="C"):
-        """Host→backend array (NumPy no-op; CuPy upload)."""
+        """Host to backend array (NumPy no-op; CuPy upload)."""
         return self.xp.asarray(a, dtype=dtype, order=order)
 
     def to_host(self, a):
-        """Backend→host array (CuPy download; NumPy no-op)."""
+        """Backend to host array (CuPy download; NumPy no-op)."""
         if self.is_gpu and self.cp is not None:
             return self.cp.asnumpy(a)
         return a
