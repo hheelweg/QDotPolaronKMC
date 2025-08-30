@@ -62,7 +62,7 @@ def main():
                                              do_parallel = True)
     
     # set up KMC simulation
-    kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan)
+    kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose=True)
 
     # perform KMC simulation (automatically switches parallel/serial based on max_workers)
     times, msds = kmc._simulate_kmc()
