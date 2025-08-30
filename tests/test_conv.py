@@ -51,7 +51,7 @@ def main():
 
     # build backend according to execution plan
     backend = exec_plan.build_backend()
-    
+    print(qdotkmc.print_utils.backend_summary(backend))
    
     # input parameter configuration for convergence
     # NOTE : this convergence is currenly only implemented for weight-based rate modus
