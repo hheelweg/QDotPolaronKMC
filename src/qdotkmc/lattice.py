@@ -86,8 +86,13 @@ class QDLattice():
         self.seed_realization = int(seed_realization)
         self.rng = np.random.default_rng(self.seed_realization)
 
+        # don't allow QDLattice grid to become too large
+        assert self.geom.n_sites < 20000, "Current Implementation can only handle so many total QDs \
+                                            on the lattice."
+
         # initialize lattice
         self._make_lattice()
+
 
         # intialize backend for QDLattice (GPU/CPU)
         self.backend = None

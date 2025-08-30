@@ -59,6 +59,7 @@ class KMCRunner():
         # print backend summary if desired
         if backend_verbose:
             print(print_utils.backend_summary(self.backend))
+        
 
     
     # make join time-grid
