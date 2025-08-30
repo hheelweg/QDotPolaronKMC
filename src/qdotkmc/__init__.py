@@ -5,7 +5,7 @@ __all__ = ["const", "lattice", "hamiltonian", "montecarlo",
            "redfield", "utils", "plot_utils", "convergence",
            "backend", "print_utils"]
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 
 """
