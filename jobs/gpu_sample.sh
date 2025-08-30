@@ -1,7 +1,7 @@
 #!/bin/sh
 #SBATCH --partition=gpu                 # GPU environment
 #SBATCH --nodelist=gpu001               # name of GPU cluster node
-#SBATCH --gres=gpu:1                    # nomber of GPUs (can be 2 max for this cluster)
+#SBATCH --gres=gpu:2                    # nomber of GPUs (can be 2 max for this cluster)
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8               # set workers for parallel execution 
 #SBATCH --job-name=sample_name          # name of job
