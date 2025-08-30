@@ -56,9 +56,7 @@ class KMCRunner():
 
         # backend selection
         self.backend = self.exec_plan.build_backend()
-
-        # TODO : only for debugging, remove this eventually!
-        print(self.backend.plan.n_workers, self.backend.plan.device_ids, self.backend.plan.use_gpu)
+        print(print_utils(self.backend))
 
         # print which backend we end up using for KMC
         # TODO : maybe move this to main?
