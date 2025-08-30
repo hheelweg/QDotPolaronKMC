@@ -22,7 +22,7 @@ def _one_lattice_worker(args):
         os.environ["QDOT_USE_GPU"] = "1"
 
     # TODO : can we avoid setting this function
-    runner = KMCRunner(geom, dis, bath_cfg, run, exec_plan)
+    runner = KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose=False)
 
     # set up bath
     bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)

@@ -271,15 +271,11 @@ class ConvergenceAnalysis(KMCRunner):
     def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig, exec_plan : ExecutionPlan,
                  tune_cfg : ConvergenceTuneConfig):
 
-        super().__init__(geom, dis, bath_cfg, run, exec_plan)
+        super().__init__(geom, dis, bath_cfg, run, exec_plan, backend_verbose=True)
         self.tune_cfg = tune_cfg
         self.exec_plan = exec_plan
 
         assert geom.n_sites >= tune_cfg.no_samples, "cannot have no_sample >= number of sites in lattice"
-
-        # backend selection
-        # self.backend = self.exec_plan.build_backend()
-        # print(self.backend)
 
         # intialize environment to perform rate convergence analysis in
         self._build_rate_convergenc_env()

@@ -83,7 +83,7 @@ def main():
 
     # ----------   use thetas for KMC simulation     ----------
     # setup KMC simulation
-    kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan)
+    kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose=True)
     
     kmc.run.rates_by = rates_by
     kmc.run.theta_site = theta_site_opt                     # feed in optimized parameter for theta_site
