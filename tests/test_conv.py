@@ -67,7 +67,6 @@ def main():
 
     #  ---------    automatically optimize thetas    ----------
     # set verbose = False/True to avoid/enable printing updates on convergence
-
     thetas_result = convergence_setup.auto_tune_thetas(verbose=True)
     convergence_setup._clean()
 
