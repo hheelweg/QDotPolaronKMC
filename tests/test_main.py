@@ -42,11 +42,6 @@ def main():
     theta_pol = 0.05
     
     #-------------------------------------------------------------------------
-    # obtain max_workers from SLURM environment for parallelization of work
-    max_workers = int(os.getenv("SLURM_CPUS_PER_TASK", "1"))
-    # enforce serial for debugging
-    # max_workers = 1
-
 
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N)
@@ -74,7 +69,6 @@ def main():
     msds_mean = np.mean(msds, axis = 0)
 
     # obtain diffusivities in two distinct ways
-
     diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times, ndim)
 
     diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)

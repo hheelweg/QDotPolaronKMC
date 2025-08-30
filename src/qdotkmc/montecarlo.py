@@ -473,7 +473,8 @@ class KMCRunner():
         # allocate jobs to workers
         print('max workers', self.backend.plan.n_workers, self.exec_plan.max_workers)
         # TODO : how do we set max_workers here, especially for GPU path?
-        with ProcessPoolExecutor(max_workers=self.exec_plan.max_workers, mp_context=ctx) as ex:
+
+        with ProcessPoolExecutor(max_workers=self.backend.plan.n_workers, mp_context=ctx) as ex:
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
                     rid, msd_r, sim_time = fut.result()
