@@ -12,13 +12,39 @@ from .hamiltonian import SpecDens
 from .montecarlo import KMCRunner
 from qdotkmc.backend import Backend, get_backend
 
-
-# global variable to allow parallel workers to use the same QDLattice for convergence tests
+# global variable to allow parallel CPU workers to use the same QDLattice for convergence tests
 _QDLAT_GLOBAL = None
 
 # top-level worker for computing the rate scores from a single lattice site
 def _rate_score_worker_cpu(args):
+    """
+    CPU worker for rate-scoring tasks (single start index).
+
+    Each worker:
+      - Pulls a tuple of arguments (start index, thresholds, criterion, weight).
+      - Uses the globally shared QDLattice (_QDLAT_GLOBAL), which was
+        initialized once in the parent before spawning workers.
+      - Computes rates and evaluates the convergence criterion
+        (e.g. mean-squared displacement).
+      - Returns the weighted criterion plus diagnostics (#sites/#pols).
+
+    Parameters
+    ----------
+    args : tuple
+        (start_idx, theta_pol, theta_site, criterion, weight)
+
+    Returns
+    -------
+    lamda_weighted : float
+        Weighted convergence criterion for this start index.
+    nsites_sel : int
+        Number of sites selected in this run.
+    npols_sel : int
+        Number of polarons selected in this run.
+    """
+
     (start_idx, theta_pol, theta_site, criterion, weight) = args
+
     # compute rates for this start index
     qd_lattice = _QDLAT_GLOBAL
     rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(qd_lattice, start_idx,
@@ -102,6 +128,7 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
             npols_sum = 0
             
             for start_idx in batch_indices:
+                # core rate computation
                 rates, final_sites, _, sel_info = KMCRunner._make_rates_weight(
                             qd_lattice, start_idx,
                             theta_pol = theta_pol, theta_site = theta_site,
@@ -116,18 +143,12 @@ def _rate_score_worker_gpu(in_q: mp.queues.Queue, out_q: mp.queues.Queue):
                 else:
                     raise ValueError("please specify valid convergence criterion for rates!")
 
-                # if criterion != "rate-displacement":
-                #     raise ValueError("invalid criterion")
-
-                # s0 = qd_lattice.qd_locations[start_idx]
-                # dr2 = ((qd_lattice.qd_locations[final_sites] - s0) ** 2).sum(axis=1)
-                # lam = (rates * dr2).sum() / (2 * qd_lattice.geom.dims)
-
-                w = float(weights.get(int(start_idx), 1.0))
+                w = weights.get(start_idx, 1.0)
                 lam_sum += lamda * w
-                nsites_sum += int(sel_info['nsites_sel'])
-                npols_sum += int(sel_info['npols_sel'])
+                nsites_sum += sel_info['nsites_sel']
+                npols_sum += sel_info['npols_sel']
 
+            # send result of this batch back to parent
             out_q.put(("batch_done", (lam_sum, nsites_sum, npols_sum)))
 
 
@@ -347,7 +368,30 @@ class ConvergenceAnalysis(KMCRunner):
 
     # compute rate score parallel (need to carefully distinguish CPU/GPU path)
     def _rate_score_parallel(self, theta_pol: float, theta_site: float, score_info: bool = True):
+        """
+        Parallelized rate-scoring routine over multiple start sites.
 
+        Dispatches either:
+        (a) GPU workers via GPU_RatePool (reuse a pre-built QDLattice on device),
+        (b) CPU workers via ProcessPoolExecutor (forking, using global QDLattice).
+
+        Parameters
+        ----------
+        theta_pol : float
+            Tolerance for polaron selection.
+        theta_site : float
+            Tolerance for site selection.
+        score_info : bool, optional
+            If True, return diagnostics (average #sites/#pols kept).
+
+        Returns
+        -------
+        lam_sum : float
+            Total weighted convergence criterion summed over all start sites.
+        info : dict
+            Diagnostic dictionary with average sites/polarons if score_info=True.
+        """
+        
         # weighted sum uses the Boltzmann weights you precomputed per start index.
         weights_map = {int(i): float(w) for i, w in zip(self.start_sites, self.weights)}
 
@@ -591,13 +635,26 @@ class ConvergenceAnalysis(KMCRunner):
 
 
     def _clean(self):
+        """
+        Tear down resources after a convergence run.
 
-        # we need this to close the GPU pool if we run GPU & parallel
+        - If GPU + parallel mode was used:
+            - close the GPU_RatePool (terminates worker processes cleanly).
+            - release device memory pools in CuPy to free GPU memory.
+        - Otherwise, no action is needed for CPU-only runs.
+
+        Call this once you are completely done with rate-scoring work
+        to ensure that devices are left in a clean state for subsequent tasks.
+        """
+
         if self.backend.use_gpu and self.exec_plan.do_parallel:
+            # close the worker pool and drop the handle
             self._gpu_pool.close()
             self._gpu_pool = None
-            # device-wide cleanup in CuPy after pool closure; this makes 
+
+            # free all cached GPU memory (both device and pinned host)
             self.backend.cp.get_default_memory_pool().free_all_blocks()
             self.backend.cp.get_default_pinned_memory_pool().free_all_blocks()
         else:
+            # no cleanup needed for CPU execution
             pass
