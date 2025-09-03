@@ -22,9 +22,9 @@ def main():
     J_c = 30                                    # J_c (units?) (legacy: 10)
 
     # ----- bath parameters -------
-    w_c = 0.03                                  # cutoff frequency (units?) (legacy: 0.1)
-    temp = 300                                  # temperature (K) (legacy: 200)
-    reorg_nrg = 0.1                            # reorganization energy (units?)
+    w_c = 0.1                                  # cutoff frequency (units?) (legacy: 0.1)
+    temp = 800                                  # temperature (K) (legacy: 200)
+    reorg_nrg = 0.03                            # reorganization energy (units?)
 
     # ---- KMC parameters ---------
     ntrajs = 5000                                 # number of trajectories to compute MSDs over
