@@ -15,8 +15,8 @@ def main():
     # have been moved as defaults to .config dataclasses. 
 
     # ---- QDLattice gometry ------
-    ndim = 2                                    # number of dimensions
-    N = 50                                      # number of QDs in each dimension
+    ndim = 1                                    # number of dimensions
+    N = 400                                     # number of QDs in each dimension
 
     # ---- system parameters ------
     inhomog_sd = 0.002                          # inhomogenous broadening (units?)
@@ -29,8 +29,8 @@ def main():
     reorg_nrg = 0.01                            # reorganization energy (units?)
 
     # ---- KMC parameters ---------
-    ntrajs = 5                                 # number of trajectories to compute MSDs over
-    nrealizations = 8                          # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    ntrajs = 500                                 # number of trajectories to compute MSDs over
+    nrealizations = 50                          # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
     t_final = 1
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
