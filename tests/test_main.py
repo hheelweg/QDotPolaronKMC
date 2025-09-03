@@ -29,7 +29,7 @@ def main():
     reorg_nrg = 0.1                            # reorganization energy (units?)
 
     # ---- KMC parameters ---------
-    ntrajs = 500                                 # number of trajectories to compute MSDs over
+    ntrajs = 5000                                 # number of trajectories to compute MSDs over
     nrealizations = 50                          # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
     t_final = 10
 
