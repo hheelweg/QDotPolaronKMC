@@ -19,28 +19,28 @@ def main():
     N = 400                                     # number of QDs in each dimension
 
     # ---- system parameters ------
-    inhomog_sd = 0.002                          # inhomogenous broadening (units?)
-    nrg_center = 2.0                            # mean site energy (units ?)
-    J_c = 10                                    # J_c (units?)
+    inhomog_sd = 0.03                          # inhomogenous broadening (units?) (legacy: 0.002)
+    nrg_center = 2.0                            # mean site energy (units ?) (legacy: 2.0)
+    J_c = 30                                    # J_c (units?) (legacy: 10)
 
     # ----- bath parameters -------
-    w_c = 0.1                                   # cutoff frequency (units?)
-    temp = 200                                  # temperature (K)
-    reorg_nrg = 0.01                            # reorganization energy (units?)
+    w_c = 0.03                                  # cutoff frequency (units?) (legacy: 0.1)
+    temp = 300                                  # temperature (K) (legacy: 200)
+    reorg_nrg = 0.1                            # reorganization energy (units?)
 
     # ---- KMC parameters ---------
     ntrajs = 500                                 # number of trajectories to compute MSDs over
     nrealizations = 50                          # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
-    t_final = 1
+    t_final = 10
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
     # here we leave both 
 
     # (2) for "weight"
-    theta_site = 0.05
-    theta_pol = 0.05
-    
+    theta_site = 0.01                           # legacy 0.05
+    theta_pol = 0.01                            # legacy 0.05
+
     #-------------------------------------------------------------------------
 
     # define dataclasses
