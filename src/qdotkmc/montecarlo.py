@@ -374,13 +374,15 @@ class KMCRunner():
             cache_key = start_pol[0]
             #print('start_pol', start_pol)
             # try fetching from cache
-            if cache_key in qd_lattice._rate_cache:
-                _, end_pol, delta_t, step_comp_time = qd_lattice._rate_cache[cache_key]
-                step_comp_time = 0.00
-            else:
-                _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
-                # store in cache
-                qd_lattice._rate_cache[cache_key] = (start_pol, end_pol, delta_t, step_comp_time)
+            # if cache_key in qd_lattice._rate_cache:
+            #     _, end_pol, delta_t, step_comp_time = qd_lattice._rate_cache[cache_key]
+            #     step_comp_time = 0.00
+            # else:
+            #     _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
+            #     # store in cache
+            #     qd_lattice._rate_cache[cache_key] = (start_pol, end_pol, delta_t, step_comp_time)
+            
+            _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
 
             #_, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
             clock += delta_t
