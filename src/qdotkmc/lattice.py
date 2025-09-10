@@ -94,7 +94,7 @@ class QDLattice():
 
         # intialize rates cache
         # TODO : maybe remove tot_time here?
-        self._rate_cache = {}                           # cache: (center_global) -> (rates, final_states, tot_time)
+        self._rate_cache = {}                           # cache: (center_global) -> (end_pol, clock, step_comp_time)
 
 
     # NOTE: old make_qd_array method (basically unchanged)

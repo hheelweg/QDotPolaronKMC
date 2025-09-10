@@ -184,7 +184,6 @@ class KMCRunner():
 
         # (1) try fetching from cache
         if cache_key in qd_lattice._rate_cache:
-            print('used cached rate', flush= True)
             return qd_lattice._rate_cache[cache_key]
         
         # (2) otherwise, compute rates from scratch and add to cache
@@ -246,12 +245,13 @@ class KMCRunner():
 
         final_idx = int(np.searchsorted(cum_rates, u1 * S))
         # update clock
-        clock += -np.log(u2) / S
+        #clock += -np.log(u2) / S
+        delta_t = -np.log(u2) / S
 
         # (4) final polaron position
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
-        return start_pol, end_pol, clock, tot_time
+        return start_pol, end_pol, delta_t, tot_time
     
 
     # build realization of QD lattice based on seed 
@@ -369,8 +369,10 @@ class KMCRunner():
         
         # (4) main KMC loop
         while clock < t_final:
+
             # (4.1) perform a KMC step from start_pol to end_pol
-            _, end_pol, clock, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
+            _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
+            clock += delta_t
             # update computational time
             tot_comp_time += step_comp_time
 
