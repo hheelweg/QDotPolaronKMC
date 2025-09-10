@@ -361,7 +361,7 @@ class KMCRunner():
         idx0 = (np.random.randint(0, qd_lattice.geom.n_sites) if rng is None
                 else rng.integers(0, qd_lattice.geom.n_sites))
         start_site = qd_lattice.qd_locations[idx0]
-        start_pol  = qd_lattice.polaron_locs[utils.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)][0]
+        start_pol  = qd_lattice.polaron_locs[utils.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
 
         # (3) running positions (unwrapped accumulator + reference)
         trajectory_start = np.asarray(start_pol, dtype=float)           # stores R(0)
@@ -371,12 +371,12 @@ class KMCRunner():
         while clock < t_final:
 
             # (4.1) perform a KMC step from start_pol to end_pol
-            cache_key = start_pol
+            cache_key = start_pol[0]
             print('start_pol', start_pol)
             # try fetching from cache
             if cache_key in qd_lattice._rate_cache:
                 _, end_pol, delta_t, step_comp_time = qd_lattice._rate_cache[cache_key]
-                step_comp_time = 0.90
+                step_comp_time = 0.00
             else:
                 _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
                 # store in cache
