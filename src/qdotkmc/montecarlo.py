@@ -184,6 +184,7 @@ class KMCRunner():
 
         # (1) try fetching from cache
         if cache_key in qd_lattice._rate_cache:
+            print('used cached rate', flush= True)
             return qd_lattice._rate_cache[cache_key]
         
         # (2) otherwise, compute rates from scratch and add to cache
