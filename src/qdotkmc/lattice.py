@@ -92,6 +92,10 @@ class QDLattice():
         # intialize backend for QDLattice (GPU/CPU)
         self.backend = None
 
+        # intialize rates cache
+        # TODO : maybe remove tot_time here?
+        self._rate_cache = {}                           # cache: (center_global) -> (rates, final_states, tot_time)
+
 
     # NOTE: old make_qd_array method (basically unchanged)
     def _make_lattice(self):    

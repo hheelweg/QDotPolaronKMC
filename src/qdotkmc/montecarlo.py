@@ -177,20 +177,35 @@ class KMCRunner():
         # allow one-off mode switch per call (optional)
         rates_by = kwargs.pop("rates_by", getattr(self.run, "rates_by", "radius"))
 
+        # construct a key for caching the rate
+        # TODO : for convergence algorithm it is important to add different keys to the cache for different
+        # parameters we test (maybe allow caching only for main KMC run!)
+        cache_key = center_global
+
+        # (1) try fetching from cache
+        if cache_key in qd_lattice._rate_cache:
+            return qd_lattice._rate_cache[cache_key]
+        
+        # (2) otherwise, compute rates from scratch and add to cache
         if self.run.rates_by == "radius":
             r_hop = kwargs.pop("r_hop", self.run.r_hop)
             r_ove = kwargs.pop("r_ove", self.run.r_ove)
             if r_hop is None or r_ove is None:
                 raise ValueError("Need r_hop and r_ove for radius mode (pass as kwargs or set in RunConfig).")
-            # ignore irrelevant overrides quietly
-            return self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
+            #return self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
+            rates, final_states, tot_time, sel_info =  self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
+            qd_lattice._rate_cache[cache_key] = (rates, final_states, tot_time, sel_info)
+            return qd_lattice._rate_cache[cache_key]
 
         elif self.run.rates_by == "weight":
             theta_pol  = kwargs.pop("theta_pol",  self.run.theta_pol)
             theta_site = kwargs.pop("theta_site", self.run.theta_site)
             if theta_pol is None or theta_site is None:
                 raise ValueError("Need theta_pol and theta_site for weight mode (pass as kwargs or set in RunConfig).")
-            return self._make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info)
+            #return self._make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info)
+            rates, final_states, tot_time, sel_info = self._make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info)
+            qd_lattice._rate_cache[cache_key] = (rates, final_states, tot_time, sel_info)
+            return qd_lattice._rate_cache[cache_key]
 
         else:
             raise ValueError(f"Unknown rates_by: {rates_by!r}")
@@ -206,17 +221,19 @@ class KMCRunner():
         start_pol = qd_lattice.polaron_locs[center_global]
 
         # (2) compute (or reuse) rates
-        if qd_lattice.stored_npolarons_box[center_global] == 0:
-            # compute rates
-            rates, final_states, tot_time, _ = self._make_rates(qd_lattice, 
-                                                                center_global, 
-                                                                r_hop = self.run.r_hop, 
-                                                                r_ove = self.run.r_ove
-                                                                )
-        else:
-            tot_time = 0.0
-            final_states = qd_lattice.stored_polaron_sites[center_global]  
-            rates        = qd_lattice.stored_rate_vectors[center_global]
+        # if qd_lattice.stored_npolarons_box[center_global] == 0:
+        #     # compute rates
+        #     rates, final_states, tot_time, _ = self._make_rates(qd_lattice, 
+        #                                                         center_global#, 
+        #                                                         #r_hop = self.run.r_hop, 
+        #                                                         #r_ove = self.run.r_ove
+        #                                                         )
+        # else:
+        #     tot_time = 0.0
+        #     final_states = qd_lattice.stored_polaron_sites[center_global]  
+        #     rates        = qd_lattice.stored_rate_vectors[center_global]
+        
+        rates, final_states, tot_time, _ = self._make_rates(qd_lattice, center_global)
 
         # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)
