@@ -180,11 +180,11 @@ class KMCRunner():
         # construct a key for caching the rate
         # TODO : for convergence algorithm it is important to add different keys to the cache for different
         # parameters we test (maybe allow caching only for main KMC run!)
-        cache_key = center_global
+        # cache_key = center_global
 
-        # (1) try fetching from cache
-        if cache_key in qd_lattice._rate_cache:
-            return qd_lattice._rate_cache[cache_key]
+        # # (1) try fetching from cache
+        # if cache_key in qd_lattice._rate_cache:
+        #     return qd_lattice._rate_cache[cache_key]
         
         # (2) otherwise, compute rates from scratch and add to cache
         if self.run.rates_by == "radius":
@@ -192,26 +192,26 @@ class KMCRunner():
             r_ove = kwargs.pop("r_ove", self.run.r_ove)
             if r_hop is None or r_ove is None:
                 raise ValueError("Need r_hop and r_ove for radius mode (pass as kwargs or set in RunConfig).")
-            #return self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
-            rates, final_states, tot_time, sel_info =  self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
-            qd_lattice._rate_cache[cache_key] = (rates, final_states, tot_time, sel_info)
-            return qd_lattice._rate_cache[cache_key]
+            return self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
+            # rates, final_states, tot_time, sel_info =  self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
+            # qd_lattice._rate_cache[cache_key] = (rates, final_states, tot_time, sel_info)
+            # return qd_lattice._rate_cache[cache_key]
 
         elif self.run.rates_by == "weight":
             theta_pol  = kwargs.pop("theta_pol",  self.run.theta_pol)
             theta_site = kwargs.pop("theta_site", self.run.theta_site)
             if theta_pol is None or theta_site is None:
                 raise ValueError("Need theta_pol and theta_site for weight mode (pass as kwargs or set in RunConfig).")
-            #return self._make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info)
-            rates, final_states, tot_time, sel_info = self._make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info)
-            qd_lattice._rate_cache[cache_key] = (rates, final_states, tot_time, sel_info)
-            return qd_lattice._rate_cache[cache_key]
+            return self._make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info)
+            # rates, final_states, tot_time, sel_info = self._make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info)
+            # qd_lattice._rate_cache[cache_key] = (rates, final_states, tot_time, sel_info)
+            # return qd_lattice._rate_cache[cache_key]
 
         else:
             raise ValueError(f"Unknown rates_by: {rates_by!r}")
 
 
-    def _make_kmc_step(self, qd_lattice, clock, polaron_start_site, rnd_generator = None):
+    def _make_kmc_step(self, qd_lattice, polaron_start_site, rnd_generator = None):
 
         # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
@@ -233,7 +233,7 @@ class KMCRunner():
         #     final_states = qd_lattice.stored_polaron_sites[center_global]  
         #     rates        = qd_lattice.stored_rate_vectors[center_global]
         
-        rates, final_states, tot_time, _ = self._make_rates(qd_lattice, center_global)
+        rates, final_states, comp_time, _ = self._make_rates(qd_lattice, center_global)
 
         # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)
@@ -251,7 +251,7 @@ class KMCRunner():
         # (4) final polaron position
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
-        return start_pol, end_pol, delta_t, tot_time
+        return start_pol, end_pol, delta_t, comp_time
     
 
     # build realization of QD lattice based on seed 
@@ -371,7 +371,17 @@ class KMCRunner():
         while clock < t_final:
 
             # (4.1) perform a KMC step from start_pol to end_pol
-            _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
+            cache_key = start_pol
+            # try fetching from cache
+            if cache_key in qd_lattice._rate_cache:
+                _, end_pol, delta_t, step_comp_time = qd_lattice._rate_cache[cache_key]
+                step_comp_time = 0.90
+            else:
+                _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
+                # store in cache
+                qd_lattice._rate_cache[cache_key] = (start_pol, end_pol, delta_t, step_comp_time)
+
+            #_, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
             clock += delta_t
             # update computational time
             tot_comp_time += step_comp_time
