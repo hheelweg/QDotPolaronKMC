@@ -361,7 +361,7 @@ class KMCRunner():
         idx0 = (np.random.randint(0, qd_lattice.geom.n_sites) if rng is None
                 else rng.integers(0, qd_lattice.geom.n_sites))
         start_site = qd_lattice.qd_locations[idx0]
-        start_pol  = qd_lattice.polaron_locs[utils.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
+        start_pol  = qd_lattice.polaron_locs[utils.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)][0]
 
         # (3) running positions (unwrapped accumulator + reference)
         trajectory_start = np.asarray(start_pol, dtype=float)           # stores R(0)
