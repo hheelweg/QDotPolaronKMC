@@ -372,7 +372,7 @@ class KMCRunner():
 
             # (4.1) perform a KMC step from start_pol to end_pol
             cache_key = start_pol[0]
-            print('start_pol', start_pol)
+            #print('start_pol', start_pol)
             # try fetching from cache
             if cache_key in qd_lattice._rate_cache:
                 _, end_pol, delta_t, step_comp_time = qd_lattice._rate_cache[cache_key]
