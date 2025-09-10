@@ -27,9 +27,9 @@ def main():
     reorg_nrg = 0.03                            # reorganization energy (units?)
 
     # ---- KMC parameters ---------
-    ntrajs = 50                                 # number of trajectories to compute MSDs over
-    nrealizations = 10                          # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
-    t_final = 10
+    ntrajs = 100                                # number of trajectories to compute MSDs over
+    nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
+    t_final = 2
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
