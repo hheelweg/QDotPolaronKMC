@@ -224,16 +224,13 @@ class KMCRunner():
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # compute rates
             rates, final_states, comp_time, _ = self._make_rates(qd_lattice, 
-                                                                center_global#, 
-                                                                #r_hop = self.run.r_hop, 
-                                                                #r_ove = self.run.r_ove
+                                                                center_global
                                                                 )
         else:
             comp_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  
             rates        = qd_lattice.stored_rate_vectors[center_global]
         
-        #rates, final_states, comp_time, _ = self._make_rates(qd_lattice, center_global)
 
         # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)
@@ -244,8 +241,7 @@ class KMCRunner():
         u2 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
 
         final_idx = int(np.searchsorted(cum_rates, u1 * S))
-        # update clock
-        #clock += -np.log(u2) / S
+        # get delta_t for updating clock
         delta_t = -np.log(u2) / S
 
         # (4) final polaron position
@@ -371,7 +367,7 @@ class KMCRunner():
         while clock < t_final:
 
             # (4.1) perform a KMC step from start_pol to end_pol
-            cache_key = start_pol[0]
+            # cache_key = start_pol[0]
             #print('start_pol', start_pol)
             # try fetching from cache
             # if cache_key in qd_lattice._rate_cache:
@@ -481,7 +477,7 @@ class KMCRunner():
         R = self.run.nrealizations
         times_msds = self._make_time_grid()
         msds = np.zeros((R, len(times_msds)))
-        sim_time = 0.0
+        tot_sim_time = 0.0
 
         # create seeds for lattice realizations, its important to feed them here
         # in order to have parallel execution yield the same results as serial
@@ -511,9 +507,10 @@ class KMCRunner():
                 for fut in as_completed(futs):
                     rid, msd_r, sim_time = fut.result()
                     msds[rid] = msd_r
+                    tot_sim_time += sim_time
         
         # print total time spent on Redfield rates
-        print(print_utils.simulated_time(sim_time))
+        print(print_utils.simulated_time(tot_sim_time))
 
         return times_msds, msds
         
