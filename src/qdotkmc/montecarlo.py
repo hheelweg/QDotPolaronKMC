@@ -229,7 +229,6 @@ class KMCRunner():
                                                                 #r_ove = self.run.r_ove
                                                                 )
         else:
-            print('use cache', flush=True)
             comp_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  
             rates        = qd_lattice.stored_rate_vectors[center_global]
