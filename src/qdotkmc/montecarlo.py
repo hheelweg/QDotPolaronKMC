@@ -238,7 +238,7 @@ class KMCRunner():
         # (4) final polaron position
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
-        return start_pol, end_pol, delta_t, comp_time, time_dict
+        return start_pol, end_pol, delta_t, comp_time
     
 
     # build realization of QD lattice based on seed 
@@ -363,7 +363,7 @@ class KMCRunner():
         while clock < t_final:
 
             # (4.1) perform a KMC step from start_pol to end_pol
-            _, end_pol, delta_t, step_comp_time, time_dict = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng, track_time=False)
+            _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng, track_time=False)
             # update simulated time clock
             clock += delta_t
             # update computational time
