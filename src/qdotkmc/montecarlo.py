@@ -153,7 +153,7 @@ class KMCRunner():
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield(
             pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global,
-            verbosity = True                                                               # NOTE : can change this to True to print comments in make_redfield
+            verbosity = False                                                               # NOTE : can change this to True to print comments in make_redfield
         )
 
         # (3) cache by global center index
@@ -441,6 +441,7 @@ class KMCRunner():
             # run trajectory and resturn squared displacement in unwrapped coordinates
             sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
             simulated_time += comp
+            print('computed time', comp)
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
