@@ -16,6 +16,11 @@ def _one_lattice_worker(args):
 
     geom, dis, bath_cfg, run, exec_plan, times_msds, rid, seed, device_id = args
 
+    from pyinstrument import Profiler
+    rid = args[6]  # assuming this is the realization ID or job ID
+    profiler = Profiler()
+    profiler.start()
+
     # assign device if we selected GPU path (device_id is not None)
     if device_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
@@ -35,6 +40,9 @@ def _one_lattice_worker(args):
                                                      realization_id=rid, 
                                                      seed=seed,
                                                      )
+    
+    profiler.stop()
+    profiler.save(f"worker_profile_{rid}.html")  # each file is unique
     
     return rid, msd_r, sim_time_out
 
@@ -398,7 +406,6 @@ class KMCRunner():
             if time_idx >= times_msds.size:
                 break
         
-        #print('no steps', step_counter)
 
         # NOTE : this was missing before
         # this ensurs tail is filled if loop ended before the last grid point
@@ -448,7 +455,6 @@ class KMCRunner():
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
         
-        print('simulated time per lattice', simulated_time)
 
         return msd, simulated_time
 
