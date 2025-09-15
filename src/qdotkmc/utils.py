@@ -219,16 +219,25 @@ def get_closest_idx(qd_lattice, pos, array, periodic=True):
     """
     assert isinstance(qd_lattice, lattice.QDLattice), 'need to specify valid QDLattice instance.'
 
-    # Vectorized periodic displacement
-    delta = array - pos  # shape (N, dims)
-
-    # Apply periodic boundary condition (minimum image convention)
-    delta -= np.round(delta / qd_lattice.geom.boundary) * qd_lattice.geom.boundary
-
-    # Compute squared distances
+    # use cachie if possible 
+    if (array is qd_lattice.polaron_locs):
+        cache_key = tuple(pos)
+        cache = getattr(qd_lattice, "_closest_polaron_cache", None)
+        if cache_key in cache:
+            return cache[cache_key]
+        
+    # vectorized periodic distance
+    delta = array - pos
+    box = qd_lattice.geom.boundary
+    delta -= np.round(delta / box) * box
     dists_squared = np.sum(delta**2, axis=1)
+    idx = np.argmin(dists_squared)
 
-    return np.argmin(dists_squared)
+    # store to cache if eligible
+    if array is qd_lattice.polaron_locs:
+        cache[cache_key] = idx
+    
+    return idx
 
 
 # NOTE : former montecarlo.KMCRunner.get_disp_vector_matrix 

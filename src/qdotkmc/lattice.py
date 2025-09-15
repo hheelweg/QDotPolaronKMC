@@ -96,6 +96,9 @@ class QDLattice():
         # TODO : maybe remove tot_time here?
         self._rate_cache = {}                           # cache: (center_global) -> (end_pol, clock, step_comp_time)
 
+        # store closes polaron
+        self._closest_polaron_cache = {}
+
 
     # NOTE: old make_qd_array method (basically unchanged)
     def _make_lattice(self):    
