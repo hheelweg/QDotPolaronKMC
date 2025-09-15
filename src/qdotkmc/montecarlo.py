@@ -366,7 +366,8 @@ class KMCRunner():
         trajectory_curr  = trajectory_start.copy()                      # stores R(t)
 
         # TODO : only for debugging
-        track_time = 0.0
+        step_time = 0.0
+        minimage_time = 0.0
         
         # (4) main KMC loop
         while clock < t_final:
@@ -385,12 +386,15 @@ class KMCRunner():
             if clock < t_final:
 
                 # accumulate current position by raw difference
+                start = time.time()
                 trajectory_curr, last_r2 = self._update_displacement_minimage(
                             trajectory_curr, 
                             trajectory_start, 
                             start_pol, end_pol, 
                             box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
                             )
+                end = time.time()
+                minimage_time += end-start
 
                 # add squared displacement at correct position in the times_msds grid
                 inc = np.searchsorted(times_msds[time_idx:], clock)
@@ -415,7 +419,8 @@ class KMCRunner():
             sds[time_idx:] = last_r2
 
 
-        print(f"[TIMER] _run_single_kmc_trajectory took {track_time:.6f} seconds")
+        print(f"[TIMER] _make_kmc_step took {step_time:.6f} seconds")
+        print(f"[TIMER] _update_displacement_minimage {minimage_time:.6f} seconds")
 
         return sds, tot_comp_time
 
