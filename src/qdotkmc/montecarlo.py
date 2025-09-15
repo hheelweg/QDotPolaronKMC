@@ -438,6 +438,7 @@ class KMCRunner():
             # (2) compute compulateive S
             rates, _, _, _ = self._make_rates(qd_lattice, center_global)
             S = np.sum(rates)
+            print('S, rates', S, len(rates))
             # (3) t_final adaptive time horizon
             alpha = 100.0                                       # tweak this based on convergence tests
             t_final_adapt = alpha / S
