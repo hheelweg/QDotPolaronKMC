@@ -31,6 +31,7 @@ def _one_lattice_worker(args):
     msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
                                                      bath=bath, 
                                                      t_final=run.t_final,
+                                                     time_grid_density=run.time_grid_density,
                                                      adaptive_tfinal=run.adaptive_tfinal, 
                                                      times=times_msds,
                                                      realization_id=rid, 
@@ -63,10 +64,11 @@ class KMCRunner():
 
     
     # make join time-grid
-    def _make_time_grid(self):
-        npts = int(self.run.t_final * self.run.time_grid_density)
+    @staticmethod
+    def _make_time_grid(t_final, time_grid_density):
+        npts = int(t_final * time_grid_density)
         npts = max(npts, 2)     # ensure at least 2 points
-        time_grid = np.linspace(0.0, self.run.t_final, npts)
+        time_grid = np.linspace(0.0, t_final, npts)
         return time_grid
     
     # per-realization seed for each (per-QDLattice)
@@ -328,10 +330,10 @@ class KMCRunner():
 
 
     # run a single trajectory for a specified QDLattice
-    def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
+    def _run_single_kmc_trajectory(self, qd_lattice, t_final, time_grid_density, rng = None):
 
         # (0) time grid and per-trajectory buffers for squared displacements
-        times_msds = self._make_time_grid()
+        times_msds = KMCRunner._make_time_grid(t_final, time_grid_density)
         sds = np.zeros_like(times_msds, dtype=float)
 
         # (1) local per-trajectory state
@@ -406,10 +408,12 @@ class KMCRunner():
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
-    def _run_single_lattice(self, ntrajs, bath, t_final, adaptive_tfinal, times, realization_id, seed = None):
+    def _run_single_lattice(self, ntrajs, bath, t_final, time_grid_density, adaptive_tfinal, times, realization_id, seed = None):
 
         # (0) simulated time set to zero for each lattice realization
         simulated_time = 0.0
+
+        #times = 00
 
         print('adaptive ', adaptive_tfinal)
         print('times.shape', times.shape)
@@ -450,25 +454,19 @@ class KMCRunner():
         # (3) initialize mean squared displacement
         msd = np.zeros_like(times)
 
-        # (4) loop through trajectories
-        time_tot_lattice = 0.0
+        # (4) loop through realizations
         for t in range(ntrajs):
             # random generator for trajectory
             rng_traj = default_rng(traj_ss[t])
 
             # run trajectory and resturn squared displacement in unwrapped coordinates
-            start = time.time()
-            sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
-            end = time.time()
-            print(f'times for traj {t}: {end-start:.4f}')
-            time_tot_lattice += end - start
+            sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, time_grid_density, rng_traj)
             simulated_time += comp
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
-        
-        print(f'times for lattice:{time_tot_lattice:.4f}, {simulated_time:.4f}')
+    
         
         return msd, simulated_time
 
@@ -490,7 +488,7 @@ class KMCRunner():
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
         R = self.run.nrealizations
-        times_msds = self._make_time_grid()
+        times_msds = KMCRunner._make_time_grid(self.run.t_final, self.run.time_grid_density)
         msds = np.zeros((R, len(times_msds)))
         tot_sim_time = 0.0
 
@@ -533,12 +531,12 @@ class KMCRunner():
     # serial KMC
     def simulate_kmc_serial(self):
 
-        times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
-        msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
-        sim_time = 0                                                        # simulated time
+        times_msds = KMCRunner._make_time_grid(self.run.t_final, self.run.time_grid_density)        # time ranges to use for computation of msds                                                                 
+        msds = np.zeros((self.run.nrealizations, len(times_msds)))                                  # initialize MSD output
+        sim_time = 0                                                                                # simulated time
 
-        R = self.run.nrealizations                                          # number of QDLattice realizations
-        T = self.run.ntrajs                                                 # number of trajetories per QDLattice realization
+        R = self.run.nrealizations                                                                  # number of QDLattice realizations
+        T = self.run.ntrajs                                                                         # number of trajetories per QDLattice realization
 
         # build bath spectral density (once for all QDLattice realizations!)
         bath = hamiltonian.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
@@ -550,7 +548,8 @@ class KMCRunner():
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
             msd, sim_time = self._run_single_lattice(ntrajs = T,
                                                      bath = bath, 
-                                                     t_final = self.run.t_final, 
+                                                     t_final = self.run.t_final,
+                                                     time_grid_density = self.run.time_grid_density, 
                                                      times = times_msds,
                                                      realization_id = r,
                                                      simulated_time = sim_time

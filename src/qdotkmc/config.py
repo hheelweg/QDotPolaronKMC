@@ -64,6 +64,7 @@ class RunConfig:
 
     ntrajs: int
     nrealizations: int
+    
     t_final: float = 5                      # time for each trajectory (units ?)
     adaptive_tfinal: bool = True            # adaptive t_final based on rates (TODO : add some explanation)
     time_grid_density: int = 100            # points per unit time for MSD time grid
