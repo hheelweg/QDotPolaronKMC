@@ -397,6 +397,8 @@ class KMCRunner():
             # OPTIONAL : avoid doing extra KMC steps when you’ve already filled all requested MSD time points.
             if time_idx >= times_msds.size:
                 break
+        
+        print('no steps', step_counter)
 
         # NOTE : this was missing before
         # this ensurs tail is filled if loop ended before the last grid point
@@ -441,7 +443,6 @@ class KMCRunner():
             # run trajectory and resturn squared displacement in unwrapped coordinates
             sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
             simulated_time += comp
-            print('computed time', comp)
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
