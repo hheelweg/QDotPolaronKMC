@@ -14,7 +14,7 @@ from qdotkmc.backend import Backend
 # top-level worker for a single lattice realization
 def _one_lattice_worker(args):
 
-    geom, dis, bath_cfg, run, exec_plan, times_msds, rid, seed, device_id = args
+    geom, dis, bath_cfg, run, exec_plan, rid, seed, device_id = args
 
     # assign device if we selected GPU path (device_id is not None)
     if device_id is not None:
@@ -33,7 +33,6 @@ def _one_lattice_worker(args):
                                                      t_final=run.t_final,
                                                      time_grid_density=run.time_grid_density,
                                                      adaptive_tfinal=run.adaptive_tfinal, 
-                                                     times=times_msds,
                                                      realization_id=rid, 
                                                      seed=seed,
                                                      )
@@ -408,12 +407,12 @@ class KMCRunner():
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
-    def _run_single_lattice(self, ntrajs, bath, t_final, time_grid_density, adaptive_tfinal, times, realization_id, seed = None):
+    def _run_single_lattice(self, ntrajs, bath, t_final, time_grid_density, adaptive_tfinal, realization_id, seed = None):
 
         # (0) simulated time set to zero for each lattice realization
         simulated_time = 0.0
 
-        #times = 00
+        times = KMCRunner._make_time_grid(t_final, time_grid_density)
 
         print('adaptive ', adaptive_tfinal)
         print('times.shape', times.shape)
@@ -447,6 +446,9 @@ class KMCRunner():
             alpha = 100.0                                       # tweak this based on convergence tests
             t_final_adapt = alpha / S
             print('t_final adaptive', t_final_adapt)
+            # TODO : create MSDS
+            times_adapt = KMCRunner._make_time_grid(t_final_adapt, time_grid_density)
+            print('grid.shape', time_grid_density.shape)
 
         # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
@@ -505,12 +507,12 @@ class KMCRunner():
             for rid in range(R):
                 dev = self.backend.plan.device_ids[rid % len(self.backend.plan.device_ids)]
                 jobs.append((self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
-                            times_msds, rid, seeds[rid], dev))
+                            rid, seeds[rid], dev))
         # (b) CPU path
         else:
             dev = self.backend.plan.device_ids                                              # should be None for CPU path
             jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
-                    times_msds, rid, seeds[rid], dev) for rid in range(R)]
+                    rid, seeds[rid], dev) for rid in range(R)]
         
         # allocate jobs to workers
         # set max_workers to None for GPU path (seems the fastest), and to n_workers for CPU path
