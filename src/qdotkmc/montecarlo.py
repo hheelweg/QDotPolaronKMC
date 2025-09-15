@@ -368,6 +368,7 @@ class KMCRunner():
         # TODO : only for debugging
         step_time = 0.0
         minimage_time = 0.0
+        search_time = 0.0
         
         # (4) main KMC loop
         while clock < t_final:
@@ -397,7 +398,11 @@ class KMCRunner():
                 minimage_time += end-start
 
                 # add squared displacement at correct position in the times_msds grid
+                start = time.time()
                 inc = np.searchsorted(times_msds[time_idx:], clock)
+                end = time.time()
+                search_time += end-start
+
                 time_idx += inc
                 if time_idx < times_msds.size:
                     sds[time_idx:] = last_r2
@@ -420,7 +425,8 @@ class KMCRunner():
 
 
         print(f"[TIMER] _make_kmc_step took {step_time:.6f} seconds")
-        print(f"[TIMER] _update_displacement_minimage {minimage_time:.6f} seconds")
+        print(f"[TIMER] _update_displacement_minimage took {minimage_time:.6f} seconds")
+        print(f"[TIMER] searchsorted took {search_time:.6f} seconds")
 
         return sds, tot_comp_time
 
