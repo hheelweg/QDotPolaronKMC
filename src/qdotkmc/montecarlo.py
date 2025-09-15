@@ -412,6 +412,7 @@ class KMCRunner():
         simulated_time = 0.0
 
         print('adaptive ', adaptive_tfinal)
+        print('times.shape', times.shape)
 
         # TODO : just for debugging, remove this later
         import time
