@@ -30,7 +30,8 @@ def _one_lattice_worker(args):
     # run KMC on sinfle lattice realization
     msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
                                                      bath=bath, 
-                                                     t_final=run.t_final, 
+                                                     t_final=run.t_final,
+                                                     adaptive_tfinal=run.adaptive_tfinal, 
                                                      times=times_msds,
                                                      realization_id=rid, 
                                                      seed=seed,
@@ -329,8 +330,6 @@ class KMCRunner():
     # run a single trajectory for a specified QDLattice
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
 
-        import time
-
         # (0) time grid and per-trajectory buffers for squared displacements
         times_msds = self._make_time_grid()
         sds = np.zeros_like(times_msds, dtype=float)
@@ -354,11 +353,7 @@ class KMCRunner():
         trajectory_start = np.asarray(start_pol, dtype=float)           # stores R(0)
         trajectory_curr  = trajectory_start.copy()                      # stores R(t)
 
-        # # TODO : only for debugging, remove this moving forward
-        # step_time = 0.0
-        # minimage_time = 0.0
-        # idx_time, rates_time, search_time = 0.0, 0.0, 0.0
-        
+
         # (4) main KMC loop
         while clock < t_final:
 
@@ -404,21 +399,22 @@ class KMCRunner():
             sds[time_idx:] = last_r2
 
 
-        # print(f"[TIMER] _make_kmc_step took {step_time:.6f} seconds")
-        # print(f"[TIMER] idx took {idx_time:.6f} seconds")
-        # print(f"[TIMER] rates took {rates_time:.6f} seconds")
-        # print(f"[TIMER] search took {search_time:.6f} seconds")
-        # print(f"[TIMER] _update_displacement_minimage took {minimage_time:.6f} seconds")
+        # step counter
         print(f"[STEP_COUNT] did {step_counter} steps")
 
         return sds, tot_comp_time
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
-    def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, seed = None):
+    def _run_single_lattice(self, ntrajs, bath, t_final, adaptive_tfinal, times, realization_id, seed = None):
 
         # (0) simulated time set to zero for each lattice realization
         simulated_time = 0.0
+
+        print('adaptive ', adaptive_tfinal)
+
+        # TODO : just for debugging, remove this later
+        import time
 
         # (1) build QDLattice realization based on seed
         # (1.1) get random seef from realization id (rid), if no seed already specified
@@ -427,15 +423,13 @@ class KMCRunner():
         else:
             rnd_seed = seed
         # (1.2) build QDLattice according to rnd_seed
-        import time
-        start = time.time()
         qd_lattice, real_seed = KMCRunner._build_grid_realization(geom = self.geom,
                                                                   dis = self.dis, 
                                                                   bath = bath, 
                                                                   seed = rnd_seed,
                                                                   backend = self.backend)
-        end = time.time()
-        print(f"time to construct lattice: {end-start:.4f}")
+        
+        # (1.3) set trajectory t_final
 
         # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
@@ -463,7 +457,6 @@ class KMCRunner():
         
         print(f'times for lattice:{time_tot_lattice:.4f}, {simulated_time:.4f}')
         
-
         return msd, simulated_time
 
     # execute parallel if available based on max_worker (otherwise serial)
