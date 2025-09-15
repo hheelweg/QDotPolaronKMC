@@ -211,24 +211,21 @@ class KMCRunner():
             raise ValueError(f"Unknown rates_by: {rates_by!r}")
 
 
-    def _make_kmc_step(self, qd_lattice, polaron_start_site, rnd_generator = None):
+    def _make_kmc_step(self, qd_lattice, polaron_start_site, rnd_generator = None, track_time = False):
 
         # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
 
         # TODO : remove this (just for debugging)
-        import time
-        time_dict = {}
+        if track_time:
+            import time
+            time_dict = {'idx': 0.0, 'rates': 0.0, 'search': 0.0}
 
         # (1) start polarong (global) idx and location 
-        start = time.time()
         center_global = utils.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.polaron_locs)
-        end = time.time()
-        time_dict['idx'] = end - start
         start_pol = qd_lattice.polaron_locs[center_global]
 
         # (2) compute (or reuse) rates
-        start = time.time()
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # compute rates
             rates, final_states, comp_time, _ = self._make_rates(qd_lattice, 
@@ -239,8 +236,6 @@ class KMCRunner():
             final_states = qd_lattice.stored_polaron_sites[center_global]  
             rates        = qd_lattice.stored_rate_vectors[center_global]
         
-        end = time.time()
-        time_dict['rates'] = end - start
 
         # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)
@@ -250,10 +245,7 @@ class KMCRunner():
         u1 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
         u2 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
 
-        start = time.time()
         final_idx = int(np.searchsorted(cum_rates, u1 * S))
-        end = time.time()
-        time_dict['search'] = end-start
         # get delta_t for updating clock
         delta_t = -np.log(u2) / S
 
@@ -362,7 +354,8 @@ class KMCRunner():
         step_counter = 0                        # counter of KMC steps
         time_idx = 0
         last_r2 = 0.0                           # last know squared displacement
-        tot_comp_time = 0.0                     # NOTE : this is only for debugging and tracking computational time
+        tot_comp_time = 0.0                     # NOTE : this is only for debugging and tracking computational time of the RATES
+                                                # other trajectory computation are not factored in here!
 
 
         # (2) draw initial center uniformly in site basis and map to nearest polaron
@@ -375,43 +368,32 @@ class KMCRunner():
         trajectory_start = np.asarray(start_pol, dtype=float)           # stores R(0)
         trajectory_curr  = trajectory_start.copy()                      # stores R(t)
 
-        # TODO : only for debugging
-        step_time = 0.0
-        minimage_time = 0.0
-        idx_time, rates_time, search_time = 0.0, 0.0, 0.0
-        
+        # # TODO : only for debugging, remove this moving forward
+        # step_time = 0.0
+        # minimage_time = 0.0
+        # idx_time, rates_time, search_time = 0.0, 0.0, 0.0
         
         # (4) main KMC loop
         while clock < t_final:
 
             # (4.1) perform a KMC step from start_pol to end_pol
-            start = time.time()
-            _, end_pol, delta_t, step_comp_time, time_dict = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
-            end = time.time()
-            step_time += end-start
+            _, end_pol, delta_t, step_comp_time, time_dict = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng, track_time=False)
             # update simulated time clock
             clock += delta_t
             # update computational time
             tot_comp_time += step_comp_time
-            # update KMC-step based times
-            idx_time += time_dict['idx']
-            rates_time += time_dict['rates']
-            search_time += time_dict['search']
 
 
             # (4.2) accumulate current position as long as we have not exceeded t_final yet
             if clock < t_final:
 
                 # accumulate current position by raw difference
-                start = time.time()
                 trajectory_curr, last_r2 = self._update_displacement_minimage(
                             trajectory_curr, 
                             trajectory_start, 
                             start_pol, end_pol, 
                             box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
                             )
-                end = time.time()
-                minimage_time += end-start
 
                 # add squared displacement at correct position in the times_msds grid
                 inc = np.searchsorted(times_msds[time_idx:], clock)
