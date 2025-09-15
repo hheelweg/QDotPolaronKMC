@@ -417,7 +417,7 @@ class KMCRunner():
                             trajectory_curr, 
                             trajectory_start, 
                             start_pol, end_pol, 
-                            box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
+                            box_lengths=qd_lattice.geom.lattice_dimension, periodic_flags=True
                             )
                 end = time.time()
                 minimage_time += end-start
