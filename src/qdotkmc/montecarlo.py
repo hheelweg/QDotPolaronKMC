@@ -342,7 +342,6 @@ class KMCRunner():
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
 
         import time
-        start_time = time.perf_counter()
 
         # (0) time grid and per-trajectory buffers for squared displacements
         times_msds = self._make_time_grid()
@@ -365,12 +364,18 @@ class KMCRunner():
         # (3) running positions (unwrapped accumulator + reference)
         trajectory_start = np.asarray(start_pol, dtype=float)           # stores R(0)
         trajectory_curr  = trajectory_start.copy()                      # stores R(t)
+
+        # TODO : only for debugging
+        track_time = 0.0
         
         # (4) main KMC loop
         while clock < t_final:
 
             # (4.1) perform a KMC step from start_pol to end_pol
+            start = time.time()
             _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
+            end = time.time()
+            track_time += end-start
             # update simulated time clock
             clock += delta_t
             # update computational time
@@ -409,9 +414,8 @@ class KMCRunner():
         if time_idx < times_msds.size:
             sds[time_idx:] = last_r2
 
-        end_time = time.perf_counter()
-        duration = end_time - start_time
-        # print(f"[TIMER] _run_single_kmc_trajectory took {duration:.6f} seconds")
+
+        print(f"[TIMER] _run_single_kmc_trajectory took {track_time:.6f} seconds")
 
         return sds, tot_comp_time
 
@@ -455,6 +459,7 @@ class KMCRunner():
             start = time.time()
             sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
             end = time.time()
+            print(f'times for traj {t}: {time_tot_lattice:.4f}')
             time_tot_lattice += end - start
             simulated_time += comp
 
