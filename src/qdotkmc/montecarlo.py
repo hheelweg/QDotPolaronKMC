@@ -447,7 +447,7 @@ class KMCRunner():
             start = time.time()
             sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
             end = time.time()
-            print(f'times for traj {t}:{end-start:.4f}')
+            print(f'times for traj {t}:{end-start:.4f}, {comp:.4f}')
             simulated_time += comp
 
             # streaming mean over trajectories (same as before)
