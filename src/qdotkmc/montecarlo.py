@@ -14,7 +14,7 @@ from qdotkmc.backend import Backend
 # top-level worker for a single lattice realization
 def _one_lattice_worker(args):
 
-    geom, dis, bath_cfg, run, exec_plan, times_msds, rid, sim_time, seed, device_id = args
+    geom, dis, bath_cfg, run, exec_plan, times_msds, rid, seed, device_id = args
 
     # assign device if we selected GPU path (device_id is not None)
     if device_id is not None:
@@ -33,7 +33,6 @@ def _one_lattice_worker(args):
                                                      t_final=run.t_final, 
                                                      times=times_msds,
                                                      realization_id=rid, 
-                                                     simulated_time=sim_time, 
                                                      seed=seed,
                                                      )
     return rid, msd_r, sim_time_out
@@ -421,7 +420,10 @@ class KMCRunner():
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
-    def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, simulated_time, seed = None):
+    def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, seed = None):
+
+        # (0) simulated time set to zero for each lattice realization
+        simulated_time = 0.0
 
         # (1) build QDLattice realization based on seed
         # (1.1) get random seef from realization id (rid), if no seed already specified
@@ -492,12 +494,12 @@ class KMCRunner():
             for rid in range(R):
                 dev = self.backend.plan.device_ids[rid % len(self.backend.plan.device_ids)]
                 jobs.append((self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
-                            times_msds, rid, sim_time, seeds[rid], dev))
+                            times_msds, rid, seeds[rid], dev))
         # (b) CPU path
         else:
             dev = self.backend.plan.device_ids                                              # should be None for CPU path
             jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
-                    times_msds, rid, sim_time, seeds[rid], dev) for rid in range(R)]
+                    times_msds, rid, seeds[rid], dev) for rid in range(R)]
         
         # allocate jobs to workers
         # set max_workers to None for GPU path (seems the fastest), and to n_workers for CPU path
