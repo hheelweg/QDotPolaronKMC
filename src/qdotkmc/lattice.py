@@ -92,10 +92,6 @@ class QDLattice():
         # intialize backend for QDLattice (GPU/CPU)
         self.backend = None
 
-        # intialize rates cache
-        # TODO : maybe remove tot_time here?
-        self._rate_cache = {}                           # cache: (center_global) -> (end_pol, clock, step_comp_time)
-
         # store closes polaron
         self._closest_polaron_cache = {}
 
