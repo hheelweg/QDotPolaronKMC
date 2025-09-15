@@ -42,7 +42,10 @@ def _one_lattice_worker(args):
                                                      )
     
     profiler.stop()
-    profiler.save(f"worker_profile_{rid}.html")  # each file is unique
+    submit_dir = os.environ.get("SLURM_SUBMIT_DIR", os.getcwd()) 
+    output_path = os.path.join(submit_dir, f'worker_profile_{rid}.txt')
+    with open(output_path, "w") as f:
+        f.write(profiler.output_text(unicode=True, color=False))
     
     return rid, msd_r, sim_time_out
 
