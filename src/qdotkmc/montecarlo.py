@@ -319,11 +319,11 @@ class KMCRunner():
             || R(t + Δt) - R(0) ||^2, i.e., squared net displacement
             from the start, in unwrapped space.
         """
-        # Assume inputs are already float64 1D arrays of same shape
+        # assume inputs are already float64 1D arrays of same shape
         delta = end_pol - start_pol
 
-        # Vectorized minimum image convention
-        # Handles both scalar and array-valued box_lengths
+        # vectorized minimum image convention
+        # handles both scalar and array-valued box_lengths
         L = box_lengths if np.ndim(box_lengths) else np.full_like(delta, box_lengths)
 
         # periodic mask
@@ -338,10 +338,10 @@ class KMCRunner():
             delta[periodic] = delta_p - L_p * np.round(delta_p / L_p)
         # else: no periodic axes
 
-        # Update current unwrapped position
+        # update current unwrapped position
         new_curr = trajectory_curr + delta
 
-        # Squared displacement from origin
+        # squared displacement from origin
         diff = new_curr - trajectory_start
         r2 = np.dot(diff, diff)
 
@@ -410,13 +410,6 @@ class KMCRunner():
                             start_pol, end_pol, 
                             box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
                             )
-                # # numba acceleration
-                # trajectory_curr, last_r2 = utils.update_displacement_minimage_numba(
-                #             trajectory_curr, 
-                #             trajectory_start, 
-                #             start_pol, end_pol, 
-                #             box_lengths=qd_lattice.geom.lattice_dimension, periodic_flags=[True, True]
-                #             )
                 end = time.time()
                 minimage_time += end-start
 
@@ -444,9 +437,9 @@ class KMCRunner():
 
 
         print(f"[TIMER] _make_kmc_step took {step_time:.6f} seconds")
-        print(f"[TIMER] idx took {idx_time:.6f} seconds")
-        print(f"[TIMER] rates took {rates_time:.6f} seconds")
-        print(f"[TIMER] search took {search_time:.6f} seconds")
+        # print(f"[TIMER] idx took {idx_time:.6f} seconds")
+        # print(f"[TIMER] rates took {rates_time:.6f} seconds")
+        # print(f"[TIMER] search took {search_time:.6f} seconds")
         print(f"[TIMER] _update_displacement_minimage took {minimage_time:.6f} seconds")
 
         return sds, tot_comp_time
