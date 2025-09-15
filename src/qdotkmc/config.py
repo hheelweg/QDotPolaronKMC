@@ -66,7 +66,7 @@ class RunConfig:
     nrealizations: int
     t_final: float = 5                      # time for each trajectory (units ?)
     adaptive_tfinal: bool = True            # adaptive t_final based on rates (TODO : add some explanation)
-    time_grid_density: int = 200            # points per unit time for MSD time grid
+    time_grid_density: int = 100            # points per unit time for MSD time grid
 
     # mode selector to compute rates in KMC 
     # the selection here determines the simplification scheme for the Redfield rates
