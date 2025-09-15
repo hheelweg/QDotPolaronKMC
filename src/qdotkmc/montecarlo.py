@@ -430,7 +430,7 @@ class KMCRunner():
                                                                   seed = rnd_seed,
                                                                   backend = self.backend)
         end = time.time()
-        print(f"time to construc Lattice: {end-start:.4f}")
+        print(f"time to construct lattice: {end-start:.4f}")
 
         # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
@@ -444,7 +444,10 @@ class KMCRunner():
             rng_traj = default_rng(traj_ss[t])
 
             # run trajectory and resturn squared displacement in unwrapped coordinates
+            start = time.time()
             sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
+            end = time.time()
+            print(f'times for traj {t}:{end-start:.4f}')
             simulated_time += comp
 
             # streaming mean over trajectories (same as before)
