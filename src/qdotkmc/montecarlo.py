@@ -473,7 +473,7 @@ class KMCRunner():
             start = time.time()
             sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
             end = time.time()
-            print(f'times for traj {t}: {time_tot_lattice:.4f}')
+            print(f'times for traj {t}: {end-start:.4f}')
             time_tot_lattice += end - start
             simulated_time += comp
 
