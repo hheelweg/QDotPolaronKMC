@@ -436,11 +436,12 @@ class KMCRunner():
             sds[time_idx:] = last_r2
 
 
-        print(f"[TIMER] _make_kmc_step took {step_time:.6f} seconds")
+        # print(f"[TIMER] _make_kmc_step took {step_time:.6f} seconds")
         # print(f"[TIMER] idx took {idx_time:.6f} seconds")
         # print(f"[TIMER] rates took {rates_time:.6f} seconds")
         # print(f"[TIMER] search took {search_time:.6f} seconds")
-        print(f"[TIMER] _update_displacement_minimage took {minimage_time:.6f} seconds")
+        # print(f"[TIMER] _update_displacement_minimage took {minimage_time:.6f} seconds")
+        print(f"[STEP_COUNT] did {step_counter} steps")
 
         return sds, tot_comp_time
 
@@ -592,6 +593,7 @@ class KMCRunner():
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
     # NOTE : this can likely be deleted as it not doing much, which we couldn't implement directly
+    # NOTE : note that we have changed get_closest_idx (09/15) so might want to account for that
     @staticmethod
     def _get_box(qd_lattice, center, box_length, periodic=True):
 
