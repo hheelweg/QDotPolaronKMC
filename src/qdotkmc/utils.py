@@ -222,9 +222,8 @@ def get_closest_idx(qd_lattice, pos, array, periodic=True):
     # use cachie if possible 
     if (array is qd_lattice.polaron_locs):
         cache_key = tuple(pos)
-        cache = getattr(qd_lattice, "_closest_polaron_cache", None)
-        if cache_key in cache:
-            return cache[cache_key]
+        if cache_key in qd_lattice._closest_polaron_cache:
+            return qd_lattice._closest_polaron_cache[cache_key]
         
     # vectorized periodic distance
     delta = array - pos
@@ -233,9 +232,8 @@ def get_closest_idx(qd_lattice, pos, array, periodic=True):
     dists_squared = np.sum(delta**2, axis=1)
     idx = np.argmin(dists_squared)
 
-    # store to cache if eligible
-    if array is qd_lattice.polaron_locs:
-        cache[cache_key] = idx
+    # store to cache
+    qd_lattice._closest_polaron_cache[cache_key] = idx
     
     return idx
 
