@@ -398,7 +398,7 @@ class KMCRunner():
             if time_idx >= times_msds.size:
                 break
         
-        print('no steps', step_counter)
+        #print('no steps', step_counter)
 
         # NOTE : this was missing before
         # this ensurs tail is filled if loop ended before the last grid point
@@ -447,6 +447,8 @@ class KMCRunner():
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
+        
+        print('simulated time per lattice', simulated_time)
 
         return msd, simulated_time
 
