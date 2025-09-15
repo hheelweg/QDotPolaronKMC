@@ -16,11 +16,6 @@ def _one_lattice_worker(args):
 
     geom, dis, bath_cfg, run, exec_plan, times_msds, rid, seed, device_id = args
 
-    from pyinstrument import Profiler
-    rid = args[6]  # assuming this is the realization ID or job ID
-    profiler = Profiler(async_mode='disabled')
-    profiler.start()
-
     # assign device if we selected GPU path (device_id is not None)
     if device_id is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
@@ -40,12 +35,6 @@ def _one_lattice_worker(args):
                                                      realization_id=rid, 
                                                      seed=seed,
                                                      )
-    
-    profiler.stop()
-    submit_dir = os.environ.get("SLURM_SUBMIT_DIR", os.getcwd()) 
-    output_path = os.path.join(submit_dir, f'worker_profile_{rid}.txt')
-    with open(output_path, "w") as f:
-        f.write(profiler.output_text(unicode=True, color=False))
     
     return rid, msd_r, sim_time_out
 
@@ -433,11 +422,15 @@ class KMCRunner():
         else:
             rnd_seed = seed
         # (1.2) build QDLattice according to rnd_seed
+        import time
+        start = time.time()
         qd_lattice, real_seed = KMCRunner._build_grid_realization(geom = self.geom,
                                                                   dis = self.dis, 
                                                                   bath = bath, 
                                                                   seed = rnd_seed,
                                                                   backend = self.backend)
+        end = time.time()
+        print(f"time to construc Lattice: {end-start:.4f}")
 
         # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
