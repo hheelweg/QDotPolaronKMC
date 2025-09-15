@@ -439,11 +439,10 @@ class KMCRunner():
             rates, _, _, _ = self._make_rates(qd_lattice, center_global)
             S = np.sum(rates)
             print('S, rates', S, len(rates))
-            print('rates', rates)
             # (3) t_final adaptive time horizon
             alpha = 100.0                                       # tweak this based on convergence tests
             t_final_adapt = alpha / S
-            print('t_final adaptive', int(t_final_adapt))
+            print('t_final adaptive', t_final_adapt)
 
         # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
