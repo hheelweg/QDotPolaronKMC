@@ -18,7 +18,7 @@ def _one_lattice_worker(args):
 
     from pyinstrument import Profiler
     rid = args[6]  # assuming this is the realization ID or job ID
-    profiler = Profiler()
+    profiler = Profiler(async_mode='disabled')
     profiler.start()
 
     # assign device if we selected GPU path (device_id is not None)
