@@ -329,10 +329,10 @@ class KMCRunner():
 
 
     # run a single trajectory for a specified QDLattice
-    def _run_single_kmc_trajectory(self, qd_lattice, t_final, time_grid_density, rng = None):
+    def _run_single_kmc_trajectory(self, qd_lattice, t_final, times_msds, rng = None):
 
         # (0) time grid and per-trajectory buffers for squared displacements
-        times_msds = KMCRunner._make_time_grid(t_final, time_grid_density)
+        # times_msds = KMCRunner._make_time_grid(t_final, time_grid_density)
         sds = np.zeros_like(times_msds, dtype=float)
 
         # (1) local per-trajectory state
@@ -412,6 +412,7 @@ class KMCRunner():
         # (0) simulated time set to zero for each lattice realization
         simulated_time = 0.0
 
+        # NOTE : make this adaptive 
         times = KMCRunner._make_time_grid(t_final, time_grid_density)
 
         print('adaptive ', adaptive_tfinal)
@@ -462,7 +463,7 @@ class KMCRunner():
             rng_traj = default_rng(traj_ss[t])
 
             # run trajectory and resturn squared displacement in unwrapped coordinates
-            sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, time_grid_density, rng_traj)
+            sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, times, rng_traj)
             simulated_time += comp
 
             # streaming mean over trajectories (same as before)
@@ -470,7 +471,7 @@ class KMCRunner():
             msd = (1.0 - w) * msd + w * sds
     
         
-        return msd, simulated_time
+        return times, msd, simulated_time
 
     # execute parallel if available based on max_worker (otherwise serial)
     def _simulate_kmc(self):
@@ -552,7 +553,6 @@ class KMCRunner():
                                                      bath = bath, 
                                                      t_final = self.run.t_final,
                                                      time_grid_density = self.run.time_grid_density, 
-                                                     times = times_msds,
                                                      realization_id = r,
                                                      simulated_time = sim_time
                                                      )
