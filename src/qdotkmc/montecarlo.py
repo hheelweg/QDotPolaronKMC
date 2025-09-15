@@ -28,7 +28,7 @@ def _one_lattice_worker(args):
     bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
 
     # run KMC on sinfle lattice realization
-    msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
+    times_r, msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
                                                      bath=bath, 
                                                      t_final=run.t_final,
                                                      time_grid_density=run.time_grid_density,
@@ -37,7 +37,7 @@ def _one_lattice_worker(args):
                                                      seed=seed,
                                                      )
     
-    return rid, msd_r, sim_time_out
+    return rid, times_r, msd_r, sim_time_out
 
 
 class KMCRunner():
@@ -470,7 +470,6 @@ class KMCRunner():
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
     
-        
         return times, msd, simulated_time
 
     # execute parallel if available based on max_worker (otherwise serial)
@@ -521,7 +520,7 @@ class KMCRunner():
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
-                    rid, msd_r, sim_time = fut.result()
+                    rid, times_r, msd_r, sim_time = fut.result()
                     msds[rid] = msd_r
                     tot_sim_time += sim_time
         
@@ -549,13 +548,13 @@ class KMCRunner():
         for r in range(R):
 
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
-            msd, sim_time = self._run_single_lattice(ntrajs = T,
-                                                     bath = bath, 
-                                                     t_final = self.run.t_final,
-                                                     time_grid_density = self.run.time_grid_density, 
-                                                     realization_id = r,
-                                                     simulated_time = sim_time
-                                                     )
+            times, msd, sim_time = self._run_single_lattice(ntrajs = T,
+                                                            bath = bath, 
+                                                            t_final = self.run.t_final,
+                                                            time_grid_density = self.run.time_grid_density, 
+                                                            realization_id = r,
+                                                            simulated_time = sim_time
+                                                            )
                 
             # store mean squared displacement for QDLattice realization r
             msds[r] = msd
