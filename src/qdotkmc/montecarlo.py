@@ -411,7 +411,7 @@ class KMCRunner():
 
         end_time = time.perf_counter()
         duration = end_time - start_time
-        print(f"[TIMER] _run_single_kmc_trajectory took {duration:.6f} seconds")
+        # print(f"[TIMER] _run_single_kmc_trajectory took {duration:.6f} seconds")
 
         return sds, tot_comp_time
 
@@ -446,6 +446,7 @@ class KMCRunner():
         msd = np.zeros_like(times)
 
         # (4) loop through trajectories
+        time_tot_lattice = 0.0
         for t in range(ntrajs):
             # random generator for trajectory
             rng_traj = default_rng(traj_ss[t])
@@ -454,12 +455,14 @@ class KMCRunner():
             start = time.time()
             sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
             end = time.time()
-            print(f'times for traj {t}:{end-start:.4f}, {comp:.4f}')
+            time_tot_lattice += end - start
             simulated_time += comp
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
+        
+        print(f'times for lattice:{time_tot_lattice:.4f}, {simulated_time:.4f}')
         
 
         return msd, simulated_time
