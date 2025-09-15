@@ -341,6 +341,9 @@ class KMCRunner():
     # run a single trajectory for a specified QDLattice
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
 
+        import time
+        start_time = time.perf_counter()
+
         # (0) time grid and per-trajectory buffers for squared displacements
         times_msds = self._make_time_grid()
         sds = np.zeros_like(times_msds, dtype=float)
@@ -405,6 +408,10 @@ class KMCRunner():
         # without this, the later entries in sds would stay at zero, which would artificially drop the average MSD in those bins
         if time_idx < times_msds.size:
             sds[time_idx:] = last_r2
+
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        print(f"[TIMER] _run_single_kmc_trajectory took {duration:.6f} seconds")
 
         return sds, tot_comp_time
 
