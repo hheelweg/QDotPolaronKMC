@@ -14,10 +14,6 @@ from qdotkmc.backend import Backend
 # top-level worker for a single lattice realization
 def _one_lattice_worker(args):
 
-    from pyinstrument import Profiler
-    profiler = Profiler()
-    profiler.start()
-
     geom, dis, bath_cfg, run, exec_plan, times_msds, rid, seed, device_id = args
 
     # assign device if we selected GPU path (device_id is not None)
@@ -40,9 +36,6 @@ def _one_lattice_worker(args):
                                                      seed=seed,
                                                      )
     
-    profiler.stop()
-    profiler.save(f"worker_profile_{args[-3]}.html")
-
     return rid, msd_r, sim_time_out
 
 
@@ -160,7 +153,7 @@ class KMCRunner():
         # (2) compute rates on those exact indices (no re-derivation)
         rates, final_states, tot_time = qd_lattice.redfield.make_redfield(
             pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global,
-            verbosity = False                                                               # NOTE : can change this to True to print comments in make_redfield
+            verbosity = True                                                               # NOTE : can change this to True to print comments in make_redfield
         )
 
         # (3) cache by global center index
