@@ -320,7 +320,6 @@ class KMCRunner():
             from the start, in unwrapped space.
         """
         # Assume inputs are already float64 1D arrays of same shape
-        print('accelerated version')
         delta = end_pol - start_pol
 
         # Vectorized minimum image convention
