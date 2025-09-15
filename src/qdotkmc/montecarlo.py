@@ -448,7 +448,7 @@ class KMCRunner():
             print('t_final adaptive', t_final_adapt)
             # TODO : create MSDS
             times_adapt = KMCRunner._make_time_grid(t_final_adapt, time_grid_density)
-            print('grid.shape', time_grid_density.shape)
+            print('grid.shape', times_adapt.shape)
 
         # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
