@@ -319,36 +319,33 @@ class KMCRunner():
             || R(t + Δt) - R(0) ||^2, i.e., squared net displacement
             from the start, in unwrapped space.
         """
-        # ensure 1D vectors
-        start_pol = np.atleast_1d(np.asarray(start_pol, dtype=float))
-        end_pol   = np.atleast_1d(np.asarray(end_pol, dtype=float))
-        curr      = np.atleast_1d(np.asarray(trajectory_curr, dtype=float))
-        start0    = np.atleast_1d(np.asarray(trajectory_start, dtype=float))
-
-        # raw hop vector in box coordinates
+        # Assume inputs are already float64 1D arrays of same shape
         delta = end_pol - start_pol
 
-        # box lengths per dimension (broadcast a scalar if needed)
-        L = np.atleast_1d(np.asarray(box_lengths, dtype=float))
+        # Vectorized minimum image convention
+        # Handles both scalar and array-valued box_lengths
+        L = box_lengths if np.ndim(box_lengths) else np.full_like(delta, box_lengths)
 
-        # set periodic axes
-        if periodic is None:
-            periodic = np.ones(L.shape, dtype=bool)
-        else:
+        # periodic mask
+        if periodic is True:
+            # All periodic
+            delta -= L * np.round(delta / L)
+        elif periodic is not None:
+            # Partial periodicity
             periodic = np.asarray(periodic, dtype=bool)
-
-        # for each periodic dimension d: Δ_d ← Δ_d − L_d * round(Δ_d / L_d)
-        # this maps any hop across a boundary to the nearest periodic image
-        if np.any(periodic):
-            delta_p = delta[periodic]
             L_p = L[periodic]
+            delta_p = delta[periodic]
             delta[periodic] = delta_p - L_p * np.round(delta_p / L_p)
+        # else: no periodic axes
 
-        # accumulate the unwrapped displacement R(t) ← R(t) + Δr
-        new_curr = curr + delta
-        # squared net displacement from the start (unwrapped)
-        diff = new_curr - start0
-        return new_curr, float(np.dot(diff, diff))
+        # Update current unwrapped position
+        new_curr = trajectory_curr + delta
+
+        # Squared displacement from origin
+        diff = new_curr - trajectory_start
+        r2 = np.dot(diff, diff)
+
+        return new_curr, r2
 
 
     # run a single trajectory for a specified QDLattice
@@ -407,18 +404,19 @@ class KMCRunner():
 
                 # accumulate current position by raw difference
                 start = time.time()
-                # trajectory_curr, last_r2 = self._update_displacement_minimage(
-                #             trajectory_curr, 
-                #             trajectory_start, 
-                #             start_pol, end_pol, 
-                #             box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
-                #             )
-                trajectory_curr, last_r2 = utils.update_displacement_minimage_numba(
+                trajectory_curr, last_r2 = self._update_displacement_minimage(
                             trajectory_curr, 
                             trajectory_start, 
                             start_pol, end_pol, 
-                            box_lengths=qd_lattice.geom.lattice_dimension, periodic_flags=[True, True]
+                            box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
                             )
+                # # numba acceleration
+                # trajectory_curr, last_r2 = utils.update_displacement_minimage_numba(
+                #             trajectory_curr, 
+                #             trajectory_start, 
+                #             start_pol, end_pol, 
+                #             box_lengths=qd_lattice.geom.lattice_dimension, periodic_flags=[True, True]
+                #             )
                 end = time.time()
                 minimage_time += end-start
 
