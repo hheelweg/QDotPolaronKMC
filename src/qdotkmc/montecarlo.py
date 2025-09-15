@@ -429,7 +429,18 @@ class KMCRunner():
                                                                   seed = rnd_seed,
                                                                   backend = self.backend)
         
-        # (1.3) set trajectory t_final
+        # (1.3) set trajectory t_final adaptively
+        if adaptive_tfinal:
+            # (1) pick random 
+            center_site = qd_lattice.qd_locations[0]            # or pick some canonical start (TODO: feed random number)
+            center_global = utils.get_closest_idx(qd_lattice, center_site, qd_lattice.polaron_locs)
+            # (2) compute compulateive S
+            rates, _, _, _ = self._make_rates(qd_lattice, center_global)
+            S = np.sum(rates)
+            # (3) t_final adaptive time horizon
+            alpha = 100.0                                       # tweak this based on convergence tests
+            t_final_adapt = alpha / S
+            print('t_final adaptive', int(t_final_adapt))
 
         # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
