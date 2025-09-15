@@ -3,6 +3,7 @@ import scipy.linalg as la
 import pandas as pd
 from typing import Tuple
 from threadpoolctl import threadpool_limits
+from numba import njit
 from . import lattice
 
 
@@ -237,6 +238,18 @@ def get_closest_idx(qd_lattice, pos, array, periodic=True):
     
     return idx
 
+
+@njit
+def update_displacement_minimage_numba(curr, start0, start_pol, end_pol, box_lengths, periodic_flags):
+    delta = end_pol - start_pol
+    for d in range(delta.size):
+        if periodic_flags[d]:
+            Ld = box_lengths[d]
+            delta[d] = delta[d] - Ld * round(delta[d] / Ld)
+    new_curr = curr + delta
+    diff = new_curr - start0
+    sq_displacement = np.dot(diff, diff)
+    return new_curr, sq_displacement
 
 # NOTE : former montecarlo.KMCRunner.get_disp_vector_matrix 
 def get_pairwise_displacements(qd_pos, boundary):

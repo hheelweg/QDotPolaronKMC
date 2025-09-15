@@ -407,7 +407,13 @@ class KMCRunner():
 
                 # accumulate current position by raw difference
                 start = time.time()
-                trajectory_curr, last_r2 = self._update_displacement_minimage(
+                # trajectory_curr, last_r2 = self._update_displacement_minimage(
+                #             trajectory_curr, 
+                #             trajectory_start, 
+                #             start_pol, end_pol, 
+                #             box_lengths=qd_lattice.geom.lattice_dimension, periodic=True
+                #             )
+                trajectory_curr, last_r2 = utils.update_displacement_minimage_numba(
                             trajectory_curr, 
                             trajectory_start, 
                             start_pol, end_pol, 
