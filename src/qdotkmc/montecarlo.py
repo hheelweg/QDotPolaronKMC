@@ -216,11 +216,19 @@ class KMCRunner():
         # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
 
+        # TODO : remove this (just for debugging)
+        import time
+        time_dict = {}
+
         # (1) start polarong (global) idx and location 
+        start = time.time()
         center_global = utils.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.polaron_locs)
+        end = time.time()
+        time_dict['idx'] = end - start
         start_pol = qd_lattice.polaron_locs[center_global]
 
         # (2) compute (or reuse) rates
+        start = time.time()
         if qd_lattice.stored_npolarons_box[center_global] == 0:
             # compute rates
             rates, final_states, comp_time, _ = self._make_rates(qd_lattice, 
@@ -231,6 +239,8 @@ class KMCRunner():
             final_states = qd_lattice.stored_polaron_sites[center_global]  
             rates        = qd_lattice.stored_rate_vectors[center_global]
         
+        end = time.time()
+        time_dict['rates'] = end - start
 
         # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)
@@ -240,14 +250,17 @@ class KMCRunner():
         u1 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
         u2 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
 
+        start = time.time()
         final_idx = int(np.searchsorted(cum_rates, u1 * S))
+        end = time.time()
+        time_dict['search'] = end-start
         # get delta_t for updating clock
         delta_t = -np.log(u2) / S
 
         # (4) final polaron position
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
-        return start_pol, end_pol, delta_t, comp_time
+        return start_pol, end_pol, delta_t, comp_time, time_dict
     
 
     # build realization of QD lattice based on seed 
@@ -342,7 +355,6 @@ class KMCRunner():
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
 
         import time
-        start_time = time.time()
 
         # (0) time grid and per-trajectory buffers for squared displacements
         times_msds = self._make_time_grid()
@@ -369,20 +381,26 @@ class KMCRunner():
         # TODO : only for debugging
         step_time = 0.0
         minimage_time = 0.0
-        search_time = 0.0
+        idx_time, rates_time, search_time = 0.0, 0.0, 0.0
+        
         
         # (4) main KMC loop
         while clock < t_final:
 
             # (4.1) perform a KMC step from start_pol to end_pol
             start = time.time()
-            _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
+            _, end_pol, delta_t, step_comp_time, time_dict = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
             end = time.time()
             step_time += end-start
             # update simulated time clock
             clock += delta_t
             # update computational time
             tot_comp_time += step_comp_time
+            # update KMC-step based times
+            idx_time += time_dict['idx']
+            rates_time += time_dict['rates']
+            search_time += time_dict['search']
+
 
             # (4.2) accumulate current position as long as we have not exceeded t_final yet
             if clock < t_final:
@@ -399,11 +417,7 @@ class KMCRunner():
                 minimage_time += end-start
 
                 # add squared displacement at correct position in the times_msds grid
-                start = time.time()
                 inc = np.searchsorted(times_msds[time_idx:], clock)
-                end = time.time()
-                search_time += end-start
-
                 time_idx += inc
                 if time_idx < times_msds.size:
                     sds[time_idx:] = last_r2
@@ -424,12 +438,12 @@ class KMCRunner():
         if time_idx < times_msds.size:
             sds[time_idx:] = last_r2
 
-        end_time = time.time()
 
         print(f"[TIMER] _make_kmc_step took {step_time:.6f} seconds")
+        print(f"[TIMER] idx took {idx_time:.6f} seconds")
+        print(f"[TIMER] rates took {rates_time:.6f} seconds")
+        print(f"[TIMER] search took {search_time:.6f} seconds")
         print(f"[TIMER] _update_displacement_minimage took {minimage_time:.6f} seconds")
-        print(f"[TIMER] searchsorted took {search_time:.6f} seconds")
-        print(f"[TIMER] time total took {end_time-start_time:.6f} seconds")
 
         return sds, tot_comp_time
 
