@@ -14,6 +14,10 @@ from qdotkmc.backend import Backend
 # top-level worker for a single lattice realization
 def _one_lattice_worker(args):
 
+    from pyinstrument import Profiler
+    profiler = Profiler()
+    profiler.start()
+
     geom, dis, bath_cfg, run, exec_plan, times_msds, rid, seed, device_id = args
 
     # assign device if we selected GPU path (device_id is not None)
@@ -35,6 +39,10 @@ def _one_lattice_worker(args):
                                                      realization_id=rid, 
                                                      seed=seed,
                                                      )
+    
+    profiler.stop()
+    profiler.save(f"worker_profile_{args[-3]}.html")
+
     return rid, msd_r, sim_time_out
 
 
@@ -366,20 +374,8 @@ class KMCRunner():
         while clock < t_final:
 
             # (4.1) perform a KMC step from start_pol to end_pol
-            # cache_key = start_pol[0]
-            #print('start_pol', start_pol)
-            # try fetching from cache
-            # if cache_key in qd_lattice._rate_cache:
-            #     _, end_pol, delta_t, step_comp_time = qd_lattice._rate_cache[cache_key]
-            #     step_comp_time = 0.00
-            # else:
-            #     _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
-            #     # store in cache
-            #     qd_lattice._rate_cache[cache_key] = (start_pol, end_pol, delta_t, step_comp_time)
-            
             _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
-
-            #_, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
+            # update simulated time clock
             clock += delta_t
             # update computational time
             tot_comp_time += step_comp_time
