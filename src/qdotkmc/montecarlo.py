@@ -376,7 +376,7 @@ class KMCRunner():
             start = time.time()
             _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng)
             end = time.time()
-            track_time += end-start
+            step_time += end-start
             # update simulated time clock
             clock += delta_t
             # update computational time
