@@ -342,6 +342,7 @@ class KMCRunner():
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
 
         import time
+        start_time = time.time()
 
         # (0) time grid and per-trajectory buffers for squared displacements
         times_msds = self._make_time_grid()
@@ -423,10 +424,12 @@ class KMCRunner():
         if time_idx < times_msds.size:
             sds[time_idx:] = last_r2
 
+        end_time = time.time()
 
         print(f"[TIMER] _make_kmc_step took {step_time:.6f} seconds")
         print(f"[TIMER] _update_displacement_minimage took {minimage_time:.6f} seconds")
         print(f"[TIMER] searchsorted took {search_time:.6f} seconds")
+        print(f"[TIMER] time total took {end_time-start_time:.6f} seconds")
 
         return sds, tot_comp_time
 
