@@ -174,62 +174,7 @@ def get_diffusivity(msd, times, dim, tail_frac=1.0):
     return D, D_stderr
 
 
-# summary multiple diffusivities based on 
-def summarize_diffusivity(msds, times, dim, tail_frac=1.0):
-    """
-    Inverse-variance weighted mean of D_i with standard error 1/sqrt(sum w_i)
-
-    Notes
-    --------------------------------------
-    Inverse variance weighting makes sense if the different realizations (trajectories, MSD fits, etc.) 
-    are not equally reliable - for example, if one trajectory's MSD fit has a small standard error because 
-    it has low noise or long sampling, it should contribute more to the overall diffusivity estimate than 
-    one with a large standard error.
-
-    Inputs
-    ------
-    msds : 2D-array-like (R, T)
-        For each of the R noise realizations (QDLattices), there is a trajectory's MSD of length T.
-    times : 1D array-like (T,)
-        Time values corresponding to the MSD samples.
-    dim : int
-        Dimensionality of the QDLattice (e.g., 2 for 2D, 3 for 3D).
-
-    Returns
-    -------
-    D_mean : float
-        Average diffusivity over all realizations, obtained from a linear fit to MSD(t) in the diffusive 
-        regime for each realization (QDLattice).
-    D_stderr : float
-        Standard error of the diffusivity estimate across realizations.
-    """
-    # (0) setup
-    msds = np.asarray(msds, float)
-    R, T = msds.shape
-    Ds, sDs = [], []
-
-    # (1) get diffusivities and standard errors from get_diffusivity function
-    for i in range(R):
-        try:
-            D_i, sD_i = get_diffusivity(msds[i], times, dim, tail_frac=tail_frac)
-            if np.isfinite(D_i) and np.isfinite(sD_i) and sD_i > 0:
-                Ds.append(D_i)
-                sDs.append(sD_i)
-        except Exception:
-            continue
-
-    Ds = np.asarray(Ds)
-    sDs = np.asarray(sDs)
-
-    # (2) inverse-variance weighting
-    w = 1.0 / (sDs ** 2)
-    D_weighted = float(np.sum(w * Ds) / np.sum(w))
-    D_weighted_stderr = float(1.0 / np.sqrt(np.sum(w)))
-
-    return D_weighted, D_weighted_stderr
-
-
-def summarize_diffusivity_new(msds_list, times_list, dim, tail_frac=1.0):
+def summarize_diffusivity(msds_list, times_list, dim, tail_frac=1.0):
     """
     Inverse-variance weighted mean of D_i with standard error 1/sqrt(sum w_i),
     now supporting variable-length MSD/time arrays (lists of arrays).
