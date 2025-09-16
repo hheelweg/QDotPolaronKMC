@@ -3,7 +3,6 @@ import scipy.linalg as la
 import pandas as pd
 from typing import Tuple
 from threadpoolctl import threadpool_limits
-from numba import njit
 from . import lattice
 
 

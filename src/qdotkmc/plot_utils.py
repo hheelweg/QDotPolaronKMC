@@ -8,19 +8,39 @@ def plot_msds(filename_csv):
 
     assert filename_csv.lower().endswith(".csv"), "Expected a .csv file"
     
+    # df = pd.read_csv(filename_csv)
+
+    # times = df["time"].values
+
+    # # plot infividual msds
+    # for col in df.columns:
+    #     if col not in ("time", "ave. msd"):
+    #         plt.plot(df["time"], df[col], color = 'C00', alpha = 0.2)
+
+    # # plot mean MSD
+    # plt.plot(times, df[ "ave. msd"], label = 'MSD (mean)', color = 'C00')
+    # plt.xlabel("time")
+    # plt.ylabel("MSD")
+    # plt.show()
+
     df = pd.read_csv(filename_csv)
+    
+    # Identify individual realization columns
+    time_cols = [col for col in df.columns if col.startswith("time_") and col != "time_mean"]
+    msd_cols  = [col for col in df.columns if col.startswith("msd_") and col != "msd_mean"]
 
-    times = df["time"].values
+    # Plot each realization
+    for t_col, m_col in zip(time_cols, msd_cols):
+        plt.plot(df[t_col], df[m_col], color='C0', alpha=0.2)
 
-    # plot infividual msds
-    for col in df.columns:
-        if col not in ("time", "ave. msd"):
-            plt.plot(df["time"], df[col], color = 'C00', alpha = 0.2)
+    # Plot mean MSD (optional)
+    if "time_mean" in df.columns and "msd_mean" in df.columns:
+        plt.plot(df["time_mean"], df["msd_mean"], color='C0', label='MSD (mean)', linewidth=2)
 
-    # plot mean MSD
-    plt.plot(times, df[ "ave. msd"], label = 'MSD (mean)', color = 'C00')
-    plt.xlabel("time")
+    plt.xlabel("Time")
     plt.ylabel("MSD")
+    plt.legend()
+    plt.tight_layout()
     plt.show()
 
 
