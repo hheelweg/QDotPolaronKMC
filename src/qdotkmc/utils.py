@@ -80,39 +80,39 @@ def export_msds_new(times_list, msds_list, file_name="msds_new.csv"):
     assert len(times_list) == len(msds_list), "Mismatch in number of realizations"
 
     R = len(times_list)
-    all_data = []
+
     max_len = max(len(t) for t in times_list)
 
+    # Pad each times and msd array to the max length with NaN
+    padded_times = []
+    padded_msds  = []
     for r in range(R):
-        times_r = times_list[r]
-        msds_r  = msds_list[r]
+        t_arr = np.full(max_len, np.nan)
+        m_arr = np.full(max_len, np.nan)
+        t_arr[:len(times_list[r])] = times_list[r]
+        m_arr[:len(msds_list[r])]  = msds_list[r]
+        padded_times.append(t_arr)
+        padded_msds.append(m_arr)
 
-        # Pad with NaN to make arrays equal length
-        times_padded = np.full(max_len, np.nan)
-        msds_padded = np.full(max_len, np.nan)
-        times_padded[:len(times_r)] = times_r
-        msds_padded[:len(msds_r)] = msds_r
+    # Convert to arrays for easier manipulation
+    padded_times = np.array(padded_times)  # shape (R, max_len)
+    padded_msds  = np.array(padded_msds)   # shape (R, max_len)
 
-        all_data.append((times_padded, msds_padded))
+    # Mean MSD (ignoring NaNs)
+    msds_mean = np.nanmean(padded_msds, axis=0)  # shape (max_len,)
 
-    # Stack into a 2D array: shape (max_len, 2*R)
-    stacked_data = np.column_stack([np.stack(pair, axis=1) for pair in all_data])
-
-    # Compute mean MSD ignoring NaNs
-    msds_all = np.column_stack([pair[1] for pair in all_data])
-    msds_mean = np.nanmean(msds_all, axis=1)
-
-    # Final data: time_0, msd_0, time_1, msd_1, ..., mean_msd
-    data_with_mean = np.column_stack([stacked_data, msds_mean])
-    
-    # Column labels
-    columns = []
+    # Stack final data: time_0, msd_0, time_1, msd_1, ..., mean_msd
+    data_cols = []
+    col_names = []
     for r in range(R):
-        columns += [f"time_{r}", f"msd_{r}"]
-    columns += ["mean_msd"]
+        data_cols.append(padded_times[r])
+        data_cols.append(padded_msds[r])
+        col_names.extend([f"time_{r}", f"msd_{r}"])
 
-    # Write to DataFrame
-    df = pd.DataFrame(data_with_mean, columns=columns)
+    data_cols.append(msds_mean)
+    col_names.append("mean_msd")
+
+    df = pd.DataFrame(np.column_stack(data_cols), columns=col_names)
     df.to_csv(file_name, index=False)
 
 
