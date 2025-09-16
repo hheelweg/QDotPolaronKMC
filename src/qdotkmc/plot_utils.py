@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # labelling needs to match export_msds
+# TODO: need to re-wrtie so that compatible with new export msds format. (09/16/2025)
 def plot_msds(filename_csv):
 
     assert filename_csv.lower().endswith(".csv"), "Expected a .csv file"

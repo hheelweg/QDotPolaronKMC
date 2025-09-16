@@ -60,20 +60,8 @@ def diagonalize(
     return E, C
 
 
-def export_msds(times, msds, file_name = "msds.csv"):
 
-    # obtain mean MSD averaged over all realizations of noise
-    msds_mean = np.mean(msds, axis = 0)
-
-    # create df and save it
-    data = np.column_stack([times, msds_mean.T, msds.T])
-    columns = ["time"] + ["ave. msd"] + [f"msd lattice_{i}" for i in range(msds.shape[0])]
-
-    df = pd.DataFrame(data, columns=columns)
-    df.to_csv(file_name, index=False)
-
-
-def export_msds_new(times_list, msds_list, file_name="msds.csv"):
+def export_msds(times_list, msds_list, file_name="msds.csv"):
     """
     Export MSDs when both times and msds are lists of arrays of varying lengths.
     """
@@ -82,7 +70,7 @@ def export_msds_new(times_list, msds_list, file_name="msds.csv"):
     R = len(times_list)
     max_len = max(len(t) for t in times_list)
 
-    # Pad all arrays to max_len
+    # pad all arrays to max_len
     times_padded = np.full((R, max_len), np.nan)
     msds_padded  = np.full((R, max_len), np.nan)
 
@@ -90,11 +78,11 @@ def export_msds_new(times_list, msds_list, file_name="msds.csv"):
         times_padded[i, :len(times_list[i])] = times_list[i]
         msds_padded[i, :len(msds_list[i])] = msds_list[i]
 
-    # Compute nanmean
+    # compute nanmean (i.e. mean without NaN)
     msds_mean = np.nanmean(msds_padded, axis=0)
     time_axis = np.nanmax(times_padded, axis=0)
 
-    # Stack into final output
+    # stack into final output
     columns = []
     data_cols = []
 
@@ -245,6 +233,13 @@ def summarize_diffusivity_new(msds_list, times_list, dim, tail_frac=1.0):
     """
     Inverse-variance weighted mean of D_i with standard error 1/sqrt(sum w_i),
     now supporting variable-length MSD/time arrays (lists of arrays).
+
+    Notes
+    --------------------------------------
+    Inverse variance weighting makes sense if the different realizations (trajectories, MSD fits, etc.) 
+    are not equally reliable - for example, if one trajectory's MSD fit has a small standard error because 
+    it has low noise or long sampling, it should contribute more to the overall diffusivity estimate than 
+    one with a large standard error.
 
     Parameters
     ----------
