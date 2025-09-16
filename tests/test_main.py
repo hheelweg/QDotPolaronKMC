@@ -73,7 +73,7 @@ def main():
 
     diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
 
-    diff3, sigma_D3 = qdotkmc.utils.summarize_diffusivity(msds_new, times_new, ndim)
+    diff3, sigma_D3 = qdotkmc.utils.summarize_diffusivity_new(msds_new, times_new, ndim)
     
     # -------------------------------------------------------------------------
     print('diffusivity ', diff1, diff2, diff3)
