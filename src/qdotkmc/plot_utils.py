@@ -24,21 +24,36 @@ def plot_msds(filename_csv):
     # plt.show()
 
     df = pd.read_csv(filename_csv)
-    
-    # Identify individual realization columns
-    time_cols = [col for col in df.columns if col.startswith("time_") and col != "time_mean"]
-    msd_cols  = [col for col in df.columns if col.startswith("msd_") and col != "msd_mean"]
 
-    # Plot each realization
+    # Identify all time and MSD columns by prefix
+    time_cols = sorted([col for col in df.columns if col.startswith("time_")])
+    msd_cols = sorted([col for col in df.columns if col.startswith("msd_") and col != "mean_msd"])
+
+    if len(time_cols) != len(msd_cols):
+        print(f"Warning: Mismatch in time vs msd columns: {len(time_cols)} vs {len(msd_cols)}")
+
+    # Plot individual MSDs
     for t_col, m_col in zip(time_cols, msd_cols):
-        plt.plot(df[t_col], df[m_col], color='C0', alpha=0.2)
+        if t_col in df.columns and m_col in df.columns:
+            plt.plot(df[t_col], df[m_col], alpha=0.25, color='C0')
+        else:
+            print(f"Skipping: missing {t_col} or {m_col}")
 
-    # Plot mean MSD (optional)
-    if "time_mean" in df.columns and "msd_mean" in df.columns:
-        plt.plot(df["time_mean"], df["msd_mean"], color='C0', label='MSD (mean)', linewidth=2)
+    # Plot mean MSD if available
+    if "mean_msd" in df.columns:
+        # Construct a "time" axis based on the maximum of all time_i columns
+        time_arrays = []
+        for t_col in time_cols:
+            if t_col in df.columns:
+                time_arrays.append(df[t_col])
+
+        if time_arrays:
+            time_axis = pd.concat(time_arrays, axis=1).max(axis=1, skipna=True)
+            plt.plot(time_axis, df["mean_msd"], label="MSD (mean)", color='C0', linewidth=2.5)
 
     plt.xlabel("Time")
     plt.ylabel("MSD")
+    plt.title("Mean and Individual MSDs")
     plt.legend()
     plt.tight_layout()
     plt.show()

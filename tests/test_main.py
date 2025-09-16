@@ -49,7 +49,7 @@ def main():
                                     rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 
                                     t_final = t_final,
-                                    adaptive_tfinal = True)
+                                    adaptive_tfinal = False)
     
     # check .config to see defaults here
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
