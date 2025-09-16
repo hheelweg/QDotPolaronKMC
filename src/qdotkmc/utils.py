@@ -92,6 +92,7 @@ def export_msds_new(times_list, msds_list, file_name="msds_new.csv"):
 
     # Compute nanmean
     msds_mean = np.nanmean(msds_padded, axis=0)
+    time_axis = np.nanmax(times_padded, axis=0)
 
     # Stack into final output
     columns = []
@@ -109,6 +110,8 @@ def export_msds_new(times_list, msds_list, file_name="msds_new.csv"):
     data = np.column_stack(data_cols)
     df = pd.DataFrame(data, columns=columns)
     df.to_csv(file_name, index=False)
+
+    return time_axis, msds_mean 
 
 
 

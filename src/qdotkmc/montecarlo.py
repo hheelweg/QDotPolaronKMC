@@ -524,7 +524,8 @@ class KMCRunner():
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
                     rid, times_r, msd_r, sim_time = fut.result()
-                    times_new.append(times_r)
+                    # use old times (unified)
+                    times_new.append(times_msds)
                     msds_new.append(msd_r)
                     msds[rid] = msd_r
                     tot_sim_time += sim_time
