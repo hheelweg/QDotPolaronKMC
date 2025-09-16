@@ -494,6 +494,9 @@ class KMCRunner():
         msds = np.zeros((R, len(times_msds)))
         tot_sim_time = 0.0
 
+        msds_new = []
+        times_new = []
+
         # create seeds for lattice realizations, its important to feed them here
         # in order to have parallel execution yield the same results as serial
         seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
@@ -521,13 +524,15 @@ class KMCRunner():
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
                     rid, times_r, msd_r, sim_time = fut.result()
+                    times_new.append(times_r)
+                    msds_new.append(msd_r)
                     msds[rid] = msd_r
                     tot_sim_time += sim_time
         
         # print total time spent on Redfield rates
         print(print_utils.simulated_time(tot_sim_time))
 
-        return times_msds, msds
+        return times_msds, msds, times_new, msds_new
         
 
     # serial KMC

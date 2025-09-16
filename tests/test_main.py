@@ -59,7 +59,7 @@ def main():
     kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose=True)
 
     # perform KMC simulation (automatically switches parallel/serial based on max_workers)
-    times, msds = kmc._simulate_kmc()
+    times, msds, _, _ = kmc._simulate_kmc()
 
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)
