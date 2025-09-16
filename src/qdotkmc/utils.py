@@ -73,6 +73,50 @@ def export_msds(times, msds, file_name = "msds.csv"):
     df.to_csv(file_name, index=False)
 
 
+def export_msds_new(times_list, msds_list, file_name="msds_new.csv"):
+    """
+    Export MSDs when both times and msds are lists of arrays of varying lengths.
+    """
+    assert len(times_list) == len(msds_list), "Mismatch in number of realizations"
+
+    R = len(times_list)
+    all_data = []
+    max_len = max(len(t) for t in times_list)
+
+    for r in range(R):
+        times_r = times_list[r]
+        msds_r  = msds_list[r]
+
+        # Pad with NaN to make arrays equal length
+        times_padded = np.full(max_len, np.nan)
+        msds_padded = np.full(max_len, np.nan)
+        times_padded[:len(times_r)] = times_r
+        msds_padded[:len(msds_r)] = msds_r
+
+        all_data.append((times_padded, msds_padded))
+
+    # Stack into a 2D array: shape (max_len, 2*R)
+    stacked_data = np.column_stack([np.stack(pair, axis=1) for pair in all_data])
+
+    # Compute mean MSD ignoring NaNs
+    msds_all = np.column_stack([pair[1] for pair in all_data])
+    msds_mean = np.nanmean(msds_all, axis=1)
+
+    # Final data: time_0, msd_0, time_1, msd_1, ..., mean_msd
+    data_with_mean = np.column_stack([stacked_data, msds_mean])
+    
+    # Column labels
+    columns = []
+    for r in range(R):
+        columns += [f"time_{r}", f"msd_{r}"]
+    columns += ["mean_msd"]
+
+    # Write to DataFrame
+    df = pd.DataFrame(data_with_mean, columns=columns)
+    df.to_csv(file_name, index=False)
+
+
+
 # get diffusivity from single (or pooled) MSD trajectory and times array via linear regression
 # NOTE : this is conceptually identical to former get_diffusivity_hh function
 def get_diffusivity(msd, times, dim, tail_frac=1.0):
