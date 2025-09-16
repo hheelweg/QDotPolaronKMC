@@ -71,15 +71,11 @@ def main():
 
     # obtain diffusivities in two distinct ways
     diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times_axis, ndim)
-    #diff4, sigma_D4 = qdotkmc.utils.get_diffusivity(msds_mean, times, ndim)
-
-    #diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
-
-    diff3, sigma_D3 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
+    diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
     
     # -------------------------------------------------------------------------
-    print('diffusivity ', diff1, diff3)
-    print('diffusivity error', sigma_D1, sigma_D3)
+    print('diffusivity ', diff1, diff2)
+    print('diffusivity error', sigma_D1, sigma_D2)
     
 
 if __name__ == '__main__':

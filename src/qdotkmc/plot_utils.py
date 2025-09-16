@@ -3,45 +3,26 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 # labelling needs to match export_msds
-# TODO: need to re-wrtie so that compatible with new export msds format. (09/16/2025)
 def plot_msds(filename_csv):
 
     assert filename_csv.lower().endswith(".csv"), "Expected a .csv file"
     
-    # df = pd.read_csv(filename_csv)
-
-    # times = df["time"].values
-
-    # # plot infividual msds
-    # for col in df.columns:
-    #     if col not in ("time", "ave. msd"):
-    #         plt.plot(df["time"], df[col], color = 'C00', alpha = 0.2)
-
-    # # plot mean MSD
-    # plt.plot(times, df[ "ave. msd"], label = 'MSD (mean)', color = 'C00')
-    # plt.xlabel("time")
-    # plt.ylabel("MSD")
-    # plt.show()
-
     df = pd.read_csv(filename_csv)
 
-    # Identify all time and MSD columns by prefix
+    # identify all time and MSD columns by prefix
     time_cols = sorted([col for col in df.columns if col.startswith("time_")])
     msd_cols = sorted([col for col in df.columns if col.startswith("msd_") and col != "mean_msd"])
 
-    if len(time_cols) != len(msd_cols):
-        print(f"Warning: Mismatch in time vs msd columns: {len(time_cols)} vs {len(msd_cols)}")
-
-    # Plot individual MSDs
+    # plot individual MSDs
     for t_col, m_col in zip(time_cols, msd_cols):
         if t_col in df.columns and m_col in df.columns:
             plt.plot(df[t_col], df[m_col], alpha=0.25, color='C0')
         else:
             print(f"Skipping: missing {t_col} or {m_col}")
 
-    # Plot mean MSD if available
+    # plot mean MSD if available
     if "mean_msd" in df.columns:
-        # Construct a "time" axis based on the maximum of all time_i columns
+        # construct a "time" axis based on the maximum of all time_i columns
         time_arrays = []
         for t_col in time_cols:
             if t_col in df.columns:
@@ -51,9 +32,9 @@ def plot_msds(filename_csv):
             time_axis = pd.concat(time_arrays, axis=1).max(axis=1, skipna=True)
             plt.plot(time_axis, df["mean_msd"], label="MSD (mean)", color='C0', linewidth=2.5)
 
-    plt.xlabel("Time")
-    plt.ylabel("MSD")
-    plt.title("Mean and Individual MSDs")
+    # TODO : add units
+    plt.xlabel("time")
+    plt.ylabel("msd")
     plt.legend()
     plt.tight_layout()
     plt.show()
