@@ -241,6 +241,53 @@ def summarize_diffusivity(msds, times, dim, tail_frac=1.0):
     return D_weighted, D_weighted_stderr
 
 
+def summarize_diffusivity_new(msds_list, times_list, dim, tail_frac=1.0):
+    """
+    Inverse-variance weighted mean of D_i with standard error 1/sqrt(sum w_i),
+    now supporting variable-length MSD/time arrays (lists of arrays).
+
+    Parameters
+    ----------
+    msds_list : list of 1D arrays
+        Each array is the MSD(t) trajectory for one realization.
+    times_list : list of 1D arrays
+        Matching list of time arrays for each MSD trajectory.
+    dim : int
+        Dimensionality of the system.
+    tail_frac : float, optional
+        Fraction of time domain to use as the linear 'tail' for extracting diffusivity.
+
+    Returns
+    -------
+    D_weighted : float
+        Inverse-variance-weighted mean diffusivity estimate.
+    D_weighted_stderr : float
+        Corresponding standard error.
+    """
+    Ds, sDs = [], []
+
+    for msd, time in zip(msds_list, times_list):
+        try:
+            D_i, sD_i = get_diffusivity(msd, time, dim, tail_frac=tail_frac)
+            if np.isfinite(D_i) and np.isfinite(sD_i) and sD_i > 0:
+                Ds.append(D_i)
+                sDs.append(sD_i)
+        except Exception:
+            continue
+
+    Ds = np.asarray(Ds)
+    sDs = np.asarray(sDs)
+
+    if len(Ds) == 0:
+        raise ValueError("No valid diffusivities computed. Check input arrays or fitting function.")
+
+    w = 1.0 / (sDs ** 2)
+    D_weighted = float(np.sum(w * Ds) / np.sum(w))
+    D_weighted_stderr = float(1.0 / np.sqrt(np.sum(w)))
+
+    return D_weighted, D_weighted_stderr
+
+
 # smallest index set capturing (1 - θ) of mass / cumulative sum
 # NOTE : needed for selection of sites/polarons
 def mass_core_by_theta(w_col, theta: float):

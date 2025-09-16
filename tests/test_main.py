@@ -61,7 +61,7 @@ def main():
     # perform KMC simulation (automatically switches parallel/serial based on max_workers)
     times, msds, times_new, msds_new = kmc._simulate_kmc()
 
-    # export msds as .csv file for inspection
+    # export msds as .csv file for inspection, and return mean msds
     qdotkmc.utils.export_msds(times, msds)
     times_axis, msds_mean = qdotkmc.utils.export_msds_new(times_new, msds_new)
 
@@ -72,10 +72,12 @@ def main():
     diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times_axis, ndim)
 
     diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
+
+    diff3, sigma_D3 = qdotkmc.utils.summarize_diffusivity(msds_new, times_new, ndim)
     
     # -------------------------------------------------------------------------
-    print('diffusivity ', diff1, diff2)
-    print('diffusivity error', sigma_D1, sigma_D2)
+    print('diffusivity ', diff1, diff2, diff3)
+    print('diffusivity error', sigma_D1, sigma_D2, sigma_D3)
     
 
 if __name__ == '__main__':
