@@ -531,13 +531,13 @@ class KMCRunner():
                     print('length times_r', len(times_r))
                     times_new.append(times_r)
                     msds_new.append(msd_r)
-                    msds[rid] = msd_r
+                    #msds[rid] = msd_r
                     tot_sim_time += sim_time
         
         # print total time spent on Redfield rates
         print(print_utils.simulated_time(tot_sim_time))
 
-        return times_msds, msds, times_new, msds_new
+        return times_new, msds_new
         
 
     # serial KMC
