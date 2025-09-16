@@ -63,7 +63,7 @@ def main():
 
     # export msds as .csv file for inspection
     qdotkmc.utils.export_msds(times, msds)
-    qdotkmc.utils.export_msds(times_new, msds_new)
+    qdotkmc.utils.export_msds_new(times_new, msds_new)
 
     # get noise-averaged (pooled) trajectory MSD
     msds_mean = np.mean(msds, axis = 0)

@@ -80,41 +80,34 @@ def export_msds_new(times_list, msds_list, file_name="msds_new.csv"):
     assert len(times_list) == len(msds_list), "Mismatch in number of realizations"
 
     R = len(times_list)
-
     max_len = max(len(t) for t in times_list)
 
-    # Pad times and msds to the same length using NaNs
-    padded_times = []
-    padded_msds = []
-    for r in range(R):
-        t_arr = np.full(max_len, np.nan)
-        m_arr = np.full(max_len, np.nan)
-        t_arr[:len(times_list[r])] = times_list[r]
-        m_arr[:len(msds_list[r])] = msds_list[r]
-        padded_times.append(t_arr)
-        padded_msds.append(m_arr)
+    # Pad all arrays to max_len
+    times_padded = np.full((R, max_len), np.nan)
+    msds_padded  = np.full((R, max_len), np.nan)
 
-    # Convert to arrays
-    padded_times = np.array(padded_times)
-    padded_msds = np.array(padded_msds)
+    for i in range(R):
+        times_padded[i, :len(times_list[i])] = times_list[i]
+        msds_padded[i, :len(msds_list[i])] = msds_list[i]
 
-    # Compute mean MSD across realizations (ignoring NaNs)
-    msds_mean = np.nanmean(padded_msds, axis=0)
+    # Compute nanmean
+    msds_mean = np.nanmean(msds_padded, axis=0)
 
-    # Build column stack
+    # Stack into final output
+    columns = []
     data_cols = []
-    col_names = []
 
-    for r in range(R):
-        data_cols.append(padded_times[r])
-        data_cols.append(padded_msds[r])
-        col_names.append(f"time_{r}")
-        col_names.append(f"msd_{r}")
+    for i in range(R):
+        data_cols.append(times_padded[i])
+        data_cols.append(msds_padded[i])
+        columns.append(f"time_{i}")
+        columns.append(f"msd_{i}")
 
     data_cols.append(msds_mean)
-    col_names.append("mean_msd")
+    columns.append("mean_msd")
 
-    df = pd.DataFrame(np.column_stack(data_cols), columns=col_names)
+    data = np.column_stack(data_cols)
+    df = pd.DataFrame(data, columns=columns)
     df.to_csv(file_name, index=False)
 
 
