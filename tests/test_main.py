@@ -60,22 +60,22 @@ def main():
     kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose=True)
 
     # perform KMC simulation (automatically switches parallel/serial based on max_workers)
-    times_new, msds_new = kmc._simulate_kmc()
+    times, msds = kmc._simulate_kmc()
 
     # export msds as .csv file for inspection, and return mean msds
     # qdotkmc.utils.export_msds(times, msds)
-    times_axis, msds_mean_new = qdotkmc.utils.export_msds_new(times_new, msds_new)
+    times_axis, msds_mean = qdotkmc.utils.export_msds_new(times, msds)
 
     # get noise-averaged (pooled) trajectory MSD
     #msds_mean = np.mean(msds, axis = 0)
 
     # obtain diffusivities in two distinct ways
-    diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean_new, times_axis, ndim)
+    diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times_axis, ndim)
     #diff4, sigma_D4 = qdotkmc.utils.get_diffusivity(msds_mean, times, ndim)
 
     #diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
 
-    diff3, sigma_D3 = qdotkmc.utils.summarize_diffusivity_new(msds_new, times_new, ndim)
+    diff3, sigma_D3 = qdotkmc.utils.summarize_diffusivity_new(msds, times, ndim)
     
     # -------------------------------------------------------------------------
     print('diffusivity ', diff1, diff3)

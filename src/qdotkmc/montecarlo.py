@@ -494,12 +494,10 @@ class KMCRunner():
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
         R = self.run.nrealizations
-        times_msds = KMCRunner._make_time_grid(self.run.t_final, self.run.time_grid_density)
-        msds = np.zeros((R, len(times_msds)))
         tot_sim_time = 0.0
-
-        msds_new = []
-        times_new = []
+        # store msds and times
+        msds = []
+        times = []
 
         # create seeds for lattice realizations, its important to feed them here
         # in order to have parallel execution yield the same results as serial
@@ -527,17 +525,17 @@ class KMCRunner():
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
+                    # return realization ID, times array for realization, msd, sim_time for rates
                     rid, times_r, msd_r, sim_time = fut.result()
                     print('length times_r', len(times_r))
-                    times_new.append(times_r)
-                    msds_new.append(msd_r)
-                    #msds[rid] = msd_r
+                    times.append(times_r)
+                    msds.append(msd_r)
                     tot_sim_time += sim_time
         
         # print total time spent on Redfield rates
         print(print_utils.simulated_time(tot_sim_time))
 
-        return times_new, msds_new
+        return times, msds
         
 
     # serial KMC

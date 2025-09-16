@@ -73,7 +73,7 @@ def export_msds(times, msds, file_name = "msds.csv"):
     df.to_csv(file_name, index=False)
 
 
-def export_msds_new(times_list, msds_list, file_name="msds_new.csv"):
+def export_msds_new(times_list, msds_list, file_name="msds.csv"):
     """
     Export MSDs when both times and msds are lists of arrays of varying lengths.
     """
