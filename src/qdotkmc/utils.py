@@ -76,10 +76,13 @@ def export_msds(times_list, msds_list, file_name="msds.csv"):
     for i in range(R):
         times_padded[i, :len(times_list[i])] = times_list[i]
         msds_padded[i, :len(msds_list[i])] = msds_list[i]
+    
+    # compute minimum common length
+    min_len = min(len(t) for t in times_list)
 
-    # compute nanmean (i.e. mean without NaN)
-    msds_mean = np.nanmean(msds_padded, axis=0)
-    time_axis = np.nanmax(times_padded, axis=0)
+    # Truncate padded arrays to the common region
+    msds_mean = np.nanmean(msds_padded[:, :min_len], axis=0)
+    time_axis = np.nanmean(times_padded[:, :min_len], axis=0)
 
     # stack into final output
     columns = []
