@@ -173,7 +173,7 @@ def get_diffusivity(msd, times, dim, tail_frac=1.0):
     return D, D_stderr
 
 
-def summarize_diffusivity(msds_list, times_list, dim, tail_frac=1.0):
+def summarize_diffusivity(msds_list, times_list, dim, tail_frac=0.8):
     """
     Inverse-variance weighted mean of D_i with standard error 1/sqrt(sum w_i),
     now supporting variable-length MSD/time arrays (lists of arrays).

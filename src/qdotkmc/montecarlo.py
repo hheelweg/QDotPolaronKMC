@@ -418,8 +418,6 @@ class KMCRunner():
         print('adaptive ', adaptive_tfinal)
         print('times.shape', times.shape)
 
-        # TODO : just for debugging, remove this later
-        import time
 
         # (1) build QDLattice realization based on seed
         # (1.1) get random seef from realization id (rid), if no seed already specified
@@ -527,7 +525,7 @@ class KMCRunner():
                 for fut in as_completed(futs):
                     # return realization ID, times array for realization, msd, sim_time for rates
                     rid, times_r, msd_r, sim_time = fut.result()
-                    print('length times_r', len(times_r))
+
                     times.append(times_r)
                     msds.append(msd_r)
                     tot_sim_time += sim_time
