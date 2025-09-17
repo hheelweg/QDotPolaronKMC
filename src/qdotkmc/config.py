@@ -71,7 +71,7 @@ class RunConfig:
     alpha: float = 400.0                    # parameter to select t_final if adaptive_tfinal = True
     time_grid_density: int = 200            # points per unit time for MSD time grid
 
-    # verbosity/diagnostics
+    # verbosity/diagnostics for KMC
     print_diagnostics: bool = True
 
     # mode selector to compute rates in KMC 
