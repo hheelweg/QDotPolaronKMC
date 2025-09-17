@@ -406,8 +406,10 @@ class KMCRunner():
     # create specific realization (instance) of QDLattice and run many trajectories
     def _run_single_lattice(self, bath, run_cfg, realization_id, seed = None):
 
-        # (0) simulated time set to zero for each lattice realization
-        simulated_time = 0.0
+        # (0) initialize diagnostics for QDLattice KMC run
+        # TODO : might want to add more as desired
+        rates_time_tot = 0.0                                    # total time used to compute the rates (summed over trajectories)
+        mean_step_count = 0.0                                   # mean number of KMC steps across trajectories
 
         # (1) build QDLattice realization based on seed
         # (1.1) get random seef from realization id (rid), if no seed already specified
@@ -446,13 +448,18 @@ class KMCRunner():
 
             # run trajectory and resturn squared displacement in unwrapped coordinates
             sds, diagnostics = self._run_single_kmc_trajectory(qd_lattice, t_final, times, rng_traj)
-            simulated_time += diagnostics['rates time']
+
+            # accumulate diagnostics quantities
+            rates_time_tot += diagnostics['rates time']
+            mean_step_count += diagnostics['step count'] / len(run_cfg.ntrajs)
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
+        
+        print('mean steo counter for lattice', mean_step_count)
     
-        return times, msd, simulated_time
+        return times, msd, rates_time_tot
 
     # compute adaptive t_final 
     def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20):
