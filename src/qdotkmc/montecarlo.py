@@ -553,7 +553,7 @@ class KMCRunner():
 
         times_msds = KMCRunner._make_time_grid(self.run.t_final, self.run.time_grid_density)        # time ranges to use for computation of msds                                                                 
         msds = np.zeros((self.run.nrealizations, len(times_msds)))                                  # initialize MSD output
-        sim_time = 0                                                                                # simulated time
+        tot_rates_time = 0                                                                          # simulated time for rates
 
         R = self.run.nrealizations                                                                  # number of QDLattice realizations
         T = self.run.ntrajs                                                                         # number of trajetories per QDLattice realization
@@ -569,17 +569,17 @@ class KMCRunner():
         for r in range(R):
 
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
-            times_r, msd_r, sim_time = self._run_single_lattice(
+            times_r, msd_r, lattice_summary = self._run_single_lattice(
                                                             bath = bath, 
                                                             run_cfg = self.run, 
                                                             realization_id = r
                                                             )
-                
+            tot_rates_time = lattice_summary['rates time (tot)']
             times.append(times_r)
             msds.append(msd_r)
 
         # print total time spent on Redfield rates
-        print(print_utils.simulated_time(sim_time))
+        print(print_utils.simulated_time(tot_rates_time))
 
         return times, msds
 
