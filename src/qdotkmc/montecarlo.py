@@ -408,6 +408,9 @@ class KMCRunner():
 
         # (0) initialize diagnostics for QDLattice KMC run
         # TODO : might want to add more as desired
+        lattice_summary = {'rates time (tot)': 0.0,
+                           'step count (mean)': 0.0,
+                           }
         rates_time_tot = 0.0                                    # total time used to compute the rates (summed over trajectories)
         mean_step_count = 0.0                                   # mean number of KMC steps across trajectories
 
@@ -450,16 +453,16 @@ class KMCRunner():
             sds, diagnostics = self._run_single_kmc_trajectory(qd_lattice, t_final, times, rng_traj)
 
             # accumulate diagnostics quantities
-            rates_time_tot += diagnostics['rates time']
-            mean_step_count += diagnostics['step count'] / run_cfg.ntrajs
+            lattice_summary['rates time (tot)'] += diagnostics['rates time']
+            lattice_summary['step count (mean)'] += diagnostics['step count'] / run_cfg.ntrajs
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
         
-        print('mean steo counter for lattice', mean_step_count)
+        print('mean steo counter for lattice', int(lattice_summary['step count (mean)']))
     
-        return times, msd, rates_time_tot
+        return times, msd, lattice_summary['rates time (tot)']
 
     # compute adaptive t_final 
     def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20):
