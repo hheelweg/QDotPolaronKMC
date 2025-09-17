@@ -426,6 +426,7 @@ class KMCRunner():
         # (1.3) set trajectory t_final
         if run_cfg.adaptive_tfinal:                
             t_final = self._get_adaptive_tfinal(qd_lattice, alpha=run_cfg.alpha)
+            print('t_final', t_final)
             times = KMCRunner._make_time_grid(t_final, run_cfg.time_grid_density)
         else:
             t_final = run_cfg.t_final
