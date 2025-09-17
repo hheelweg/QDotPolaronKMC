@@ -36,8 +36,8 @@ def main():
     # here we leave both 
 
     # (2) for "weight"
-    theta_site = 0.01                           # legacy 0.05
-    theta_pol = 0.01                            # legacy 0.05
+    theta_site = 0.01                           
+    theta_pol = 0.01                            
 
     #-------------------------------------------------------------------------
 
@@ -63,12 +63,8 @@ def main():
     # perform KMC simulation (automatically switches parallel/serial based on max_workers)
     times, msds = kmc._simulate_kmc()
 
-    # export msds as .csv file for inspection, and return mean msds
-    # qdotkmc.utils.export_msds(times, msds)
+    # export msds as .csv file for inspection, and return mean msds 
     times_axis, msds_mean = qdotkmc.utils.export_msds(times, msds)
-
-    # get noise-averaged (pooled) trajectory MSD
-    #msds_mean = np.mean(msds, axis = 0)
 
     # obtain diffusivities in two distinct ways
     diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times_axis, ndim)
