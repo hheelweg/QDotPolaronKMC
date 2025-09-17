@@ -458,7 +458,6 @@ class KMCRunner():
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
         
-        print('mean step counter for lattice', int(lattice_summary['step count (mean)']))
     
         return times, msd, lattice_summary
 
@@ -547,11 +546,12 @@ class KMCRunner():
                     tot_rates_time += lattice_summary['rates time (tot)']
                     mean_step_count += lattice_summary['step count (mean)'] / self.run.nrealizations
         
-        # print total time spent on Redfield rates
-        print(print_utils.simulated_time(tot_rates_time))
-
-        # print mean KMC step count average across all lattice realizations and trajectories
-        print(print_utils.mean_kmc_steps(mean_step_count))
+        # print diagnostics if desired
+        if self.run.print_diagnostics:
+            # print total time spent on Redfield rates
+            print(print_utils.simulated_time(tot_rates_time))
+            # print mean KMC step count average across all lattice realizations and trajectories
+            print(print_utils.mean_kmc_steps(mean_step_count))
 
         return times, msds
         
@@ -589,11 +589,12 @@ class KMCRunner():
             times.append(times_r)
             msds.append(msd_r)
 
-        # print total time spent on Redfield rates
-        print(print_utils.simulated_time(tot_rates_time))
-
-        # print mean KMC step count average across all lattice realizations and trajectories
-        print(print_utils.mean_kmc_steps(mean_step_count))
+        # print diagnostics if desired
+        if self.run.print_diagnostics:
+            # print total time spent on Redfield rates
+            print(print_utils.simulated_time(tot_rates_time))
+            # print mean KMC step count average across all lattice realizations and trajectories
+            print(print_utils.mean_kmc_steps(mean_step_count))
 
         return times, msds
 
