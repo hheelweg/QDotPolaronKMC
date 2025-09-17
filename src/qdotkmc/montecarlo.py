@@ -339,9 +339,8 @@ class KMCRunner():
         step_counter = 0                        # counter of KMC steps
         time_idx = 0
         last_r2 = 0.0                           # last know squared displacement
-        tot_comp_time = 0.0                     # NOTE : this is only for debugging and tracking computational time of the RATES
+        rates_comp_time = 0.0                   # NOTE : this is only for debugging and tracking computational time of the RATES
                                                 # other trajectory computation are not factored in here!
-
 
         # (2) draw initial center uniformly in site basis and map to nearest polaron
         idx0 = (np.random.randint(0, qd_lattice.geom.n_sites) if rng is None
@@ -353,16 +352,16 @@ class KMCRunner():
         trajectory_start = np.asarray(start_pol, dtype=float)           # stores R(0)
         trajectory_curr  = trajectory_start.copy()                      # stores R(t)
 
-
         # (4) main KMC loop
         while clock < t_final:
 
             # (4.1) perform a KMC step from start_pol to end_pol
+            # TODO : might want to add more disgnoastics for the KMC steps for analytics
             _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng, track_time=False)
             # update simulated time clock
             clock += delta_t
             # update computational time
-            tot_comp_time += step_comp_time
+            rates_comp_time += step_comp_time
 
             # (4.2) accumulate current position as long as we have not exceeded t_final yet
             if clock < t_final:
@@ -390,18 +389,18 @@ class KMCRunner():
                 break
         
 
-        # NOTE : this was missing before
         # this ensurs tail is filled if loop ended before the last grid point
         # this is needed if the trajectory ended before all time grid points were reached (e.g., t_final was reached mid-interval)
         # without this, the later entries in sds would stay at zero, which would artificially drop the average MSD in those bins
         if time_idx < times_msds.size:
             sds[time_idx:] = last_r2
+        
+        # store diagnostics, might want to add more 
+        diagnostics = dict()
+        diagnostics['step count'] = step_counter
+        diagnostics['rates time'] = rates_comp_time
 
-
-        # step counter
-        print(f"[STEP_COUNT] did {step_counter} steps")
-
-        return sds, tot_comp_time
+        return sds, diagnostics
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
@@ -446,8 +445,8 @@ class KMCRunner():
             rng_traj = default_rng(traj_ss[t])
 
             # run trajectory and resturn squared displacement in unwrapped coordinates
-            sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, times, rng_traj)
-            simulated_time += comp
+            sds, diagnostics = self._run_single_kmc_trajectory(qd_lattice, t_final, times, rng_traj)
+            simulated_time += diagnostics['rates time']
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
@@ -458,8 +457,9 @@ class KMCRunner():
     # compute adaptive t_final 
     def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20):
 
-        # (1) draw random samples to compute cumulative rates
+        # (1) draw random samples to compute cumulative rates (at most 20)
         no_samples = min(int(0.05 * qd_lattice.geom.n_sites), no_samples)
+        assert no_samples <= qd_lattice.geom.n_sites, "Too many samples for adaptive t_final specified!"
         # (1.1) spawn a child sequence
         rng = np.random.default_rng(self._ss_root.spawn(1)[0])
         # (1.2) draw random indices without replacement
@@ -497,8 +497,8 @@ class KMCRunner():
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
         R = self.run.nrealizations
-        tot_sim_time = 0.0
         # store msds and times
+        tot_sim_time = 0.0                          # this measure time taken for rates computation
         msds = []
         times = []
 
@@ -530,7 +530,6 @@ class KMCRunner():
                 for fut in as_completed(futs):
                     # return realization ID, times array for realization, msd, sim_time for rates
                     rid, times_r, msd_r, sim_time = fut.result()
-
                     times.append(times_r)
                     msds.append(msd_r)
                     tot_sim_time += sim_time
