@@ -443,7 +443,7 @@ class KMCRunner():
             S = np.sum(rates)
             print('S, rates', S, len(rates))
             # (3) t_final adaptive time horizon
-            alpha = 400.0                                       # tweak this based on convergence tests
+            alpha = 600.0                                       # tweak this based on convergence tests
             t_final_adapt = alpha / S
             print('t_final adaptive', t_final_adapt)
             # TODO : create MSDS
