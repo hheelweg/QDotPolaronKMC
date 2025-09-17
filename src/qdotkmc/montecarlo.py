@@ -443,8 +443,8 @@ class KMCRunner():
             S_mean = self._get_t_final(qd_lattice, no_samples=10)
             print('S, rates', S, len(rates), S_mean)
             # (3) t_final adaptive time horizon
-            alpha = 600.0                                       # tweak this based on convergence tests
-            t_final_adapt = alpha / S
+            alpha = 400.0                                       # tweak this based on convergence tests
+            t_final_adapt = alpha / S_mean
             print('t_final adaptive', t_final_adapt)
             # TODO : create MSDS
             times = KMCRunner._make_time_grid(t_final_adapt, time_grid_density)
