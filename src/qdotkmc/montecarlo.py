@@ -548,27 +548,30 @@ class KMCRunner():
         R = self.run.nrealizations                                                                  # number of QDLattice realizations
         T = self.run.ntrajs                                                                         # number of trajetories per QDLattice realization
 
+        # store msds and times
+        msds = []
+        times = []
+
         # build bath spectral density (once for all QDLattice realizations!)
         bath = hamiltonian.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
-
 
         # loop over number of QDLattice realizations
         for r in range(R):
 
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
-            times, msd, sim_time = self._run_single_lattice(
+            times_r, msd_r, sim_time = self._run_single_lattice(
                                                             bath = bath, 
                                                             run_cfg = self.run, 
                                                             realization_id = r
                                                             )
                 
-            # store mean squared displacement for QDLattice realization r
-            msds[r] = msd
+            times.append(times_r)
+            msds.append(msd_r)
 
         # print total time spent on Redfield rates
         print(print_utils.simulated_time(sim_time))
 
-        return times_msds, msds
+        return times, msds
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)
