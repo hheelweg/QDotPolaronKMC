@@ -327,6 +327,7 @@ class KMCRunner():
 
 
     # run a single trajectory for a specified QDLattice
+    # TODO : change diagnostics slightly here so that we can return different quantities if desired
     def _run_single_kmc_trajectory(self, qd_lattice, t_final, times_msds, rng = None):
 
         # (0) time grid and per-trajectory buffers for squared displacements
@@ -362,7 +363,6 @@ class KMCRunner():
             clock += delta_t
             # update computational time
             tot_comp_time += step_comp_time
-
 
             # (4.2) accumulate current position as long as we have not exceeded t_final yet
             if clock < t_final:
@@ -424,9 +424,11 @@ class KMCRunner():
                                                                   backend = self.backend)
         
         # (1.3) set trajectory t_final
+        # NOTE : the way we generate t_final adaptively in serial/parallel yields slightly different
+        # results because the way we sample the cumulative rates from random seeds is behaving different
+        # in serial versus with parallel workers. (this matters only for reproducibility, but is not larger problem)
         if run_cfg.adaptive_tfinal:                
             t_final = self._get_adaptive_tfinal(qd_lattice, alpha=run_cfg.alpha)
-            print('t_final', t_final)
             times = KMCRunner._make_time_grid(t_final, run_cfg.time_grid_density)
         else:
             t_final = run_cfg.t_final
@@ -538,7 +540,6 @@ class KMCRunner():
 
         return times, msds
         
-
     # serial KMC
     def simulate_kmc_serial(self):
 
