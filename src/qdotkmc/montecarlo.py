@@ -574,7 +574,7 @@ class KMCRunner():
                                                             run_cfg = self.run, 
                                                             realization_id = r
                                                             )
-            tot_rates_time = lattice_summary['rates time (tot)']
+            tot_rates_time += lattice_summary['rates time (tot)']
             times.append(times_r)
             msds.append(msd_r)
 
