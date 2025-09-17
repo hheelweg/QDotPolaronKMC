@@ -17,12 +17,12 @@ def main():
     N = 400                                     # number of QDs in each dimension
 
     # ---- system parameters ------
-    inhomog_sd = 0.03                          # inhomogenous broadening (units?) (legacy: 0.002)
+    inhomog_sd = 0.03                           # inhomogenous broadening (units?) (legacy: 0.002)
     nrg_center = 2.0                            # mean site energy (units ?) (legacy: 2.0)
     J_c = 30                                    # J_c (units?) (legacy: 10)
 
     # ----- bath parameters -------
-    w_c = 0.1                                  # cutoff frequency (units?) (legacy: 0.1)
+    w_c = 0.1                                   # cutoff frequency (units?) (legacy: 0.1)
     temp = 800                                  # temperature (K) (legacy: 200)
     reorg_nrg = 0.03                            # reorganization energy (units?)
 
@@ -50,7 +50,7 @@ def main():
                                     theta_site = theta_site, theta_pol = theta_pol, 
                                     t_final = t_final,
                                     adaptive_tfinal = True,
-                                    print_diagnostics = True)
+                                    print_diagnostics = False)
     
     # check .config to see defaults here
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
