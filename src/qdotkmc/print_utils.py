@@ -16,6 +16,19 @@ def simulated_time(sim_time : float) -> str:
         f"{border}"
     )
 
+def mean_kmc_steps(mean_steps: float) -> str:
+    """
+    Return a formatted summary string for mean KMC step count.
+    """
+    border = "=" * 42
+    header = " KMC STEP COUNT SUMMARY "
+    return (
+        f"{border}\n"
+        f"{header.center(42)}\n"
+        f"{'-'*42}\n"
+        f" Mean KMC steps taken  : {mean_steps:10.1f} steps\n"
+        f"{border}"
+    )
 
 def backend_summary(backend : Backend) -> str:
     """

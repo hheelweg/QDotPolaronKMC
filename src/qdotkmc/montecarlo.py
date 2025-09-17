@@ -507,9 +507,12 @@ class KMCRunner():
 
         R = self.run.nrealizations
         # store msds and times
-        tot_rates_time = 0.0                          # this measure time taken for rates computation
         msds = []
         times = []
+
+        # some diagnostics outputs
+        tot_rates_time = 0.0                                                                        # this measure time taken for rates computation
+        mean_step_count = 0.0                                                                       # mean number of step counts (averaged over all QDLattices)
 
         # create seeds for lattice realizations, its important to feed them here
         # in order to have parallel execution yield the same results as serial
@@ -542,9 +545,13 @@ class KMCRunner():
                     times.append(times_r)
                     msds.append(msd_r)
                     tot_rates_time += lattice_summary['rates time (tot)']
+                    mean_step_count += lattice_summary['step count (mean)'] / self.run.nrealizations
         
         # print total time spent on Redfield rates
         print(print_utils.simulated_time(tot_rates_time))
+
+        # print mean KMC step count average across all lattice realizations and trajectories
+        print(print_utils.mean_kmc_steps(mean_step_count))
 
         return times, msds
         
@@ -553,7 +560,10 @@ class KMCRunner():
 
         times_msds = KMCRunner._make_time_grid(self.run.t_final, self.run.time_grid_density)        # time ranges to use for computation of msds                                                                 
         msds = np.zeros((self.run.nrealizations, len(times_msds)))                                  # initialize MSD output
-        tot_rates_time = 0                                                                          # simulated time for rates
+
+        # some diagnostics outputs
+        tot_rates_time = 0.0                                                                        # simulated time for rates
+        mean_step_count = 0.0                                                                       # mean number of step counts (averaged over all QDLattices)
 
         R = self.run.nrealizations                                                                  # number of QDLattice realizations
         T = self.run.ntrajs                                                                         # number of trajetories per QDLattice realization
@@ -575,11 +585,15 @@ class KMCRunner():
                                                             realization_id = r
                                                             )
             tot_rates_time += lattice_summary['rates time (tot)']
+            mean_step_count += lattice_summary['step count (mean)'] / self.run.nrealizations
             times.append(times_r)
             msds.append(msd_r)
 
         # print total time spent on Redfield rates
         print(print_utils.simulated_time(tot_rates_time))
+
+        # print mean KMC step count average across all lattice realizations and trajectories
+        print(print_utils.mean_kmc_steps(mean_step_count))
 
         return times, msds
 
