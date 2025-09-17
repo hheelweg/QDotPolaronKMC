@@ -54,7 +54,7 @@ def main():
     # check .config to see defaults here
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
                                              gpu_use_c64 = True,
-                                             do_parallel = False)
+                                             do_parallel = True)
     
     # set up KMC simulation
     kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose=True)
