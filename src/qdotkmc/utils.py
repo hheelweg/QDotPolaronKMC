@@ -105,7 +105,7 @@ def export_msds(times_list, msds_list, file_name="msds.csv"):
 
 # get diffusivity from single (or pooled) MSD trajectory and times array via linear regression
 # NOTE : this is conceptually identical to former get_diffusivity_hh function
-def get_diffusivity(msd, times, dim, tail_frac=1.0):
+def get_diffusivity(msd, times, dim, tail_frac=0.8):
     """
     Estimate the diffusion coefficient from a single MSD curve using a linear fit. The
     estimated diffusion coefficient, computed via the Einstein relation:
