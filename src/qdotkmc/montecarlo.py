@@ -27,15 +27,15 @@ def _one_lattice_worker(args):
     # set up bath
     bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
 
-    # run KMC on sinfle lattice realization
-    times_r, msd_r, sim_time_out = runner._run_single_lattice(
+    # run KMC on single lattice realization
+    times_r, msd_r, lattice_summary = runner._run_single_lattice(
                                                      bath=bath,
                                                      run_cfg=run, 
                                                      realization_id=rid, 
                                                      seed=seed,
                                                      )
     
-    return rid, times_r, msd_r, sim_time_out
+    return rid, times_r, msd_r, lattice_summary
 
 
 class KMCRunner():
@@ -395,7 +395,7 @@ class KMCRunner():
         if time_idx < times_msds.size:
             sds[time_idx:] = last_r2
         
-        # store diagnostics, might want to add more 
+        # store diagnostics (TODO: might want to add more)
         diagnostics = dict()
         diagnostics['step count'] = step_counter
         diagnostics['rates time'] = rates_comp_time
@@ -408,11 +408,9 @@ class KMCRunner():
 
         # (0) initialize diagnostics for QDLattice KMC run
         # TODO : might want to add more as desired
-        lattice_summary = {'rates time (tot)': 0.0,
-                           'step count (mean)': 0.0,
-                           }
-        rates_time_tot = 0.0                                    # total time used to compute the rates (summed over trajectories)
-        mean_step_count = 0.0                                   # mean number of KMC steps across trajectories
+        lattice_summary = {'rates time (tot)': 0.0,             # total time used to compute the rates (summed over trajectories)
+                           'step count (mean)': 0.0,            # mean number of KMC steps across trajectories
+                           }                                 
 
         # (1) build QDLattice realization based on seed
         # (1.1) get random seef from realization id (rid), if no seed already specified
@@ -460,9 +458,10 @@ class KMCRunner():
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
         
-        print('mean steo counter for lattice', int(lattice_summary['step count (mean)']))
+        print('mean step counter for lattice', int(lattice_summary['step count (mean)']))
     
-        return times, msd, lattice_summary['rates time (tot)']
+        return times, msd, lattice_summary
+
 
     # compute adaptive t_final 
     def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20):
@@ -539,10 +538,10 @@ class KMCRunner():
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
                     # return realization ID, times array for realization, msd, sim_time for rates
-                    rid, times_r, msd_r, sim_time = fut.result()
+                    rid, times_r, msd_r, lattice_summary = fut.result()
                     times.append(times_r)
                     msds.append(msd_r)
-                    tot_sim_time += sim_time
+                    tot_sim_time += lattice_summary['rates time (tot)']
         
         # print total time spent on Redfield rates
         print(print_utils.simulated_time(tot_sim_time))
