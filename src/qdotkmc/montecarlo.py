@@ -447,7 +447,7 @@ class KMCRunner():
             t_final = self._get_adaptive_tfinal(qd_lattice, alpha=alpha)
             print('t_final adaptive', t_final_adapt, t_final)
             # TODO : create MSDS
-            times = KMCRunner._make_time_grid(t_final_adapt, time_grid_density)
+            times = KMCRunner._make_time_grid(t_final, time_grid_density)
             print('grid.shape', times.shape)
         else:
             print('run fixed')
