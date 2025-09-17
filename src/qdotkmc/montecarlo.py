@@ -451,7 +451,7 @@ class KMCRunner():
 
             # accumulate diagnostics quantities
             rates_time_tot += diagnostics['rates time']
-            mean_step_count += diagnostics['step count'] / len(run_cfg.ntrajs)
+            mean_step_count += diagnostics['step count'] / run_cfg.ntrajs
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
