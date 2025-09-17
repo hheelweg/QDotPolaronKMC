@@ -559,8 +559,7 @@ class KMCRunner():
             times, msd, sim_time = self._run_single_lattice(
                                                             bath = bath, 
                                                             run_cfg = self.run, 
-                                                            realization_id = r,
-                                                            simulated_time = sim_time
+                                                            realization_id = r
                                                             )
                 
             # store mean squared displacement for QDLattice realization r
