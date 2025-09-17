@@ -435,12 +435,12 @@ class KMCRunner():
         # (1.3) set trajectory t_final adaptively
         if adaptive_tfinal:
             # (3) t_final adaptive time horizon
-            # alpha = 400.0                      
-            t_final = self._get_adaptive_tfinal(qd_lattice, alpha=run_cfg.alpha)
-            times = KMCRunner._make_time_grid(run_cfg.t_final, run_cfg.time_grid_density)
+            alpha = 400.0                      
+            t_final = self._get_adaptive_tfinal(qd_lattice, alpha=alpha)
+            times = KMCRunner._make_time_grid(t_final, time_grid_density)
             print('grid.shape', times.shape)
         else:
-            times = KMCRunner._make_time_grid(run_cfg.t_final, run_cfg.time_grid_density)
+            times = KMCRunner._make_time_grid(t_final, time_grid_density)
 
         # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
