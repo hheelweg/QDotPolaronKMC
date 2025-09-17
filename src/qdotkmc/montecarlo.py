@@ -414,10 +414,8 @@ class KMCRunner():
         simulated_time = 0.0
 
         # NOTE : make this adaptive 
+        # TODO : can we delete this?
         times = KMCRunner._make_time_grid(t_final, time_grid_density)
-
-        print('adaptive ', adaptive_tfinal)
-        print('times.shape', times.shape)
 
         # (1) build QDLattice realization based on seed
         # (1.1) get random seef from realization id (rid), if no seed already specified
@@ -436,11 +434,11 @@ class KMCRunner():
         if adaptive_tfinal:
             # (3) t_final adaptive time horizon
             alpha = 400.0                      
-            t_final = self._get_adaptive_tfinal(qd_lattice, alpha=alpha)
-            times = KMCRunner._make_time_grid(t_final, time_grid_density)
+            t_final_adap = self._get_adaptive_tfinal(qd_lattice, alpha=run_cfg.alpha)
+            times = KMCRunner._make_time_grid(t_final_adap, run_cfg.time_grid_density)
             print('grid.shape', times.shape)
         else:
-            times = KMCRunner._make_time_grid(t_final, time_grid_density)
+            times = KMCRunner._make_time_grid(run_cfg.t_final, run_cfg.time_grid_density)
 
         # (2) get trajectory seed sequence
         traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
