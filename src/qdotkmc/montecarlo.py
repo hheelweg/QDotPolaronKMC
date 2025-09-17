@@ -556,10 +556,9 @@ class KMCRunner():
         for r in range(R):
 
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
-            times, msd, sim_time = self._run_single_lattice(ntrajs = T,
+            times, msd, sim_time = self._run_single_lattice(
                                                             bath = bath, 
-                                                            t_final = self.run.t_final,
-                                                            time_grid_density = self.run.time_grid_density, 
+                                                            run_cfg = self.run, 
                                                             realization_id = r,
                                                             simulated_time = sim_time
                                                             )
