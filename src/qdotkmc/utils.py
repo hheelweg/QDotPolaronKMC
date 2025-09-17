@@ -68,6 +68,7 @@ def export_msds(times_list, msds_list, file_name="msds.csv"):
 
     R = len(times_list)
     max_len = max(len(t) for t in times_list)
+    min_len = min(len(t) for t in times_list)
 
     # pad all arrays to max_len
     times_padded = np.full((R, max_len), np.nan)
@@ -76,25 +77,34 @@ def export_msds(times_list, msds_list, file_name="msds.csv"):
     for i in range(R):
         times_padded[i, :len(times_list[i])] = times_list[i]
         msds_padded[i, :len(msds_list[i])] = msds_list[i]
-    
-    # compute nanmean only over common region
-    min_len = min(len(t) for t in times_list)
-    msds_mean = np.nanmean(msds_padded[:, :min_len], axis=0)
+
+    # average only over overlapping region
+    msds_mean  = np.nanmean(msds_padded[:, :min_len], axis=0)
     time_axis = np.nanmean(times_padded[:, :min_len], axis=0)
 
-    # stack into final output
+    # full (untruncated) export: all padded individual realizations
     columns = []
     data_cols = []
 
     for i in range(R):
-        data_cols.append(times_padded[i, :min_len])
-        data_cols.append(msds_padded[i, :min_len])
+        data_cols.append(times_padded[i])
+        data_cols.append(msds_padded[i])
         columns.append(f"time_{i}")
         columns.append(f"msd_{i}")
 
-    data_cols.append(msds_mean)
+    # pad the mean arrays to max_len with NaNs for consistent stacking
+    msds_mean_padded = np.full((max_len,), np.nan)
+    time_axis_padded = np.full((max_len,), np.nan)
+    msds_mean_padded[:min_len] = msds_mean
+    time_axis_padded[:min_len] = time_axis
+
+    # add mean MSD + time to end of table
+    data_cols.append(time_axis_padded)
+    data_cols.append(msds_mean_padded)
+    columns.append("mean_time")
     columns.append("mean_msd")
 
+    # construct and export
     data = np.column_stack(data_cols)
     df = pd.DataFrame(data, columns=columns)
     df.to_csv(file_name, index=False)
