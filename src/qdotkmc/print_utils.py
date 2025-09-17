@@ -18,7 +18,7 @@ def simulated_time(sim_time : float) -> str:
 
 def mean_kmc_steps(mean_steps: float) -> str:
     """
-    Return a formatted summary string for mean KMC step count.
+    return a formatted summary string for mean KMC step count.
     """
     border = "=" * 42
     header = " KMC STEP COUNT SUMMARY "
