@@ -478,7 +478,7 @@ class KMCRunner():
     def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20):
 
         # (1) draw random samples to compute cumulative rates
-        no_samples = min(0.05 * qd_lattice.geom.n_sites, no_samples)
+        no_samples = min(int(0.05 * qd_lattice.geom.n_sites), no_samples)
         # (1.1) spawn a child sequence
         rng = np.random.default_rng(self._ss_root.spawn(1)[0])
         # (1.2) draw random indices without replacement
