@@ -450,7 +450,7 @@ class KMCRunner():
             # run trajectory and resturn squared displacement in unwrapped coordinates
             sds, diagnostics = self._run_single_kmc_trajectory(qd_lattice, t_final, times, rng_traj)
 
-            # accumulate diagnostics quantities
+            # accumulate diagnostics quantities from KMC trajectory
             lattice_summary['rates time (tot)'] += diagnostics['rates time']
             lattice_summary['step count (mean)'] += diagnostics['step count'] / run_cfg.ntrajs
 
@@ -507,7 +507,7 @@ class KMCRunner():
 
         R = self.run.nrealizations
         # store msds and times
-        tot_sim_time = 0.0                          # this measure time taken for rates computation
+        tot_rates_time = 0.0                          # this measure time taken for rates computation
         msds = []
         times = []
 
@@ -541,10 +541,10 @@ class KMCRunner():
                     rid, times_r, msd_r, lattice_summary = fut.result()
                     times.append(times_r)
                     msds.append(msd_r)
-                    tot_sim_time += lattice_summary['rates time (tot)']
+                    tot_rates_time += lattice_summary['rates time (tot)']
         
         # print total time spent on Redfield rates
-        print(print_utils.simulated_time(tot_sim_time))
+        print(print_utils.simulated_time(tot_rates_time))
 
         return times, msds
         
