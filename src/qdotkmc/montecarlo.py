@@ -440,12 +440,12 @@ class KMCRunner():
             # (2) compute compulateive S
             rates, _, _, _ = self._make_rates(qd_lattice, center_global)
             S = np.sum(rates)
-            S_mean = self._get_t_final(qd_lattice, no_samples=10)
-            print('S, rates', S, len(rates), S_mean)
+            print('S, rates', S, len(rates))
             # (3) t_final adaptive time horizon
             alpha = 400.0                                       # tweak this based on convergence tests
-            t_final_adapt = alpha / S_mean
-            print('t_final adaptive', t_final_adapt)
+            t_final_adapt = alpha / S
+            t_final = self._get_adaptive_tfinal(qd_lattice, alpha=alpha)
+            print('t_final adaptive', t_final_adapt, t_final)
             # TODO : create MSDS
             times = KMCRunner._make_time_grid(t_final_adapt, time_grid_density)
             print('grid.shape', times.shape)
@@ -475,26 +475,29 @@ class KMCRunner():
         return times, msd, simulated_time
 
     # compute adaptive t_final 
-    def _get_t_final(self, qd_lattice, no_samples : int = 10):
+    def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20):
 
-        # (1) samples
-        # spawn a child sequence
+        # (1) draw random samples to compute cumulative rates
+        no_samples = min(0.05 * qd_lattice.geom.n_sites, no_samples)
+        # (1.1) spawn a child sequence
         rng = np.random.default_rng(self._ss_root.spawn(1)[0])
-        # draw random indices without replacement
+        # (1.2) draw random indices without replacement
         selected_indices = rng.choice(qd_lattice.geom.n_sites, size=no_samples, replace=False)
-        print('samp indices', selected_indices)
-        # get selected positions
+        # (1.3) get selected positions
         sampled_positions = qd_lattice.qd_locations[selected_indices]
 
-        # (2) compute cumulative rates
-        S = 0.0
+        # (2) compute mean cumulative rates
+        S_mean = 0.0
         for i in range(no_samples):
             center_global = utils.get_closest_idx(qd_lattice, sampled_positions[i], qd_lattice.polaron_locs)
             rates, _, _, _ = self._make_rates(qd_lattice, center_global)
-            S += np.sum(rates)
+            S_mean += np.sum(rates)
+        S_mean /= no_samples
 
-        S /= no_samples
-        return S
+        # (3) compute t_final based on (mean) cumulative rate
+        t_final = alpha / S_mean
+
+        return t_final
 
     # execute parallel if available based on max_worker (otherwise serial)
     def _simulate_kmc(self):
