@@ -28,12 +28,9 @@ def _one_lattice_worker(args):
     bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
 
     # run KMC on sinfle lattice realization
-    times_r, msd_r, sim_time_out = runner._run_single_lattice(ntrajs=run.ntrajs, 
+    times_r, msd_r, sim_time_out = runner._run_single_lattice(
                                                      bath=bath,
                                                      run_cfg=run, 
-                                                     t_final=run.t_final,
-                                                     time_grid_density=run.time_grid_density,
-                                                     adaptive_tfinal=run.adaptive_tfinal, 
                                                      realization_id=rid, 
                                                      seed=seed,
                                                      )
@@ -408,7 +405,7 @@ class KMCRunner():
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
-    def _run_single_lattice(self, ntrajs, bath, run_cfg, t_final, time_grid_density, adaptive_tfinal, realization_id, seed = None):
+    def _run_single_lattice(self, bath, run_cfg, realization_id, seed = None):
 
         # (0) simulated time set to zero for each lattice realization
         simulated_time = 0.0
