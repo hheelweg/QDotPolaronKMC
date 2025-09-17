@@ -418,7 +418,6 @@ class KMCRunner():
         print('adaptive ', adaptive_tfinal)
         print('times.shape', times.shape)
 
-
         # (1) build QDLattice realization based on seed
         # (1.1) get random seef from realization id (rid), if no seed already specified
         if seed is None:
@@ -441,7 +440,8 @@ class KMCRunner():
             # (2) compute compulateive S
             rates, _, _, _ = self._make_rates(qd_lattice, center_global)
             S = np.sum(rates)
-            print('S, rates', S, len(rates))
+            S_mean = self._get_t_final(qd_lattice, no_samples=10)
+            print('S, rates', S, len(rates), S_mean)
             # (3) t_final adaptive time horizon
             alpha = 600.0                                       # tweak this based on convergence tests
             t_final_adapt = alpha / S
@@ -474,6 +474,28 @@ class KMCRunner():
     
         return times, msd, simulated_time
 
+    # compute adaptive t_final 
+    def _get_t_final(self, qd_lattice, no_samples : int = 10):
+
+        # (1) samples
+        # spawn a child sequence
+        rng = np.random.default_rng(self._ss_root.spawn(1)[0])
+        # draw random indices without replacement
+        selected_indices = rng.choice(qd_lattice.geom.n_sites, size=no_samples, replace=False)
+        print('samp indices', selected_indices)
+        # get selected positions
+        sampled_positions = qd_lattice.qd_locations[selected_indices]
+
+        # (2) compute cumulative rates
+        S = 0.0
+        for i in range(no_samples):
+            center_global = utils.get_closest_idx(qd_lattice, sampled_positions[i], qd_lattice.polaron_locs)
+            rates, _, _, _ = self._make_rates(qd_lattice, center_global)
+            S += np.sum(rates)
+
+        S /= no_samples
+        return S
+
     # execute parallel if available based on max_worker (otherwise serial)
     def _simulate_kmc(self):
         if not self.exec_plan.do_parallel:
@@ -481,7 +503,6 @@ class KMCRunner():
         else:
             return self.simulate_kmc_parallel()
 
-    
     # parallel KMC
     def simulate_kmc_parallel(self):
 
