@@ -1,42 +1,71 @@
 import numpy as np
-from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig
+import os
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Optional
+
+from .config import GeometryConfig, DisorderConfig, BathConfig, RunConfig, ExecutionPlan
 from numpy.random import SeedSequence, default_rng
-from . import lattice, hamiltonian_box, const
-from .hamiltonian_box import SpecDens
+from . import hamiltonian, lattice, const, utils, print_utils
+from .hamiltonian import SpecDens
+from qdotkmc.backend import Backend
 
 
-_BATH_GLOBAL = None
-
-# --- top-level worker so it's picklable by ProcessPool ---
+# top-level worker for a single lattice realization
 def _one_lattice_worker(args):
-    (geom, dis, bath_cfg, run, t_final, times_msds, rid, sim_time) = args
-    runner = KMCRunner(geom, dis, bath_cfg, run)
-    return rid, *runner._run_single_lattice(ntrajs = run.ntrajs,
-                                            bath = _BATH_GLOBAL,
-                                            t_final = run.t_final,
-                                            times = times_msds,
-                                            realization_id=rid,
-                                            simulated_time=sim_time)
+
+    geom, dis, bath_cfg, run, exec_plan, rid, seed, device_id = args
+
+    # assign device if we selected GPU path (device_id is not None)
+    if device_id is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
+        os.environ["QDOT_USE_GPU"] = "1"
+
+    # TODO : can we avoid setting this function
+    runner = KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose=False)
+
+    # set up bath
+    bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
+
+    # run KMC on single lattice realization
+    times_r, msd_r, lattice_summary = runner._run_single_lattice(
+                                                     bath=bath,
+                                                     run_cfg=run, 
+                                                     realization_id=rid, 
+                                                     seed=seed,
+                                                     )
+    
+    return rid, times_r, msd_r, lattice_summary
 
 
 class KMCRunner():
     
     
-    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, run : RunConfig):
+    def __init__(self, geom : GeometryConfig, dis : DisorderConfig, bath_cfg : BathConfig, 
+                 run : RunConfig, exec_plan : ExecutionPlan, backend_verbose : bool = False):
 
-        self.geom = geom
-        self.dis = dis
-        self.bath_cfg = bath_cfg
-        self.run = run
+        self.geom = geom                        # geometry for QDLattice
+        self.dis = dis                          # energetic parameters for QDLattice
+        self.bath_cfg = bath_cfg                # bath setup, temperature ...
+        self.run = run                          # KMC related parameters
+        self.exec_plan = exec_plan              # execution plan
 
         # root seed sequence controls the entire experiment for reproducibility
         self._ss_root = SeedSequence(self.dis.seed_base)
+
+        # backend selection
+        self.backend = self.exec_plan.build_backend()
+        # print backend summary if desired
+        if backend_verbose:
+            print(print_utils.backend_summary(self.backend))
+
     
     # make join time-grid
-    def _make_time_grid(self):
-        npts = int(self.run.t_final * self.run.time_grid_density)
+    @staticmethod
+    def _make_time_grid(t_final, time_grid_density):
+        npts = int(t_final * time_grid_density)
         npts = max(npts, 2)     # ensure at least 2 points
-        time_grid = np.linspace(0.0, self.run.t_final, npts)
+        time_grid = np.linspace(0.0, t_final, npts)
         return time_grid
     
     # per-realization seed for each (per-QDLattice)
@@ -46,107 +75,153 @@ class KMCRunner():
         return int(ss_real.generate_state(1, dtype=np.uint64)[0])
     
     # child SeedSequences for all trajectories of a given realization (QDLattice)
-    def _spawn_trajectory_seedseq(self, rid : int):
-        ss_real = SeedSequence(self._spawn_realization_seed(rid))
+    def _spawn_trajectory_seedseq(self, rid : int, seed : Optional[int] = None):
+        # create trajectory seed sequence specific to the seed of the realization (seed)
+        # otherwise (seed = None) initialize new seeds. 
+        ss_real = SeedSequence(self._spawn_realization_seed(rid)) if seed is None else SeedSequence(seed)
         return ss_real.spawn(self.run.ntrajs)
+    
+    
+    # rate computation based on r_hop/r_ove (based on RADIUS)
+    @staticmethod
+    def _make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info = False):
 
 
+        # (0) set up r_hop and r_ove, intialize box in qd_lattice as well
+        # qd_lattice.redfield.r_hop, qd_lattice.redfield.r_ove = r_hop * qd_lattice.geom.qd_spacing, r_ove * qd_lattice.geom.qd_spacing
 
-    def _make_kmatrix_box(self, qd_lattice, center_global):
+        # (1) use legacy self._get_box() and initialize box 
+        # NOTE : this can likely be deleted
+        r_hop, r_ove, box_length = lattice.QDLattice._init_box_dims(r_hop, r_ove, 
+                                                                    spacing = qd_lattice.geom.qd_spacing,
+                                                                    max_length = qd_lattice.geom.N)
+        polaron_start_site = qd_lattice.polaron_locs[center_global]
+        KMCRunner._get_box(qd_lattice, polaron_start_site, box_length=box_length)
 
-        # (1) use the global indices of polaron and site inside box
+        # (2) use the global indices of polaron and site inside box to further refine
+        # selection by r_ove r_ove
         pol_box  = qd_lattice.pol_idxs_last
         site_box = qd_lattice.site_idxs_last
 
-        # (2) refine the polaron and site indices by additional constraints on r_hop and r_ove
+        # (3) refine the polaron and site indices by additional constraints on r_hop and r_ove
         # NOTE : refine_by_radius function can maybe be moved into this module ? 
-        pol_g, site_g = qd_lattice.redfield.refine_by_radius(
+        pol_g, site_g = qd_lattice.redfield.select_by_radius(
+                    center_global = center_global,                      # reference index
+                    r_hop = r_hop,
+                    r_ove = r_ove,
                     pol_idxs_global = pol_box,
                     site_idxs_global = site_box,
-                    center_global = center_global,                      # global index of the center polaron
-                    periodic=True,                                      # or False to match array setup
-                    grid_dims=qd_lattice.geom.lattice_dimension
+                    periodic = True,                                     # or False to match array setup
+                    grid_dims = qd_lattice.geom.lattice_dimension
                     )
 
-        # (2) compute rates on those exact indices (no re-derivation)
-        rates, final_states, tot_time = qd_lattice.redfield.make_redfield_box(
-            pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global
+        # (4) compute rates on those exact indices (no re-derivation)
+        rates, final_states, tot_time = qd_lattice.redfield.make_redfield(
+            pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global,
+            verbosity = False
         )
 
-        # (3) cache by global center index
+        # (5) cache by global center index
         overall_idx_start = center_global
         qd_lattice.stored_npolarons_box[overall_idx_start] = len(pol_g)
         qd_lattice.stored_polaron_sites[overall_idx_start] = np.copy(final_states)   # global indices
         qd_lattice.stored_rate_vectors[overall_idx_start]  = np.copy(rates)
 
-        return rates, final_states, tot_time
+        # (4) optional: export information about selected polarons/sites for computation of rates
+        sel_info= {}
+        if selection_info:
+            sel_info['npols_sel'] = len(pol_g)
+            sel_info['nsites_sel'] = len(site_g)
 
-    # make box around center position where we are currently at
-    # TODO : incorporate periodic boundary conditions explicty (boolean)
-    def _get_box(self, qd_lattice, center, periodic=True):
-
-        # (1) box size (unchanged)
-        qd_lattice.box_size = qd_lattice.box_length * qd_lattice.geom.qd_spacing
-
-        # (2) helpers (unchanged logic)
-        # NOTE : put this somewhere as a helper function ?
-        def find_indices_within_box(points, center, grid_dims, box_size, periodic=True):
-            half_box = box_size / 2
-            dim = len(center)
-            assert len(points[0]) == len(center) == len(grid_dims)
-
-            if dim == 1:
-                dx = np.abs(points - center[0])
-                if periodic:
-                    dx = np.minimum(dx, grid_dims[0] - dx)
-                return np.where(dx <= half_box)[0]
-
-            elif dim == 2:
-                dx = np.abs(points[:, 0] - center[0])
-                dy = np.abs(points[:, 1] - center[1])
-                if periodic:
-                    dx = np.minimum(dx, grid_dims[0] - dx)
-                    dy = np.minimum(dy, grid_dims[1] - dy)
-                return np.where((dx <= half_box) & (dy <= half_box))[0]
-
-            else:
-                raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
-
-        # (3) global index sets inside the axis-aligned periodic box
-        pol_idxs = find_indices_within_box(qd_lattice.polaron_locs, center, qd_lattice.geom.lattice_dimension, qd_lattice.box_size, periodic)
-        site_idxs = find_indices_within_box(qd_lattice.qd_locations,  center, qd_lattice.geom.lattice_dimension, qd_lattice.box_size, periodic)
-
-        # keep order, store contiguously
-        qd_lattice.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
-        qd_lattice.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
-
-        # (4) define the GLOBAL center index once
-        qd_lattice.center_global = int(self.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
-
-        # (5) optional: local position of the center inside the box (rarely needed now)
-        where = np.nonzero(qd_lattice.pol_idxs_last == qd_lattice.center_global)[0]
-        # If the box is tight or discrete, it should be present; if not, refine_by_radius will handle it.
-        qd_lattice.center_local = int(where[0]) if where.size == 1 else None
+        return rates, final_states, tot_time, sel_info
 
 
-    def _make_kmc_step(self, qd_lattice, clock, polaron_start_site, rnd_generator = None):
+    # rate computation based on theta_pol/theta_tau (based on WEIGHT)
+    @staticmethod
+    def _make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info = False):
+
+        # (0) set up θ_pol and θ_sites 
+        qd_lattice.redfield.theta_pol, qd_lattice.redfield.theta_site = theta_pol, theta_site
+
+        # (1) select sites and polarons that ''matter'' for computing the rates
+        site_g, pol_g = qd_lattice.redfield.select_by_weight(center_global = center_global, 
+                                                             theta_site = qd_lattice.redfield.theta_site, 
+                                                             theta_pol = qd_lattice.redfield.theta_pol, 
+                                                             verbose = False
+                                                             )
+
+        # (2) compute rates on those exact indices (no re-derivation)
+        rates, final_states, tot_time = qd_lattice.redfield.make_redfield(
+            pol_idxs_global=pol_g, site_idxs_global=site_g, center_global=center_global,
+            verbosity = False                                                               # NOTE : can change this to True to print comments in make_redfield
+        )
+
+        # (3) cache by global center index
+        qd_lattice.stored_npolarons_box[center_global] = len(pol_g)
+        qd_lattice.stored_polaron_sites[center_global] = np.copy(final_states)   
+        qd_lattice.stored_rate_vectors[center_global]  = np.copy(rates)
+
+        # (4) optional: export information about selected polarons/sites for computation of rates
+        sel_info= {}
+        if selection_info:
+            sel_info['npols_sel'] = len(pol_g)
+            sel_info['nsites_sel'] = len(site_g)
+
+        return rates, final_states, tot_time, sel_info
+
+    
+    def _make_rates(self, qd_lattice, center_global, *, selection_info=False, **kwargs):
+        """
+        dynamically switch between rate modii 
+        """
+        # allow one-off mode switch per call (optional)
+        rates_by = kwargs.pop("rates_by", getattr(self.run, "rates_by", "radius"))
+
+        # compute rates from scratch and add to cache
+        if self.run.rates_by == "radius":
+            r_hop = kwargs.pop("r_hop", self.run.r_hop)
+            r_ove = kwargs.pop("r_ove", self.run.r_ove)
+            if r_hop is None or r_ove is None:
+                raise ValueError("Need r_hop and r_ove for radius mode (pass as kwargs or set in RunConfig).")
+            return self._make_rates_radius(qd_lattice, center_global, r_hop, r_ove, selection_info)
+
+
+        elif self.run.rates_by == "weight":
+            theta_pol  = kwargs.pop("theta_pol",  self.run.theta_pol)
+            theta_site = kwargs.pop("theta_site", self.run.theta_site)
+            if theta_pol is None or theta_site is None:
+                raise ValueError("Need theta_pol and theta_site for weight mode (pass as kwargs or set in RunConfig).")
+            return self._make_rates_weight(qd_lattice, center_global, theta_pol, theta_site, selection_info)
+
+        else:
+            raise ValueError(f"Unknown rates_by: {rates_by!r}")
+
+
+    def _make_kmc_step(self, qd_lattice, polaron_start_site, rnd_generator = None, track_time = False):
 
         # (0) check whether we have a valid instance of QDLattice class
         assert isinstance(qd_lattice, lattice.QDLattice), "need to feed valid QDLattice instance!"
 
-        # (1) build box (just indices + center_global)
-        self._get_box(qd_lattice, polaron_start_site)
+        # TODO : remove this (just for debugging)
+        if track_time:
+            import time
+            time_dict = {'idx': 0.0, 'rates': 0.0, 'search': 0.0}
 
-        center_global = qd_lattice.center_global
+        # (1) start polarong (global) idx and location 
+        center_global = utils.get_closest_idx(qd_lattice, polaron_start_site, qd_lattice.polaron_locs)
         start_pol = qd_lattice.polaron_locs[center_global]
 
         # (2) compute (or reuse) rates
         if qd_lattice.stored_npolarons_box[center_global] == 0:
-            rates, final_states, tot_time = self._make_kmatrix_box(qd_lattice, center_global)
+            # compute rates
+            rates, final_states, comp_time, _ = self._make_rates(qd_lattice, 
+                                                                center_global
+                                                                )
         else:
-            tot_time = 0.0
-            final_states = qd_lattice.stored_polaron_sites[center_global]  # global indices
+            comp_time = 0.0
+            final_states = qd_lattice.stored_polaron_sites[center_global]  
             rates        = qd_lattice.stored_rate_vectors[center_global]
+        
 
         # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)
@@ -157,34 +232,36 @@ class KMCRunner():
         u2 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
 
         final_idx = int(np.searchsorted(cum_rates, u1 * S))
-        # update clock
-        clock += -np.log(u2) / S
+        # get delta_t for updating clock
+        delta_t = -np.log(u2) / S
 
-        # (4) final polaron coordinate in GLOBAL frame
+        # (4) final polaron position
         end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
-        return start_pol, end_pol, clock, tot_time
+        return start_pol, end_pol, delta_t, comp_time
     
 
-    # build realization of QD lattice
-    def _build_grid_realization(self, bath : SpecDens, rid : int):
+    # build realization of QD lattice based on seed 
+    @staticmethod
+    def _build_grid_realization(geom : GeometryConfig,
+                                dis : DisorderConfig,
+                                bath : SpecDens, 
+                                seed : Optional[int], 
+                                backend : Backend):
 
         assert isinstance(bath, SpecDens), "Need to make sure we have a proper \
                                             bath set up to build QDLattice instance"
-
-        # get random seef from realization id (rid)
-        rnd_seed = self._spawn_realization_seed(rid)
-        # NOTE : just for debugging
-        print('seed realization', rnd_seed)
         
-        # initialize instance of QDLattice class
-        # NOTE : change to rnd_seed = self.dis.seed_base for default seed
-        qd = lattice.QDLattice(geom=self.geom, dis=self.dis, seed_realization=rnd_seed)
+        # initialize instance of QDLattice class based on random seed
+        qd = lattice.QDLattice(geom = geom, dis = dis, seed_realization=seed)
 
-        # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield
+        # attach GPU/CPU backend to QDLattice
+        qd.backend = backend
+
+        # setup QDLattice with (polaron-transformed) Hamiltonian, bath information, Redfield ...
         qd._setup(bath)
 
-        return qd
+        return qd, seed
     
     
     # NOTE : if periodic = True, this incorporates periodic boundary conditions
@@ -220,43 +297,41 @@ class KMCRunner():
             || R(t + Δt) - R(0) ||^2, i.e., squared net displacement
             from the start, in unwrapped space.
         """
-        # ensure 1D vectors
-        start_pol = np.atleast_1d(np.asarray(start_pol, dtype=float))
-        end_pol   = np.atleast_1d(np.asarray(end_pol, dtype=float))
-        curr      = np.atleast_1d(np.asarray(trajectory_curr, dtype=float))
-        start0    = np.atleast_1d(np.asarray(trajectory_start, dtype=float))
-
-        # raw hop vector in box coordinates
+        # assume inputs are already float64 1D arrays of same shape
         delta = end_pol - start_pol
 
-        # box lengths per dimension (broadcast a scalar if needed)
-        L = np.atleast_1d(np.asarray(box_lengths, dtype=float))
+        # vectorized minimum image convention
+        # handles both scalar and array-valued box_lengths
+        L = box_lengths if np.ndim(box_lengths) else np.full_like(delta, box_lengths)
 
-        # set periodic axes
-        if periodic is None:
-            periodic = np.ones(L.shape, dtype=bool)
-        else:
+        # periodic mask
+        if periodic is True:
+            # All periodic
+            delta -= L * np.round(delta / L)
+        elif periodic is not None:
+            # Partial periodicity
             periodic = np.asarray(periodic, dtype=bool)
-
-        # for each periodic dimension d: Δ_d ← Δ_d − L_d * round(Δ_d / L_d)
-        # this maps any hop across a boundary to the nearest periodic image
-        if np.any(periodic):
-            delta_p = delta[periodic]
             L_p = L[periodic]
+            delta_p = delta[periodic]
             delta[periodic] = delta_p - L_p * np.round(delta_p / L_p)
+        # else: no periodic axes
 
-        # accumulate the unwrapped displacement R(t) ← R(t) + Δr
-        new_curr = curr + delta
-        # squared net displacement from the start (unwrapped)
-        diff = new_curr - start0
-        return new_curr, float(np.dot(diff, diff))
+        # update current unwrapped position
+        new_curr = trajectory_curr + delta
+
+        # squared displacement from origin
+        diff = new_curr - trajectory_start
+        r2 = np.dot(diff, diff)
+
+        return new_curr, r2
 
 
     # run a single trajectory for a specified QDLattice
-    def _run_single_kmc_trajectory(self, qd_lattice, t_final, rng = None):
+    # TODO : change diagnostics slightly here so that we can return different quantities if desired
+    def _run_single_kmc_trajectory(self, qd_lattice, t_final, times_msds, rng = None):
 
         # (0) time grid and per-trajectory buffers for squared displacements
-        times_msds = self._make_time_grid()
+        # times_msds = KMCRunner._make_time_grid(t_final, time_grid_density)
         sds = np.zeros_like(times_msds, dtype=float)
 
         # (1) local per-trajectory state
@@ -264,25 +339,29 @@ class KMCRunner():
         step_counter = 0                        # counter of KMC steps
         time_idx = 0
         last_r2 = 0.0                           # last know squared displacement
-        tot_comp_time = 0.0                     # NOTE : this is only for debugging and tracking computational time
-
+        rates_comp_time = 0.0                   # NOTE : this is only for debugging and tracking computational time of the RATES
+                                                # other trajectory computation are not factored in here!
 
         # (2) draw initial center uniformly in site basis and map to nearest polaron
         idx0 = (np.random.randint(0, qd_lattice.geom.n_sites) if rng is None
                 else rng.integers(0, qd_lattice.geom.n_sites))
         start_site = qd_lattice.qd_locations[idx0]
-        start_pol  = qd_lattice.polaron_locs[self.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
+        start_pol  = qd_lattice.polaron_locs[utils.get_closest_idx(qd_lattice, start_site, qd_lattice.polaron_locs)]
 
         # (3) running positions (unwrapped accumulator + reference)
         trajectory_start = np.asarray(start_pol, dtype=float)           # stores R(0)
         trajectory_curr  = trajectory_start.copy()                      # stores R(t)
-        
+
         # (4) main KMC loop
         while clock < t_final:
+
             # (4.1) perform a KMC step from start_pol to end_pol
-            _, end_pol, clock, step_comp_time = self._make_kmc_step(qd_lattice, clock, start_pol, rnd_generator=rng)
+            # TODO : might want to add more disgnoastics for the KMC steps for analytics
+            _, end_pol, delta_t, step_comp_time = self._make_kmc_step(qd_lattice, start_pol, rnd_generator=rng, track_time=False)
+            # update simulated time clock
+            clock += delta_t
             # update computational time
-            tot_comp_time += step_comp_time
+            rates_comp_time += step_comp_time
 
             # (4.2) accumulate current position as long as we have not exceeded t_final yet
             if clock < t_final:
@@ -308,205 +387,273 @@ class KMCRunner():
             # OPTIONAL : avoid doing extra KMC steps when you’ve already filled all requested MSD time points.
             if time_idx >= times_msds.size:
                 break
+        
 
-        # NOTE : this was missing before
         # this ensurs tail is filled if loop ended before the last grid point
         # this is needed if the trajectory ended before all time grid points were reached (e.g., t_final was reached mid-interval)
         # without this, the later entries in sds would stay at zero, which would artificially drop the average MSD in those bins
         if time_idx < times_msds.size:
             sds[time_idx:] = last_r2
+        
+        # store diagnostics (TODO: might want to add more)
+        diagnostics = dict()
+        diagnostics['step count'] = step_counter
+        diagnostics['rates time'] = rates_comp_time
 
-        return sds, tot_comp_time
+        return sds, diagnostics
 
 
     # create specific realization (instance) of QDLattice and run many trajectories
-    def _run_single_lattice(self, ntrajs, bath, t_final, times, realization_id, simulated_time):
+    def _run_single_lattice(self, bath, run_cfg, realization_id, seed = None):
 
-        # build QD lattice realization
-        qd_lattice = self._build_grid_realization(bath, rid = realization_id)
+        # (0) initialize diagnostics for QDLattice KMC run
+        # TODO : might want to add more as desired
+        lattice_summary = {'rates time (tot)': 0.0,             # total time used to compute the rates (summed over trajectories)
+                           'step count (mean)': 0.0,            # mean number of KMC steps across trajectories
+                           }                                 
 
-        # get trajectory seed sequence
-        traj_ss = self._spawn_trajectory_seedseq(rid = realization_id)
+        # (1) build QDLattice realization based on seed
+        # (1.1) get random seef from realization id (rid), if no seed already specified
+        if seed is None:
+            rnd_seed = self._spawn_realization_seed(realization_id)
+        else:
+            rnd_seed = seed
+        # (1.2) build QDLattice according to rnd_seed
+        qd_lattice, real_seed = KMCRunner._build_grid_realization(geom = self.geom,
+                                                                  dis = self.dis, 
+                                                                  bath = bath, 
+                                                                  seed = rnd_seed,
+                                                                  backend = self.backend)
+        
+        # (1.3) set trajectory t_final
+        # NOTE : the way we generate t_final adaptively in serial/parallel yields slightly different
+        # results because the way we sample the cumulative rates from random seeds is behaving different
+        # in serial versus with parallel workers. (this matters only for reproducibility, but is not larger problem)
+        if run_cfg.adaptive_tfinal:                
+            t_final = self._get_adaptive_tfinal(qd_lattice, alpha=run_cfg.alpha)
+            times = KMCRunner._make_time_grid(t_final, run_cfg.time_grid_density)
+        else:
+            t_final = run_cfg.t_final
+            times = KMCRunner._make_time_grid(t_final, run_cfg.time_grid_density)
 
-        # initialize mean squared displacement
+        # (2) get trajectory seed sequence
+        traj_ss = self._spawn_trajectory_seedseq(rid = realization_id, seed = real_seed)
+
+        # (3) initialize mean squared displacement based on times array
         msd = np.zeros_like(times)
 
-        for t in range(ntrajs):
+        # (4) loop through realizations
+        for t in range(run_cfg.ntrajs):
             # random generator for trajectory
             rng_traj = default_rng(traj_ss[t])
 
             # run trajectory and resturn squared displacement in unwrapped coordinates
-            sds, comp = self._run_single_kmc_trajectory(qd_lattice, t_final, rng_traj)
-            simulated_time += comp
+            sds, diagnostics = self._run_single_kmc_trajectory(qd_lattice, t_final, times, rng_traj)
+
+            # accumulate diagnostics quantities from KMC trajectory
+            lattice_summary['rates time (tot)'] += diagnostics['rates time']
+            lattice_summary['step count (mean)'] += diagnostics['step count'] / run_cfg.ntrajs
 
             # streaming mean over trajectories (same as before)
             w = 1.0 / (t + 1)
             msd = (1.0 - w) * msd + w * sds
+        
+    
+        return times, msd, lattice_summary
 
-        return msd, simulated_time
 
+    # compute adaptive t_final 
+    def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20):
+
+        # (1) draw random samples to compute cumulative rates (at most 20)
+        no_samples = min(int(0.05 * qd_lattice.geom.n_sites), no_samples)
+        assert no_samples <= qd_lattice.geom.n_sites, "Too many samples for adaptive t_final specified!"
+        # (1.1) spawn a child sequence
+        rng = np.random.default_rng(self._ss_root.spawn(1)[0])
+        # (1.2) draw random indices without replacement
+        selected_indices = rng.choice(qd_lattice.geom.n_sites, size=no_samples, replace=False)
+        # (1.3) get selected positions
+        sampled_positions = qd_lattice.qd_locations[selected_indices]
+
+        # (2) compute mean cumulative rates
+        S_mean = 0.0
+        for i in range(no_samples):
+            center_global = utils.get_closest_idx(qd_lattice, sampled_positions[i], qd_lattice.polaron_locs)
+            rates, _, _, _ = self._make_rates(qd_lattice, center_global)
+            S_mean += np.sum(rates)
+        S_mean /= no_samples
+
+        # (3) compute t_final based on (mean) cumulative rate
+        t_final = alpha / S_mean
+
+        return t_final
+
+    # execute parallel if available based on max_worker (otherwise serial)
+    def _simulate_kmc(self):
+        if not self.exec_plan.do_parallel:
+            return self.simulate_kmc_serial()
+        else:
+            return self.simulate_kmc_parallel()
 
     # parallel KMC
-    def simulate_kmc_parallel(self, max_workers = None):
-        """Parallel over realizations on CPU (one process per realization)."""
-        import os
-        import multiprocessing as mp
-        from concurrent.futures import ProcessPoolExecutor, as_completed
+    def simulate_kmc_parallel(self):
+
+        """Parallel over realizations. Uses fork on CPU, spawn on GPU (one process per GPU)."""
+
         os.environ.setdefault("OMP_NUM_THREADS", "1")
         os.environ.setdefault("MKL_NUM_THREADS", "1")
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
         R = self.run.nrealizations
-        times_msds = self._make_time_grid()
-        msds = np.zeros((R, len(times_msds)))
-        sim_time = 0.0
+        # store msds and times
+        msds = []
+        times = []
 
-        # Build bath ONCE in parent
-        bath = SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
+        # some diagnostics outputs
+        tot_rates_time = 0.0                                                                        # this measure time taken for rates computation
+        mean_step_count = 0.0                                                                       # mean number of step counts (averaged over all QDLattices)
 
-        # Expose it to workers via module-global, then FORK the pool
-        global _BATH_GLOBAL
-        _BATH_GLOBAL = bath
+        # create seeds for lattice realizations, its important to feed them here
+        # in order to have parallel execution yield the same results as serial
+        seeds = [self._spawn_realization_seed(rid) for rid in range(R)]
 
-        # Use fork context so children inherit memory instead of pickling args
-        ctx = mp.get_context("fork")
-
-        # dispatch configs (lightweight) + indices
-        jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.run.t_final, times_msds, r, sim_time) for r in range(R)]
-
-        #msds = None
+        # use fork context so children inherit memory instead of pickling args (for CPU)
+        # or use spawn (for GPU) 
+        ctx = mp.get_context(self.backend.plan.context)
+        jobs = []
+        # (a) GPU bath
+        if self.backend.plan.device_ids:  
+            for rid in range(R):
+                dev = self.backend.plan.device_ids[rid % len(self.backend.plan.device_ids)]
+                jobs.append((self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
+                            rid, seeds[rid], dev))
+        # (b) CPU path
+        else:
+            dev = self.backend.plan.device_ids                                              # should be None for CPU path
+            jobs = [(self.geom, self.dis, self.bath_cfg, self.run, self.exec_plan,
+                    rid, seeds[rid], dev) for rid in range(R)]
+        
+        # allocate jobs to workers
+        # set max_workers to None for GPU path (seems the fastest), and to n_workers for CPU path
+        max_workers = None if self.backend.plan.device_ids is not None else self.backend.plan.n_workers
         with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as ex:
-            futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
-            for fut in as_completed(futs):
-                rid, msd_r, sim_time = fut.result()
-                msds[rid] = msd_r
+                futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
+                for fut in as_completed(futs):
+                    # return realization ID, times array for realization, msd, sim_time for rates
+                    rid, times_r, msd_r, lattice_summary = fut.result()
+                    times.append(times_r)
+                    msds.append(msd_r)
+                    tot_rates_time += lattice_summary['rates time (tot)']
+                    mean_step_count += lattice_summary['step count (mean)'] / self.run.nrealizations
+        
+        # print diagnostics if desired
+        if self.run.print_diagnostics:
+            # print total time spent on Redfield rates
+            print(print_utils.simulated_time(tot_rates_time))
+            # print mean KMC step count average across all lattice realizations and trajectories
+            print(print_utils.mean_kmc_steps(mean_step_count))
 
-        print('----------------------------------')
-        print('---- SIMULATED TIME SUMMARY -----')
-        print(f'total simulated time {sim_time:.3f}')
-        print('----------------------------------')
-        return times_msds, msds
-
-
+        return times, msds
+        
     # serial KMC
-    def simulate_kmc(self):
+    def simulate_kmc_serial(self):
 
-        times_msds = self._make_time_grid()                                 # time ranges to use for computation of msds                                                                 
-        msds = np.zeros((self.run.nrealizations, len(times_msds)))          # initialize MSD output
-        sim_time = 0                                                        # simulated time
+        times_msds = KMCRunner._make_time_grid(self.run.t_final, self.run.time_grid_density)        # time ranges to use for computation of msds                                                                 
+        msds = np.zeros((self.run.nrealizations, len(times_msds)))                                  # initialize MSD output
 
-        R = self.run.nrealizations                                          # number of QDLattice realizations
-        T = self.run.ntrajs                                                 # number of trajetories per QDLattice realization
+        # some diagnostics outputs
+        tot_rates_time = 0.0                                                                        # simulated time for rates
+        mean_step_count = 0.0                                                                       # mean number of step counts (averaged over all QDLattices)
+
+        R = self.run.nrealizations                                                                  # number of QDLattice realizations
+        T = self.run.ntrajs                                                                         # number of trajetories per QDLattice realization
+
+        # store msds and times
+        msds = []
+        times = []
 
         # build bath spectral density (once for all QDLattice realizations!)
-        bath = hamiltonian_box.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
-
+        bath = hamiltonian.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
 
         # loop over number of QDLattice realizations
         for r in range(R):
 
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
-            msd, sim_time = self._run_single_lattice(ntrajs = T,
-                                                     bath = bath, 
-                                                     t_final = self.run.t_final, 
-                                                     times = times_msds,
-                                                     realization_id = r,
-                                                     simulated_time = sim_time
-                                                     )
-                
-            # store mean squared displacement for QDLattice realization r
-            msds[r] = msd
+            times_r, msd_r, lattice_summary = self._run_single_lattice(
+                                                            bath = bath, 
+                                                            run_cfg = self.run, 
+                                                            realization_id = r
+                                                            )
+            tot_rates_time += lattice_summary['rates time (tot)']
+            mean_step_count += lattice_summary['step count (mean)'] / self.run.nrealizations
+            times.append(times_r)
+            msds.append(msd_r)
 
-            print('----------------------------------')
-            print('---- SIMULATED TIME SUMMARY -----')
-            print(f'total simulated time {sim_time:.3f}')
-            print('----------------------------------')
-        return times_msds, msds
+        # print diagnostics if desired
+        if self.run.print_diagnostics:
+            # print total time spent on Redfield rates
+            print(print_utils.simulated_time(tot_rates_time))
+            # print mean KMC step count average across all lattice realizations and trajectories
+            print(print_utils.mean_kmc_steps(mean_step_count))
+
+        return times, msds
+
+    # make box around center position where we are currently at
+    # TODO : incorporate periodic boundary conditions explicty (boolean)
+    # NOTE : this can likely be deleted as it not doing much, which we couldn't implement directly
+    # NOTE : note that we have changed get_closest_idx (09/15) so might want to account for that
+    @staticmethod
+    def _get_box(qd_lattice, center, box_length, periodic=True):
+
+        # (1) box size (unchanged)
+        #qd_lattice.box_size = qd_lattice.box_length * qd_lattice.geom.qd_spacing
+
+        # (2) helpers (unchanged logic)
+        # NOTE : put this somewhere as a helper function ?
+        def find_indices_within_box(points, center, grid_dims, box_size, periodic=True):
+            half_box = box_size / 2
+            dim = len(center)
+            assert len(points[0]) == len(center) == len(grid_dims)
+
+            if dim == 1:
+                dx = np.abs(points - center[0])
+                if periodic:
+                    dx = np.minimum(dx, grid_dims[0] - dx)
+                return np.where(dx <= half_box)[0]
+
+            elif dim == 2:
+                dx = np.abs(points[:, 0] - center[0])
+                dy = np.abs(points[:, 1] - center[1])
+                if periodic:
+                    dx = np.minimum(dx, grid_dims[0] - dx)
+                    dy = np.minimum(dy, grid_dims[1] - dy)
+                return np.where((dx <= half_box) & (dy <= half_box))[0]
+
+            else:
+                raise NotImplementedError("find_indices_within_box: only 1D/2D supported.")
+
+        # (3) global index sets inside the axis-aligned periodic box
+        pol_idxs = find_indices_within_box(qd_lattice.polaron_locs, center, qd_lattice.geom.lattice_dimension, box_length, periodic)
+        site_idxs = find_indices_within_box(qd_lattice.qd_locations,  center, qd_lattice.geom.lattice_dimension, box_length, periodic)
+
+        # keep order, store contiguously
+        qd_lattice.pol_idxs_last  = np.ascontiguousarray(pol_idxs.astype(np.intp))
+        qd_lattice.site_idxs_last = np.ascontiguousarray(site_idxs.astype(np.intp))
+
+        # (4) define the GLOBAL center index once
+        # NOTE : it seems like eventuall this is all we need, so we might get rid of this function alltogether ??
+        qd_lattice.center_global = int(utils.get_closest_idx(qd_lattice, center, qd_lattice.polaron_locs))
+
+        # (5) optional: local position of the center inside the box (rarely needed now)
+        where = np.nonzero(qd_lattice.pol_idxs_last == qd_lattice.center_global)[0]
+        # If the box is tight or discrete, it should be present; if not, refine_by_radius will handle it.
+        qd_lattice.center_local = int(where[0]) if where.size == 1 else None
 
     
-    
-    # (08/09/2025) more efficient version
-    # NOTE : move to uitls.py?
-    def get_closest_idx(self, qd_lattice, pos, array):
-        """
-        Find the index in `array` closest to `pos` under periodic boundary conditions.
-        """
-        # Vectorized periodic displacement
-        delta = array - pos  # shape (N, dims)
 
-        # Apply periodic boundary condition (minimum image convention)
-        delta -= np.round(delta / qd_lattice.geom.boundary) * qd_lattice.geom.boundary
 
-        # Compute squared distances
-        dists_squared = np.sum(delta**2, axis=1)
-
-        return np.argmin(dists_squared)
     
 
-    # ---------------------------------------------------------------------------------------------------------
-    # HH : for some arrays of r_hop and r_ove, comopute the rates and check
-    # for convergence (you are more than invited to play around with this!)
-    def get_rate_convergence(self, r_hops, r_oves):
-        # determine convergence of rates
-        rateConvergence = np.zeros((len(r_hops), len(r_oves)))
-        boxLengths = np.zeros((len(r_hops), len(r_oves)))
-        # more microscopoic rate convergence information
-        rateMeanFinal = np.zeros((len(r_hops), len(r_oves), self.dims))
-        rateThreeBiggest = np.zeros((len(r_hops), len(r_oves), 3))
-        rateCumThree = np.zeros((len(r_hops), len(r_oves)))
-
-        # consider outgoing rates from the most central site:
-        start_site = np.array([int(self.sidelength // 2) * self.qd_spacing, int(self.sidelength // 2) * self.qd_spacing])
-
-        # loop over all combinations of r_ove and r_hop 
-        for i, r_hop in enumerate(r_hops):
-            for j, r_ove in enumerate(r_oves):
-
-                # (0) get box properties
-                self.make_box_dimensions(r_hop, r_ove)
-                boxLengths[i, j] = self.box_length
-
-                # (1) get rates
-                # (1.1) create box
-                self.get_box(start_site)
-                # (1.2) get initial polaron state (polaron basis)
-                idx_start = self.get_closest_idx(start_site, self.eigstates_locs)
-                self.start_pol = self.eigstates_locs[idx_start]
-                # (1.3) obtain rates
-                self.make_kmatrix_box(idx_start)
-
-                # (2) analyze those rates based on desired criteria
-                # (2.1) cumulative rates
-                cum_rates = np.sum(self.rates)
-                # (2.2) more microscopic details on the rates
-                mean_final, three_biggest, cum_three_biggest_norm  = self.analyze_rates()
-
-                # (3) store
-                rateConvergence[i, j] = cum_rates
-                rateMeanFinal[i, j, :] = mean_final
-                #rateThreeBiggest[i, j, :] = three_biggest
-                #rateCumThree[i, j] = cum_three_biggest_norm
-
-        return rateConvergence, boxLengths, rateMeanFinal, rateThreeBiggest, rateCumThree
-    
-    # HH : this gives some more microscopic insights into self.rates
-    def analyze_rates(self):
-        # normalize rates array
-        rates_norm = self.rates / np.sum(self.rates)
-        # find three biggest entries and also the percentage of rates
-        # (1) get mean final state difference from original state
-        locs = self.eigstates_locs[self.final_states]
-        mean_final = np.matmul(locs.T, rates_norm) - self.start_pol
-        # (2) get three biggest (normalized) rates
-        rates_norm.sort()
-        three_biggest = rates_norm[-3:][::-1]
-        cum_three_biggest_norm = np.sum(three_biggest)
-        return mean_final, three_biggest, cum_three_biggest_norm   
-    
-    # NOTE : move to utils.py ?
-    def get_ipr(self):
-        # returns ipr of one column vector, or mean ipr of multiple column vectors
-        return np.mean(1/np.sum(self.eigstates ** 4, axis = 0))
     
 
 
