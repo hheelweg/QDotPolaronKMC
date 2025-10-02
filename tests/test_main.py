@@ -4,6 +4,7 @@ import numpy as np
 # track performance bottlenecks
 from pyinstrument import Profiler
 import qdotkmc
+import sys
 
 
 
@@ -27,7 +28,7 @@ def main():
     reorg_nrg = 0.03                            # reorganization energy (units?)
 
     # ---- KMC parameters ---------
-    ntrajs = 50                                 # number of trajectories to compute MSDs over
+    ntrajs = int(sys.argv[1]) #50                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
     t_final = 10
 
