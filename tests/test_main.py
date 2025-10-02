@@ -4,6 +4,7 @@ import numpy as np
 # track performance bottlenecks
 from pyinstrument import Profiler
 import qdotkmc
+import time
 import sys
 
 
@@ -12,6 +13,8 @@ def main():
 
     # NOTE : a lot of the input parameters (especially the ones that are not used regularly)
     # have been moved as defaults to .config dataclasses. 
+
+    start_time = time.perf_counter()
 
     # ---- QDLattice gometry ------
     ndim = 1                                    # number of dimensions
@@ -74,6 +77,8 @@ def main():
     # -------------------------------------------------------------------------
     print('diffusivity ', diff1, diff2)
     print('diffusivity error', sigma_D1, sigma_D2)
+
+    end_time = time.perf_counter()
     
 
 if __name__ == '__main__':
