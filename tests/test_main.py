@@ -23,13 +23,13 @@ def main():
 
     # ----- bath parameters -------
     w_c = 0.1                                   # cutoff frequency (units?) (legacy: 0.1)
-    temp = 800                                  # temperature (K) (legacy: 200)
+    temp = 300                                  # temperature (K) (legacy: 200)
     reorg_nrg = 0.03                            # reorganization energy (units?)
 
     # ---- KMC parameters ---------
-    ntrajs = 200                                # number of trajectories to compute MSDs over
+    ntrajs = 50                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
-    t_final = 3
+    t_final = 10
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
@@ -49,7 +49,7 @@ def main():
                                     rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 
                                     t_final = t_final,
-                                    adaptive_tfinal = True,
+                                    adaptive_tfinal = False,
                                     print_diagnostics = True)
     
     # check .config to see defaults here
