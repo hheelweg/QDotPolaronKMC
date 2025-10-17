@@ -10,66 +10,7 @@ from .hamiltonian import SpecDens
 from qdotkmc.backend import Backend
 
 
-# kernel to build couplings fast on GPU
-_BUILDJ_SRC = r'''
-extern "C" __global__
-void buildJ_upper(
-    const double* __restrict__ pos,    // (n,3)
-    const double* __restrict__ mu_u,   // (n,3)
-    const double  Jc,
-    const double  kap,
-    const double  L,
-    const int     d,
-    const int     n,
-    double* __restrict__ J             // (n,n) row-major
-){
-    int i = blockDim.y * blockIdx.y + threadIdx.y;
-    int j = blockDim.x * blockIdx.x + threadIdx.x;
-    if (i >= n || j >= n || j < i) return;
 
-    double pix = pos[3*i+0], piy = pos[3*i+1], piz = pos[3*i+2];
-    double pjx = pos[3*j+0], pjy = pos[3*j+1], pjz = pos[3*j+2];
-
-    double uix = mu_u[3*i+0], uiy = mu_u[3*i+1], uiz = mu_u[3*i+2];
-    double ujx = mu_u[3*j+0], ujy = mu_u[3*j+1], ujz = mu_u[3*j+2];
-
-    // unwrapped delta (direction)
-    double ux = pjx - pix;
-    double uy = pjy - piy;
-    double uz = pjz - piz;
-
-    // wrapped delta (magnitude)
-    double wx = ux, wy = uy, wz = uz;
-    if (L > 0.0) {
-        if (d >= 1) { wx = ux - L * floor(ux / L + 0.5); }
-        if (d >= 2) { wy = uy - L * floor(uy / L + 0.5); }
-    }
-
-    double r2 = wx*wx + wy*wy + wz*wz;
-    double inv_r3 = 0.0;
-    if (r2 > 0.0) {
-        double r = sqrt(r2);
-        inv_r3 = 1.0 / (r2 * r);
-    }
-
-    double nr2 = ux*ux + uy*uy + uz*uz;
-    double rx=0.0, ry=0.0, rz=0.0;
-    if (nr2 > 0.0) {
-        double rinv = rsqrt(nr2);
-        rx = ux * rinv; ry = uy * rinv; rz = uz * rinv;
-    }
-
-    double mui_dot_muj = uix*ujx + uiy*ujy + uiz*ujz;
-    double mui_dot_r   = uix*rx   + uiy*ry   + uiz*rz;
-    double muj_dot_r   = ujx*rx   + ujy*ry   + ujz*rz;
-    double kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r);
-
-    double val = (Jc * kap) * (kappa * inv_r3);
-
-    J[i*(long long)n + j] = val;
-    if (j != i) J[j*(long long)n + i] = val;
-}
-''';
 
 
 # class to set up QD Lattice 
@@ -168,6 +109,66 @@ class QDLattice():
         L  = 0.0 if boundary is None else float(boundary)
 
         # ompile/get the kernel from backend cache
+        # kernel to build couplings fast on GPU
+        _BUILDJ_SRC = r'''
+        extern "C" __global__
+        void buildJ_upper(
+            const double* __restrict__ pos,    // (n,3)
+            const double* __restrict__ mu_u,   // (n,3)
+            const double  Jc,
+            const double  kap,
+            const double  L,
+            const int     d,
+            const int     n,
+            double* __restrict__ J             // (n,n) row-major
+        ){
+            int i = blockDim.y * blockIdx.y + threadIdx.y;
+            int j = blockDim.x * blockIdx.x + threadIdx.x;
+            if (i >= n || j >= n || j < i) return;
+
+            double pix = pos[3*i+0], piy = pos[3*i+1], piz = pos[3*i+2];
+            double pjx = pos[3*j+0], pjy = pos[3*j+1], pjz = pos[3*j+2];
+
+            double uix = mu_u[3*i+0], uiy = mu_u[3*i+1], uiz = mu_u[3*i+2];
+            double ujx = mu_u[3*j+0], ujy = mu_u[3*j+1], ujz = mu_u[3*j+2];
+
+            // unwrapped delta (direction)
+            double ux = pjx - pix;
+            double uy = pjy - piy;
+            double uz = pjz - piz;
+
+            // wrapped delta (magnitude)
+            double wx = ux, wy = uy, wz = uz;
+            if (L > 0.0) {
+                if (d >= 1) { wx = ux - L * floor(ux / L + 0.5); }
+                if (d >= 2) { wy = uy - L * floor(uy / L + 0.5); }
+            }
+
+            double r2 = wx*wx + wy*wy + wz*wz;
+            double inv_r3 = 0.0;
+            if (r2 > 0.0) {
+                double r = sqrt(r2);
+                inv_r3 = 1.0 / (r2 * r);
+            }
+
+            double nr2 = ux*ux + uy*uy + uz*uz;
+            double rx=0.0, ry=0.0, rz=0.0;
+            if (nr2 > 0.0) {
+                double rinv = rsqrt(nr2);
+                rx = ux * rinv; ry = uy * rinv; rz = uz * rinv;
+            }
+
+            double mui_dot_muj = uix*ujx + uiy*ujy + uiz*ujz;
+            double mui_dot_r   = uix*rx   + uiy*ry   + uiz*rz;
+            double muj_dot_r   = ujx*rx   + ujy*ry   + ujz*rz;
+            double kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r);
+
+            double val = (Jc * kap) * (kappa * inv_r3);
+
+            J[i*(long long)n + j] = val;
+            if (j != i) J[j*(long long)n + i] = val;
+        }
+        ''';
         kern = backend.rawkernel("buildJ_upper", _BUILDJ_SRC)
 
         # launch
