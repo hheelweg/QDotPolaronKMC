@@ -1,9 +1,76 @@
 import numpy as np
 import math
 from scipy import integrate
-from . import utils, const, redfield_box, hamiltonian_box
+from dataclasses import dataclass
+from typing import Tuple
+
+from . import hamiltonian, redfield, utils
 from .config import GeometryConfig, DisorderConfig, BathConfig
-from .hamiltonian_box import SpecDens
+from .hamiltonian import SpecDens
+from qdotkmc.backend import Backend
+
+
+# kernel to build couplings fast on GPU
+_BUILDJ_SRC = r'''
+extern "C" __global__
+void buildJ_upper(
+    const double* __restrict__ pos,    // (n,3)
+    const double* __restrict__ mu_u,   // (n,3)
+    const double  Jc,
+    const double  kap,
+    const double  L,
+    const int     d,
+    const int     n,
+    double* __restrict__ J             // (n,n) row-major
+){
+    int i = blockDim.y * blockIdx.y + threadIdx.y;
+    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i >= n || j >= n || j < i) return;
+
+    double pix = pos[3*i+0], piy = pos[3*i+1], piz = pos[3*i+2];
+    double pjx = pos[3*j+0], pjy = pos[3*j+1], pjz = pos[3*j+2];
+
+    double uix = mu_u[3*i+0], uiy = mu_u[3*i+1], uiz = mu_u[3*i+2];
+    double ujx = mu_u[3*j+0], ujy = mu_u[3*j+1], ujz = mu_u[3*j+2];
+
+    // unwrapped delta (direction)
+    double ux = pjx - pix;
+    double uy = pjy - piy;
+    double uz = pjz - piz;
+
+    // wrapped delta (magnitude)
+    double wx = ux, wy = uy, wz = uz;
+    if (L > 0.0) {
+        if (d >= 1) { wx = ux - L * floor(ux / L + 0.5); }
+        if (d >= 2) { wy = uy - L * floor(uy / L + 0.5); }
+    }
+
+    double r2 = wx*wx + wy*wy + wz*wz;
+    double inv_r3 = 0.0;
+    if (r2 > 0.0) {
+        double r = sqrt(r2);
+        inv_r3 = 1.0 / (r2 * r);
+    }
+
+    double nr2 = ux*ux + uy*uy + uz*uz;
+    double rx=0.0, ry=0.0, rz=0.0;
+    if (nr2 > 0.0) {
+        double rinv = rsqrt(nr2);
+        rx = ux * rinv; ry = uy * rinv; rz = uz * rinv;
+    }
+
+    double mui_dot_muj = uix*ujx + uiy*ujy + uiz*ujz;
+    double mui_dot_r   = uix*rx   + uiy*ry   + uiz*rz;
+    double muj_dot_r   = ujx*rx   + ujy*ry   + ujz*rz;
+    double kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r);
+
+    double val = (Jc * kap) * (kappa * inv_r3);
+
+    J[i*(long long)n + j] = val;
+    if (j != i) J[j*(long long)n + i] = val;
+}
+''';
+
 
 # class to set up QD Lattice 
 class QDLattice():
@@ -19,12 +86,14 @@ class QDLattice():
         self.seed_realization = int(seed_realization)
         self.rng = np.random.default_rng(self.seed_realization)
 
-        # initialize the box dimensions we consider for the KMC simulation
-        self._init_box_dims(self.geom.r_hop, self.geom.r_ove)
-
         # initialize lattice
         self._make_lattice()
 
+        # intialize backend for QDLattice (GPU/CPU)
+        self.backend = None
+
+        # store closes polaron
+        self._closest_polaron_cache = {}
 
 
     # NOTE: old make_qd_array method (basically unchanged)
@@ -62,53 +131,62 @@ class QDLattice():
         self.stored_npolarons_box = np.zeros(self.geom.n_sites)
         self.stored_polaron_sites = [np.array([]) for _ in np.arange(self.geom.n_sites)]
         self.stored_rate_vectors = [np.array([]) for _ in np.arange(self.geom.n_sites)]
-    
 
-    # NOTE : this uses box_radius = min(r_hop, r_ove) rounded to the next higher integer
-    def _init_box_dims(self, r_hop, r_ove):
-        # convert to actual units
-        self.r_hop = r_hop * self.geom.qd_spacing
-        self.r_ove = r_ove * self.geom.qd_spacing
+
+    @staticmethod
+    def _init_box_dims(r_hop, r_ove, spacing, max_length):
+        # convert to actual units (scaled r_hop/r_ove)
+        r_hop *= spacing
+        r_ove *= spacing
         # box radius and dimensions:
-        self.box_radius = math.ceil(min(r_hop, r_ove))
-        # self.box_radius = r_box
-        self.box_length = 2 * self.box_radius + 1
+        # NOTE : this uses box_radius = min(r_hop, r_ove) rounded to the next higher integer
+        box_radius = math.ceil(min(r_hop / spacing, r_ove /spacing))
+        # return quadratic box-length in actual units
+        box_length = (2 * box_radius + 1) * spacing
         # raise wanring if lattice dimensions are exceeded
-        if self.box_length > self.geom.N:
-            raise Warning('the lattice dimensions are exceeded! \
-                          Please choose r_hop and r_ove accordingly!')
+        if box_length > max_length * spacing:
+            raise ValueError('The lattice dimensions are exceeded! Please choose r_hop and r_ove accordingly!')
+        return r_hop, r_ove, box_length
     
+    # function to build couplings on GPU
+    @staticmethod
+    def _build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, backend, boundary=None):
+        
+        cp = backend.cp 
 
-    # NOTE : former get_disp_vector_matrix
-    def _pairwise_displacements(self, qd_pos, boundary):
-        """
-        Match get_disp_vector_matrix(): wrapped displacement for magnitude.
-        qd_pos: (n, d) with d in {1,2}
-        boundary: scalar box length
-        Returns: rij_wrap (n, n, 3) with wrap applied on first d coords
-        """
-        import numpy as np
-        n, d = qd_pos.shape
-        L = float(boundary)
+        # inputs to device
+        pos = cp.asarray(qd_pos, dtype=cp.float64)    # (n,d)
+        dip = cp.asarray(qd_dip, dtype=cp.float64)    # (n,3)
+        n, d = pos.shape
 
-        # unwrapped per-axis differences (j - i), shape (n,n,d)
-        rij_d = qd_pos[None, :, :] - qd_pos[:, None, :]
+        # embed positions; normalize dipoles
+        pos3 = cp.zeros((n,3), dtype=cp.float64); pos3[:,:d] = pos
+        mu_u = dip / cp.linalg.norm(dip, axis=1, keepdims=True)
 
-        # exact same wrap rule as original code (> L/2 and < -L/2)
-        too_high = rij_d >  (L / 2.0)
-        too_low  = rij_d < -(L / 2.0)
-        rij_d = rij_d.copy()
-        rij_d[too_high] -= L
-        rij_d[too_low]  += L
+        # output buffer
+        Jd = cp.zeros((n,n), dtype=cp.float64)
+        L  = 0.0 if boundary is None else float(boundary)
 
-        # embed into 3D (dipoles are 3D)
-        rij_wrap = np.zeros((n, n, 3), dtype=np.float64)
-        rij_wrap[:, :, :d] = rij_d
-        return rij_wrap
+        # ompile/get the kernel from backend cache
+        kern = backend.rawkernel("buildJ_upper", _BUILDJ_SRC)
 
+        # launch
+        bx, by = 32, 8
+        gx = (n + bx - 1)//bx
+        gy = (n + by - 1)//by
+        kern((gx, gy), (bx, by),
+            (pos3, mu_u,
+            float(J_c), float(kappa_polaron),
+            float(L), int(d), int(n), Jd))
 
-    # function to build couplings 
-    def _build_J(self, qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
+        # return NumPy (if your downstream expects host arrays)
+        J = backend.to_host(Jd)
+        np.fill_diagonal(J, 0.0) 
+        return J
+
+    # function to build couplings on CPU 
+    @staticmethod
+    def _build_J_cpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=None):
         """
         Vectorized but physics-identical to the original loops:
         J_ij = J_c * kappa_polaron * [ μ_i·μ_j - 3(μ_i·r̂_unwrapped)(μ_j·r̂_unwrapped) ] / (‖r_wrap‖^3),
@@ -121,7 +199,7 @@ class QDLattice():
 
         # --- Magnitude uses WRAPPED displacement (minimum image), exactly like get_disp_vector_matrix
         if boundary is not None:
-            rij_wrap = self._pairwise_displacements(qd_pos, boundary)  # (n,n,3)
+            rij_wrap = utils.get_pairwise_displacements(qd_pos, boundary)  # (n,n,3)
         else:
             rij_wrap = np.zeros((n, n, 3), dtype=np.float64)
             rij_wrap[:, :, :d] = qd_pos[None, :, :] - qd_pos[:, None, :]
@@ -156,8 +234,20 @@ class QDLattice():
         return J
 
 
+    def _build_J(self, qd_pos, qd_dip, J_c, kappa_polaron, backend=None, boundary=None):
+        """
+        Dispatch to CPU or GPU implementation of J depending on backend.
+        """
+        assert isinstance(backend, Backend), "Need to specify valid instance of Backend class."
+        if backend.use_gpu:
+            return self._build_J_gpu(qd_pos, qd_dip, J_c, kappa_polaron, backend=backend, boundary=boundary)
+        else:
+            return self._build_J_cpu(qd_pos, qd_dip, J_c, kappa_polaron, boundary=boundary)
+
+
     # setup polaron-transformed Hamiltonian
     def _setup_hamil(self, kappa_polaron, periodic = True):
+
         # (1) set up polaron-transformed Hamiltonian 
         # (1.1) coupling terms in Hamiltonian
         J = self._build_J(
@@ -165,16 +255,15 @@ class QDLattice():
                         qd_dip=self.qddipoles,
                         J_c=self.dis.J_c,
                         kappa_polaron=kappa_polaron,
+                        backend=self.backend,
                         boundary=(self.geom.boundary if periodic else None)
                         )
         # (1.2) site energies and total Hamiltonian
         self.hamil = np.diag(self.qdnrgs).astype(np.float64, copy=False)
         self.hamil += J
-
-
+        
         # (2) keep original diagonalization routine
-        # NOTE : can we improve this function somehow? (maybe torch/GPU/cupy?)
-        self.eignrgs, self.eigstates = utils.diagonalize(self.hamil)
+        self.eignrgs, self.eigstates = utils.diagonalize(self.hamil, self.backend)
 
         # (3) polaron positions 
         if periodic:
@@ -195,17 +284,21 @@ class QDLattice():
         self.J_dense = J_off.copy()
 
         # (5) set up Hamilonian instance etc. 
-        self.full_ham = hamiltonian_box.Hamiltonian(
+        self.full_ham = hamiltonian.Hamiltonian(
             self.eignrgs, self.eigstates,
             J_dense = self.J_dense
             )
+        
+        # (6) optional : get IPR statistics
+        ipr_mean, ipr_std = utils.get_ipr(self.eigstates)
 
 
     # setup instance of Redfield class
     def _setup_redfield(self):
 
-        self.redfield = redfield_box.Redfield(
-            self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron, self.r_hop, self.r_ove,
+        self.redfield = redfield.Redfield(
+            self.full_ham, self.polaron_locs, self.qd_locations, self.kappa_polaron,
+            self.backend,
             time_verbose=True
         )
 
@@ -234,6 +327,7 @@ class QDLattice():
 
 
     # NOTE : currently only implemented for cubic-exp spectral density
+    # TODO : check this function and compar to paper as well
     # have this feed in a general spectral density type moving forward
     def get_kappa_polaron(self, spectrum = None, freq_max = 1):
 
