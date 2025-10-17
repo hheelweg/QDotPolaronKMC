@@ -316,7 +316,7 @@ def get_msd_array(msds, times, t_final, n_points = 1000):
         for j in np.arange(n_points):
             index_of_time = np.searchsorted(times[i], t_list[j])-1
             index_of_time = max(0, index_of_time)
-            msds_matrix_even = msds[index_of_time, i]
+            msds_matrix_even = msds[i][index_of_time]
     return msds_matrix_even, time_matrix_even
 
 def get_ipr(Umat):
