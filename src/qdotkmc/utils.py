@@ -305,6 +305,20 @@ def get_pairwise_displacements(qd_pos, boundary):
     rij_wrap[:, :, :d] = rij_d
     return rij_wrap
 
+def get_msd_array(msds, times, npoints = 1000):
+    # return evenly spaced MSDS from variable-length MSD/time arrays (lists of arrays).
+    t_final = np.max(times)
+    tlist = np.linspace(0, t_final, npoints)
+    time_matrix_even = np.zeros(np.shape(times))
+    msds_matrix_even = np.zeros(np.shape(msds))
+    ntrajs = len(msds[0, :])
+    for i in np.arange(ntrajs):
+        time_matrix_even[:, i] = tlist
+        for j in np.arange(npoints):
+            index_of_time = np.searchsorted(times[:, i], tlist[j])-1
+            index_of_time = max(0, index_of_time)
+            msds_matrix_even = msds[index_of_time, i]
+    return msds_matrix_even, time_matrix_even
 
 def get_ipr(Umat):
     # returns ipr of one column vector, or mean ipr of multiple column vectors
