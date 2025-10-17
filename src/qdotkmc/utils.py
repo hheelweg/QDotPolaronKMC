@@ -305,16 +305,16 @@ def get_pairwise_displacements(qd_pos, boundary):
     rij_wrap[:, :, :d] = rij_d
     return rij_wrap
 
-def get_msd_array(msds, times, tfinal, npoints = 1000):
+def get_msd_array(msds, times, t_final, n_points = 1000):
     # return evenly spaced MSDS from variable-length MSD/time arrays (lists of arrays).
-    tlist = np.linspace(0, tfinal, npoints)
-    time_matrix_even = np.zeros(np.shape(times))
-    msds_matrix_even = np.zeros(np.shape(msds))
-    ntrajs = len(msds[0, :])
-    for i in np.arange(ntrajs):
-        time_matrix_even[:, i] = tlist
-        for j in np.arange(npoints):
-            index_of_time = np.searchsorted(times[:, i], tlist[j])-1
+    t_list = np.linspace(0, t_final, n_points)
+    n_trajs = len(msds)
+    time_matrix_even = np.zeros([n_points, n_trajs])
+    msds_matrix_even = np.zeros([n_points, n_trajs])
+    for i in np.arange(n_trajs):
+        time_matrix_even[:, i] = t_list
+        for j in np.arange(n_points):
+            index_of_time = np.searchsorted(times[:, i], t_list[j])-1
             index_of_time = max(0, index_of_time)
             msds_matrix_even = msds[index_of_time, i]
     return msds_matrix_even, time_matrix_even
