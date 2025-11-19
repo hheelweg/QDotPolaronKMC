@@ -168,14 +168,14 @@ class SpecDens:
             self.alpha = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.ohmic_exp
-            self.low_freq_cutoff = self.omega_c / 200.0
+            self.low_freq_cutoff = max(self.omega_c / 20.0, 1e-3 / self.beta)
             self.omega_inf = 40 * self.omega_c
 
         elif sd_type == "drude-lorentz":
             self.lamda = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.drude_lorentz
-            self.low_freq_cutoff = self.omega_c / 200.0
+            self.low_freq_cutoff = max(self.omega_c / 20.0, 1e-3 / self.beta)
             self.omega_inf = 40 * self.omega_c
         
         else:
