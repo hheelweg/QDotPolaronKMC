@@ -175,7 +175,7 @@ class QDLattice():
         Jd = cp.zeros((n,n), dtype=cp.float64)
         L  = 0.0 if boundary is None else float(boundary)
 
-        # ompile/get the kernel from backend cache
+        # compile/get the kernel from backend cache
         kern = backend.rawkernel("buildJ_upper", _BUILDJ_SRC)
 
         # launch
@@ -203,7 +203,6 @@ class QDLattice():
         import numpy as np
 
         n, d = qd_pos.shape
-        assert d in (1, 2)
 
         # --- Magnitude uses WRAPPED displacement (minimum image), exactly like get_disp_vector_matrix
         if boundary is not None:
