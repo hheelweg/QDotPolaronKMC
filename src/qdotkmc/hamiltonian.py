@@ -101,7 +101,7 @@ class _PhiTransformer:
         # frequency integration limits
         uppLim = float(omega_inf)
         # we *can* integrate from 0 because the integrand is now regular at 0
-        lowLim = 0.0
+        lowLim = low_freq_cutoff
 
         beta = self.beta
         J = self.J
