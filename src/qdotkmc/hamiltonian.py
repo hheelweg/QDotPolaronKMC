@@ -99,7 +99,7 @@ class _PhiTransformer:
 
         # integration limits for integral over ω 
         uppLim = float(omega_inf)
-        lowLim = 1e-10  # your original lower bound
+        lowLim = float(low_freq_cutoff)  # your original lower bound
 
         beta = self.beta
         J = self.J
