@@ -109,10 +109,7 @@ class _BathCorrFFT:
             return K_pos
 
         # C(τ) = κ^2 (e^{-λ φ(τ)} − 1)
-        #C = (kappa**2) * (np.exp(-lamda * self.phi_tau) - 1.0)
-        x = -lamda * self.phi_tau
-        x = np.clip(x, -50.0, 50.0)   # prevents overflow;  exp(50) ~ 3e21 already huge
-        C = (kappa**2) * (np.exp(x) - 1.0)
+        C = (kappa**2) * (np.exp(-lamda * self.phi_tau) - 1.0)
 
         # FFT is ∑ f(τ) e^{-iωτ}; conjugate → e^{+iωτ}. Riemann factor is dt.
         F_full = self.dt * np.fft.fft(C)
@@ -190,19 +187,19 @@ class SpecDens:
         self.correlationFT = self._correlationFT_fft
 
 
-    # cubic-exponential bath spectral density
+    # cubic-exponential bath spectral density: J(ω) = (λ / (2 ω_c³)) · |ω|³ · exp(−|ω| / ω_c) · sgn(ω)
     def cubic_exp(self, omega):
         w = abs(omega)
         Jw = (self.lamda / (2 * self.omega_c**3)) * w**3 * np.exp(-w / self.omega_c)
         return Jw * (omega >= 0) - Jw * (omega < 0)
     
-    # ohmic-exponential bath spectral density
+    # ohmic-exponential bath spectral density: J(ω) = 2 α · ω · exp(−ω / ω_c)
     def ohmic_exp(self, omega):
         w = abs(omega)
         Jw = 2 * self.alpha * w * np.exp(-w / self.omega_c)
         return Jw * (omega >= 0) - Jw * (omega < 0)
     
-    # Drude-Lorentz bath spectral density
+    # Drude-Lorentz bath spectral density: J(ω) = 2 λ · (ω_c · ω) / (ω² + ω_c²)
     def drude_lorentz(self, omega):
         w = abs(omega)
         Jw = 2 * self.lamda * (self.omega_c * w) / (w**2 + self.omega_c**2)

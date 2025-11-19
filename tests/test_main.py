@@ -24,7 +24,7 @@ def main():
     # ----- bath parameters -------
     w_c = 0.1                                   # cutoff frequency (units?) (legacy: 0.1)
     temp = 300                                  # temperature (K) (legacy: 200)
-    reorg_nrg = 0.03                            # reorganization energy (units?)
+    reorg_nrg = 0.77                            # reorganization energy (units?)
     spectral_density = 'ohmic-exp'              # bath spectral density
 
     # ---- KMC parameters ---------
