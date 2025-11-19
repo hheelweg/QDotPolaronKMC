@@ -13,8 +13,8 @@ def main():
     # have been moved as defaults to .config dataclasses. 
 
     # ---- QDLattice gometry ------
-    ndim = 1                                    # number of dimensions
-    N = 400                                     # number of QDs in each dimension
+    ndim = 2                                    # number of dimensions
+    N = 10                                      # number of QDs in each dimension
 
     # ---- system parameters ------
     inhomog_sd = 0.03                           # inhomogenous broadening (units?) (legacy: 0.002)
