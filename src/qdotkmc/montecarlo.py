@@ -222,54 +222,21 @@ class KMCRunner():
             final_states = qd_lattice.stored_polaron_sites[center_global]  
             rates        = qd_lattice.stored_rate_vectors[center_global]
 
-        # (2b) restrict to allowed final states
-        # assume final_states is a 1D int array of possible destinations
-        rates_fs = rates[final_states]
 
         # (3) rejection-free KMC step
-        cum_rates = np.cumsum(rates_fs)
+        cum_rates = np.cumsum(rates)
         S = cum_rates[-1]
 
-        # basic sanity on total rate
-        if not np.isfinite(S) or S <= 0.0:
-            raise RuntimeError(f"Invalid total outgoing rate S={S} in KMC step.")
-
         # two random numbers for rejection-free KMC
-        if rnd_generator is None:
-            u1 = np.random.uniform()
-            u2 = np.random.uniform()
-        else:
-            u1 = rnd_generator.uniform()
-            u2 = rnd_generator.uniform()
+        u1 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
+        u2 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
 
-        thresh = u1 * S  # in [0, S)
-
-        # use side='right' and clamp index to avoid overshoot
-        final_idx = np.searchsorted(cum_rates, thresh, side="right")
-        if final_idx >= cum_rates.size:
-            final_idx = cum_rates.size - 1
-
+        final_idx = int(np.searchsorted(cum_rates, u1 * S))
         # get delta_t for updating clock
         delta_t = -np.log(u2) / S
 
         # (4) final polaron position
-        end_pol = qd_lattice.polaron_locs[final_states[final_idx]]  
-        
-
-        # # (3) rejection-free KMC step
-        # cum_rates = np.cumsum(rates)
-        # S = cum_rates[-1]
-
-        # # two random numbers for rejection-free KMC
-        # u1 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
-        # u2 = np.random.uniform() if rnd_generator is None else rnd_generator.uniform()
-
-        # final_idx = int(np.searchsorted(cum_rates, u1 * S))
-        # # get delta_t for updating clock
-        # delta_t = -np.log(u2) / S
-
-        # # (4) final polaron position
-        # end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
+        end_pol = qd_lattice.polaron_locs[final_states[final_idx]]
 
         return start_pol, end_pol, delta_t, comp_time
     
