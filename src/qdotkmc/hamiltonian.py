@@ -31,52 +31,6 @@ class Hamiltonian():
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
 
 
-# class _PhiTransformer:
-#     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
-
-#     def __init__(self, J_callable, beta, omega_c, omega_inf, low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
-        
-#         self.J = J_callable
-#         self.beta = float(beta)
-#         self.omega_c = float(omega_c)
-
-#         # set up τ grid
-#         self.N_tau = int(N_tau)
-#         self.tau_max = tau_max_factor / self.omega_c
-#         self.tau_grid = np.linspace(0.0, self.tau_max, self.N_tau)
-#         phi_real = np.zeros_like(self.tau_grid)
-#         phi_imag = np.zeros_like(self.tau_grid)
-
-#         # integration limits for integral over ω 
-#         uppLim = omega_inf
-#         lowLim = 1e-12
-
-#         for i, tau in enumerate(self.tau_grid):
-#             if tau > 0 and tau < (low_freq_cutoff):
-#                 # no quad weights
-#                 def integrand_real(omega):
-#                     return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2) * np.cos(tau * omega)
-#                 def integrand_imag(omega):
-#                     return 1/(np.pi*omega**2)*self.J(omega) * np.sin(tau * omega)
-#                 phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim)[0]
-#                 phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim)[0]
-#             else:
-#                 def integrand_real(omega):
-#                     return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2)
-#                 def integrand_imag(omega):
-#                     return 1/(np.pi*omega**2)*self.J(omega)
-#                 phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim, weight='cos', wvar=tau, limit=200)[0]
-#                 phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim, weight='sin', wvar=tau, limit=200)[0]
-
-#         self.phi_grid = phi_real - 1j * phi_imag
-
-#     def phi(self, tau):
-#         tau = np.atleast_1d(tau).astype(float)
-#         re = np.interp(tau, self.tau_grid, self.phi_grid.real, left=0.0, right=0.0)
-#         im = np.interp(tau, self.tau_grid, self.phi_grid.imag, left=0.0, right=0.0)
-#         out = re - 1j*im
-#         return out if out.ndim else out[()]
-
 class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
