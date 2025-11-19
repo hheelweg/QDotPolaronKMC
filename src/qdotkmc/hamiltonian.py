@@ -81,7 +81,7 @@ class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
     def __init__(self, J_callable, beta, omega_c, omega_inf,
-                 low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
+                 low_freq_cutoff, N_tau=200, tau_max_factor=20.0):
 
         import numpy as np
         from scipy import integrate
@@ -242,14 +242,14 @@ class SpecDens:
             self.alpha = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.ohmic_exp
-            self.low_freq_cutoff = self.omega_c / 200.0
+            self.low_freq_cutoff = self.omega_c / 20.0
             self.omega_inf = 40 * self.omega_c
 
         elif sd_type == "drude-lorentz":
             self.lamda = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.drude_lorentz
-            self.low_freq_cutoff = self.omega_c / 200.0
+            self.low_freq_cutoff = self.omega_c / 20.0
             self.omega_inf = 40 * self.omega_c
         
         else:
