@@ -110,7 +110,6 @@ class _BathCorrFFT:
 
         # C(τ) = κ^2 (e^{-λ φ(τ)} − 1)
         #C = (kappa**2) * (np.exp(-lamda * self.phi_tau) - 1.0)
-
         x = -lamda * self.phi_tau
         x = np.clip(x, -50.0, 50.0)   # prevents overflow;  exp(50) ~ 3e21 already huge
         C = (kappa**2) * (np.exp(x) - 1.0)
