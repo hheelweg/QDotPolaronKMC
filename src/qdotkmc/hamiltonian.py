@@ -31,50 +31,122 @@ class Hamiltonian():
         self.omega_diff = np.subtract.outer(self.evals, self.evals)
 
 
-class _PhiTransformer:
-    """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
+# class _PhiTransformer:
+#     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
-    def __init__(self, J_callable, beta, omega_c, omega_inf, low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
+#     def __init__(self, J_callable, beta, omega_c, omega_inf, low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
         
+#         self.J = J_callable
+#         self.beta = float(beta)
+#         self.omega_c = float(omega_c)
+
+#         # set up τ grid
+#         self.N_tau = int(N_tau)
+#         self.tau_max = tau_max_factor / self.omega_c
+#         self.tau_grid = np.linspace(0.0, self.tau_max, self.N_tau)
+#         phi_real = np.zeros_like(self.tau_grid)
+#         phi_imag = np.zeros_like(self.tau_grid)
+
+#         # integration limits for integral over ω 
+#         uppLim = omega_inf
+#         lowLim = 1e-12
+
+#         for i, tau in enumerate(self.tau_grid):
+#             if tau > 0 and tau < (low_freq_cutoff):
+#                 # no quad weights
+#                 def integrand_real(omega):
+#                     return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2) * np.cos(tau * omega)
+#                 def integrand_imag(omega):
+#                     return 1/(np.pi*omega**2)*self.J(omega) * np.sin(tau * omega)
+#                 phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim)[0]
+#                 phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim)[0]
+#             else:
+#                 def integrand_real(omega):
+#                     return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2)
+#                 def integrand_imag(omega):
+#                     return 1/(np.pi*omega**2)*self.J(omega)
+#                 phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim, weight='cos', wvar=tau, limit=200)[0]
+#                 phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim, weight='sin', wvar=tau, limit=200)[0]
+
+#         self.phi_grid = phi_real - 1j * phi_imag
+
+#     def phi(self, tau):
+#         tau = np.atleast_1d(tau).astype(float)
+#         re = np.interp(tau, self.tau_grid, self.phi_grid.real, left=0.0, right=0.0)
+#         im = np.interp(tau, self.tau_grid, self.phi_grid.imag, left=0.0, right=0.0)
+#         out = re - 1j*im
+#         return out if out.ndim else out[()]
+
+class _PhiTransformer:
+    """Accurate Eq. (17) on a fixed τ grid via direct quad integration
+    using the IR-safe (1 − cos ωτ) and sin ωτ structure.
+    """
+
+    def __init__(self, J_callable, beta, omega_c,
+                 omega_inf, low_freq_cutoff,
+                 N_tau=2000, tau_max_factor=70.0):
+
         self.J = J_callable
         self.beta = float(beta)
         self.omega_c = float(omega_c)
 
-        # set up τ grid
+        # τ grid
         self.N_tau = int(N_tau)
         self.tau_max = tau_max_factor / self.omega_c
         self.tau_grid = np.linspace(0.0, self.tau_max, self.N_tau)
+
         phi_real = np.zeros_like(self.tau_grid)
         phi_imag = np.zeros_like(self.tau_grid)
 
-        # integration limits for integral over ω 
-        uppLim = omega_inf
-        lowLim = 1e-12
+        # frequency integration limits
+        uppLim = float(omega_inf)
+        # we *can* integrate from 0 because the integrand is now regular at 0
+        lowLim = 0.0
+
+        beta = self.beta
+        J = self.J
 
         for i, tau in enumerate(self.tau_grid):
-            if tau > 0 and tau < (low_freq_cutoff):
-                # no quad weights
-                def integrand_real(omega):
-                    return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2) * np.cos(tau * omega)
-                def integrand_imag(omega):
-                    return 1/(np.pi*omega**2)*self.J(omega) * np.sin(tau * omega)
-                phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim)[0]
-                phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim)[0]
-            else:
-                def integrand_real(omega):
-                    return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2)
-                def integrand_imag(omega):
-                    return 1/(np.pi*omega**2)*self.J(omega)
-                phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim, weight='cos', wvar=tau, limit=200)[0]
-                phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim, weight='sin', wvar=tau, limit=200)[0]
+            if tau == 0.0:
+                # By definition φ(0) = 0
+                phi_real[i] = 0.0
+                phi_imag[i] = 0.0
+                continue
 
+            # Real part: ∝ ∫ dω [ J(ω) / (π ω² tanh(βω/2)) ] (1 − cos ωτ)
+            def integrand_real(omega):
+                if omega == 0.0:
+                    return 0.0
+                w = omega
+                Jw = J(w)
+                # coth(βω/2) = 1 / tanh(βω/2)
+                return (Jw / (np.pi * w**2 * np.tanh(beta * w / 2.0))
+                        * (1.0 - np.cos(tau * w)))
+
+            # Imag part: ∝ ∫ dω [ J(ω) / (π ω²) ] sin ωτ
+            def integrand_imag(omega):
+                if omega == 0.0:
+                    return 0.0
+                w = omega
+                Jw = J(w)
+                return (Jw / (np.pi * w**2)) * np.sin(tau * w)
+
+            # No weighted cos/sin here; we integrate the full expressions
+            phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim,
+                                         limit=200)[0]
+            phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim,
+                                         limit=200)[0]
+
+        # φ(τ) = φ_R(τ) − i φ_I(τ)
         self.phi_grid = phi_real - 1j * phi_imag
 
     def phi(self, tau):
         tau = np.atleast_1d(tau).astype(float)
-        re = np.interp(tau, self.tau_grid, self.phi_grid.real, left=0.0, right=0.0)
-        im = np.interp(tau, self.tau_grid, self.phi_grid.imag, left=0.0, right=0.0)
-        out = re - 1j*im
+        re = np.interp(tau, self.tau_grid, self.phi_grid.real,
+                       left=0.0, right=0.0)
+        im = np.interp(tau, self.tau_grid, self.phi_grid.imag,
+                       left=0.0, right=0.0)
+        out = re - 1j * im
         return out if out.ndim else out[()]
 
 
