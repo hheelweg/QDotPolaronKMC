@@ -101,7 +101,7 @@ class _PhiTransformer:
         # frequency integration limits
         uppLim = float(omega_inf)
         # we *can* integrate from 0 because the integrand is now regular at 0
-        lowLim = low_freq_cutoff
+        lowLim = 1e-12
 
         beta = self.beta
         J = self.J
@@ -121,7 +121,7 @@ class _PhiTransformer:
                 Jw = J(w)
                 # coth(βω/2) = 1 / tanh(βω/2)
                 return (Jw / (np.pi * w**2 * np.tanh(beta * w / 2.0))
-                        * (1.0 - np.cos(tau * w)))
+                        * (np.cos(tau * w)))
 
             # Imag part: ∝ ∫ dω [ J(ω) / (π ω²) ] sin ωτ
             def integrand_imag(omega):
