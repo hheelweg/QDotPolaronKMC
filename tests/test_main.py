@@ -25,7 +25,7 @@ def main():
     w_c = 0.1                                   # cutoff frequency (units?) (legacy: 0.1)
     temp = 300                                  # temperature (K) (legacy: 200)
     reorg_nrg = 0.03                            # reorganization energy (units?)
-    spectral_density = 'cubic-exp'              # bath spectral density
+    spectral_density = 'cubic-expp'              # bath spectral density
 
     # ---- KMC parameters ---------
     ntrajs = 50                                 # number of trajectories to compute MSDs over
@@ -45,7 +45,7 @@ def main():
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N)
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, J_c = J_c)
-    bath_cfg = qdotkmc.config.BathConfig(temp = temp, w_c=w_c, reorg_nrg=reorg_nrg)
+    bath_cfg = qdotkmc.config.BathConfig(temp = temp, w_c=w_c, reorg_nrg=reorg_nrg, spectral_density=spectral_density)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations,
                                     rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 

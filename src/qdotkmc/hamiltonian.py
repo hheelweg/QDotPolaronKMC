@@ -163,6 +163,9 @@ class SpecDens:
             self.J = self.cubic_exp
             self.low_freq_cutoff = self.omega_c / 200.0
             self.omega_inf = 40 * self.omega_c
+        
+        else:
+            raise ValueError("Please specify valid spectral density type!")
 
         # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15)
         self._phi_tr = _PhiTransformer(self.J, self.beta, self.omega_c, self.omega_inf, self.low_freq_cutoff)
