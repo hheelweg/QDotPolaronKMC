@@ -110,7 +110,15 @@ class QDLattice():
                 self.qd_locations[i, :] = (i%self.geom.N * self.geom.qd_spacing) \
                     + self.rng.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder, [1, self.geom.dims])
             elif self.geom.dims == 3:
-                raise NotImplementedError("3 dimensions currently not implemented!")
+                ix = i % self.geom.N
+                iy = (i // self.geom.N) % self.geom.N
+                iz = i // (self.geom.N * self.geom.N)
+                base = np.array(
+                    [ix, iy, iz], dtype=float
+                ) * self.geom.qd_spacing
+                self.qd_locations[i, :] = base + self.rng.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder,[1, self.geom.dims])
+            else:
+                raise NotImplementedError(f"{self.geom.dims} dimensions make no sense physically for the QD Lattice!")
             
         self.qd_locations[self.qd_locations < 0] = self.qd_locations[self.qd_locations < 0] + self.geom.N * self.geom.qd_spacing
         self.qd_locations[self.qd_locations > self.geom.N * self.geom.qd_spacing] = \
