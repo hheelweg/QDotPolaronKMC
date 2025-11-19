@@ -286,7 +286,6 @@ def get_pairwise_displacements(qd_pos, boundary):
     boundary: scalar box length
     Returns: rij_wrap (n, n, 3) with wrap applied on first d coords
     """
-    import numpy as np
     n, d = qd_pos.shape
     L = float(boundary)
 

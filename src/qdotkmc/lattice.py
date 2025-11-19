@@ -118,7 +118,7 @@ class QDLattice():
                 ) * self.geom.qd_spacing
                 self.qd_locations[i, :] = base + self.rng.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder,[1, self.geom.dims])
             else:
-                raise NotImplementedError(f"{self.geom.dims} dimensions make no sense physically for the QD Lattice!")
+                raise ValueError(f"scatterPoints: dim={self.geom.dims} not supported (must be 1,2,3)")
             
         self.qd_locations[self.qd_locations < 0] = self.qd_locations[self.qd_locations < 0] + self.geom.N * self.geom.qd_spacing
         self.qd_locations[self.qd_locations > self.geom.N * self.geom.qd_spacing] = \
@@ -199,9 +199,7 @@ class QDLattice():
         Vectorized but physics-identical to the original loops:
         J_ij = J_c * kappa_polaron * [ μ_i·μ_j - 3(μ_i·r̂_unwrapped)(μ_j·r̂_unwrapped) ] / (‖r_wrap‖^3),
         with pairwise normalization of μ_i, μ_j, and r̂_unwrapped (as in get_kappa).
-        """
-        import numpy as np
-
+        """ 
         n, d = qd_pos.shape
 
         # --- Magnitude uses WRAPPED displacement (minimum image), exactly like get_disp_vector_matrix
