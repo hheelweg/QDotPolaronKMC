@@ -109,7 +109,11 @@ class _BathCorrFFT:
             return K_pos
 
         # C(τ) = κ^2 (e^{-λ φ(τ)} − 1)
-        C = (kappa**2) * (np.exp(-lamda * self.phi_tau) - 1.0)
+        #C = (kappa**2) * (np.exp(-lamda * self.phi_tau) - 1.0)
+
+        x = -lamda * self.phi_tau
+        x = np.clip(x, -50.0, 50.0)   # prevents overflow;  exp(50) ~ 3e21 already huge
+        C = (kappa**2) * (np.exp(x) - 1.0)
 
         # FFT is ∑ f(τ) e^{-iωτ}; conjugate → e^{+iωτ}. Riemann factor is dt.
         F_full = self.dt * np.fft.fft(C)
