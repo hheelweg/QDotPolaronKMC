@@ -164,6 +164,13 @@ class SpecDens:
             self.low_freq_cutoff = self.omega_c / 200.0
             self.omega_inf = 40 * self.omega_c
         
+        if sd_type == "ohmic-exp":
+            self.alpha = spec_dens_list[1]
+            self.omega_c = spec_dens_list[2]
+            self.J = self.ohmic_exp
+            self.low_freq_cutoff = self.omega_c / 200.0
+            self.omega_inf = 40 * self.omega_c
+        
         else:
             raise ValueError("Please specify valid spectral density type!")
 
@@ -177,6 +184,12 @@ class SpecDens:
     def cubic_exp(self, omega):
         w = abs(omega)
         Jw = (self.lamda / (2 * self.omega_c**3)) * w**3 * np.exp(-w / self.omega_c)
+        return Jw * (omega >= 0) - Jw * (omega < 0)
+    
+    # ohmic-exponential bath spectral density
+    def ohmic_exp(self, omega):
+        w = abs(omega)
+        Jw = 2 * self.alpha * w * np.exp(-w / self.omega_c)
         return Jw * (omega >= 0) - Jw * (omega < 0)
 
 

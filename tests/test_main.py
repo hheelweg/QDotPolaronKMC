@@ -25,7 +25,7 @@ def main():
     w_c = 0.1                                   # cutoff frequency (units?) (legacy: 0.1)
     temp = 300                                  # temperature (K) (legacy: 200)
     reorg_nrg = 0.03                            # reorganization energy (units?)
-    spectral_density = 'cubic-expp'              # bath spectral density
+    spectral_density = 'ohmic-exp'              # bath spectral density
 
     # ---- KMC parameters ---------
     ntrajs = 50                                 # number of trajectories to compute MSDs over
