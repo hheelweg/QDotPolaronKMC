@@ -235,7 +235,7 @@ class SpecDens:
             self.lamda = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.cubic_exp
-            self.low_freq_cutoff = self.omega_c / 200.0
+            self.low_freq_cutoff = self.omega_c / 2000.0
             self.omega_inf = 40 * self.omega_c
         
         elif sd_type == "ohmic-exp":
