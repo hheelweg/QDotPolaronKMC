@@ -102,7 +102,7 @@ class _PhiTransformer:
         # integration limits for integral over ω 
         uppLim = float(omega_inf)
         # we can now safely integrate from 0 because the integrand is regular at ω→0
-        lowLim = 0.0
+        lowLim = 1e-12
 
         beta = self.beta
         J = self.J
@@ -121,7 +121,7 @@ class _PhiTransformer:
                 w = omega
                 Jw = J(w)
                 return (Jw / (np.pi * w**2 * np.tanh(beta * w / 2.0))
-                        * (1.0 - np.cos(tau * w)))
+                        * ( np.cos(tau * w)))
 
             # Imag part: ∫ dω [ J(ω)/(π ω^2) ] sin(ωτ)
             def integrand_imag(omega, tau=tau):
