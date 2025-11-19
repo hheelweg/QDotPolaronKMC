@@ -242,14 +242,14 @@ class SpecDens:
             self.alpha = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.ohmic_exp
-            self.low_freq_cutoff = self.omega_c / 40.0
+            self.low_freq_cutoff = self.omega_c / 30.0              # going to small low_freq_cutoff can be very expensive in _PhiTransformer, i.e. adjust accordingly
             self.omega_inf = 40 * self.omega_c
 
         elif sd_type == "drude-lorentz":
             self.lamda = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.drude_lorentz
-            self.low_freq_cutoff = self.omega_c / 40.0
+            self.low_freq_cutoff = self.omega_c / 30.0              # going to small low_freq_cutoff can be very expensive in _PhiTransformer, i.e. adjust accordingly
             self.omega_inf = 40 * self.omega_c
         
         else:
