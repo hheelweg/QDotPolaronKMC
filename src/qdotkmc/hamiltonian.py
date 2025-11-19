@@ -164,10 +164,17 @@ class SpecDens:
             self.low_freq_cutoff = self.omega_c / 200.0
             self.omega_inf = 40 * self.omega_c
         
-        if sd_type == "ohmic-exp":
+        elif sd_type == "ohmic-exp":
             self.alpha = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.ohmic_exp
+            self.low_freq_cutoff = self.omega_c / 200.0
+            self.omega_inf = 40 * self.omega_c
+
+        elif sd_type == "drude-lorentz":
+            self.lamda = spec_dens_list[1]
+            self.omega_c = spec_dens_list[2]
+            self.J = self.drude_lorentz
             self.low_freq_cutoff = self.omega_c / 200.0
             self.omega_inf = 40 * self.omega_c
         
@@ -190,6 +197,12 @@ class SpecDens:
     def ohmic_exp(self, omega):
         w = abs(omega)
         Jw = 2 * self.alpha * w * np.exp(-w / self.omega_c)
+        return Jw * (omega >= 0) - Jw * (omega < 0)
+    
+    # Drude-Lorentz bath spectral density
+    def drude_lorentz(self, omega):
+        w = abs(omega)
+        Jw = 2 * self.lamda * (self.omega_c * w) / (w**2 + self.omega_c**2)
         return Jw * (omega >= 0) - Jw * (omega < 0)
 
 
