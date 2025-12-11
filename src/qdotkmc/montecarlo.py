@@ -221,7 +221,7 @@ class KMCRunner():
             comp_time = 0.0
             final_states = qd_lattice.stored_polaron_sites[center_global]  
             rates        = qd_lattice.stored_rate_vectors[center_global]
-        
+
 
         # (3) rejection-free KMC step
         cum_rates = np.cumsum(rates)

@@ -34,8 +34,12 @@ class Hamiltonian():
 class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
 
-    def __init__(self, J_callable, beta, omega_c, omega_inf, low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
-        
+    def __init__(self, J_callable, beta, omega_c, omega_inf,
+                 low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
+
+        import numpy as np
+        from scipy import integrate
+
         self.J = J_callable
         self.beta = float(beta)
         self.omega_c = float(omega_c)
@@ -48,32 +52,56 @@ class _PhiTransformer:
         phi_imag = np.zeros_like(self.tau_grid)
 
         # integration limits for integral over ω 
-        uppLim = omega_inf
-        lowLim = 1e-12
+        uppLim = float(omega_inf)
+        lowLim = float(low_freq_cutoff)  # your original lower bound
+
+        beta = self.beta
+        J = self.J
 
         for i, tau in enumerate(self.tau_grid):
-            if tau > 0 and tau < (low_freq_cutoff):
+            if tau > 0 and tau < low_freq_cutoff:
                 # no quad weights
                 def integrand_real(omega):
-                    return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2) * np.cos(tau * omega)
+                    return (1.0/(np.pi*omega**2)
+                            * J(omega)/np.tanh(beta*omega/2.0)
+                            * np.cos(tau * omega))
+
                 def integrand_imag(omega):
-                    return 1/(np.pi*omega**2)*self.J(omega) * np.sin(tau * omega)
+                    return (1.0/(np.pi*omega**2)
+                            * J(omega) * np.sin(tau * omega))
+
                 phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim)[0]
                 phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim)[0]
+
             else:
                 def integrand_real(omega):
-                    return 1/(np.pi*omega**2)*self.J(omega)/np.tanh(beta*omega/2)
+                    return (1.0/(np.pi*omega**2)
+                            * J(omega)/np.tanh(beta*omega/2.0))
+
                 def integrand_imag(omega):
-                    return 1/(np.pi*omega**2)*self.J(omega)
-                phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim, weight='cos', wvar=tau, limit=200)[0]
-                phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim, weight='sin', wvar=tau, limit=200)[0]
+                    return (1.0/(np.pi*omega**2)
+                            * J(omega))
+
+                phi_real[i] = integrate.quad(
+                    integrand_real,
+                    lowLim, uppLim,
+                    weight='cos', wvar=tau, limit=200
+                )[0]
+                phi_imag[i] = integrate.quad(
+                    integrand_imag,
+                    lowLim, uppLim,
+                    weight='sin', wvar=tau, limit=200
+                )[0]
 
         self.phi_grid = phi_real - 1j * phi_imag
 
     def phi(self, tau):
+        import numpy as np
         tau = np.atleast_1d(tau).astype(float)
-        re = np.interp(tau, self.tau_grid, self.phi_grid.real, left=0.0, right=0.0)
-        im = np.interp(tau, self.tau_grid, self.phi_grid.imag, left=0.0, right=0.0)
+        re = np.interp(tau, self.tau_grid, self.phi_grid.real,
+                       left=0.0, right=0.0)
+        im = np.interp(tau, self.tau_grid, self.phi_grid.imag,
+                       left=0.0, right=0.0)
         out = re - 1j*im
         return out if out.ndim else out[()]
 
@@ -161,8 +189,25 @@ class SpecDens:
             self.lamda = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.cubic_exp
-            self.low_freq_cutoff = self.omega_c / 200.0
+            self.low_freq_cutoff = self.omega_c / 2000.0
             self.omega_inf = 40 * self.omega_c
+        
+        elif sd_type == "ohmic-exp":
+            self.alpha = spec_dens_list[1]
+            self.omega_c = spec_dens_list[2]
+            self.J = self.ohmic_exp
+            self.low_freq_cutoff = self.omega_c / 30.0              # going to small low_freq_cutoff can be very expensive in _PhiTransformer, i.e. adjust accordingly
+            self.omega_inf = 40 * self.omega_c
+
+        elif sd_type == "drude-lorentz":
+            self.lamda = spec_dens_list[1]
+            self.omega_c = spec_dens_list[2]
+            self.J = self.drude_lorentz
+            self.low_freq_cutoff = self.omega_c / 30.0              # going to small low_freq_cutoff can be very expensive in _PhiTransformer, i.e. adjust accordingly
+            self.omega_inf = 40 * self.omega_c
+        
+        else:
+            raise ValueError("Please specify valid spectral density type!")
 
         # Build fast φ(τ) (Eq. 17) and FFT engine (Eq. 15)
         self._phi_tr = _PhiTransformer(self.J, self.beta, self.omega_c, self.omega_inf, self.low_freq_cutoff)
@@ -170,10 +215,22 @@ class SpecDens:
         self.correlationFT = self._correlationFT_fft
 
 
-    # cubic-exponential bath spectral density
+    # cubic-exponential bath spectral density: J(ω) = (λ / (2 ω_c³)) · |ω|³ · exp(−|ω| / ω_c) · sgn(ω)
     def cubic_exp(self, omega):
         w = abs(omega)
         Jw = (self.lamda / (2 * self.omega_c**3)) * w**3 * np.exp(-w / self.omega_c)
+        return Jw * (omega >= 0) - Jw * (omega < 0)
+    
+    # ohmic-exponential bath spectral density: J(ω) = 2 α · ω · exp(−ω / ω_c)
+    def ohmic_exp(self, omega):
+        w = abs(omega)
+        Jw = 2 * self.alpha * w * np.exp(-w / self.omega_c)
+        return Jw * (omega >= 0) - Jw * (omega < 0)
+    
+    # Drude-Lorentz bath spectral density: J(ω) = 2 λ · (ω_c · ω) / (ω² + ω_c²)
+    def drude_lorentz(self, omega):
+        w = abs(omega)
+        Jw = 2 * self.lamda * (self.omega_c * w) / (w**2 + self.omega_c**2)
         return Jw * (omega >= 0) - Jw * (omega < 0)
 
 

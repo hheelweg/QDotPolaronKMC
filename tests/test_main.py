@@ -13,8 +13,8 @@ def main():
     # have been moved as defaults to .config dataclasses. 
 
     # ---- QDLattice gometry ------
-    ndim = 1                                    # number of dimensions
-    N = 400                                     # number of QDs in each dimension
+    ndim = 3                                    # number of dimensions
+    N = 4                                      # number of QDs in each dimension
 
     # ---- system parameters ------
     inhomog_sd = 0.03                           # inhomogenous broadening (units?) (legacy: 0.002)
@@ -23,13 +23,14 @@ def main():
 
     # ----- bath parameters -------
     w_c = 0.1                                   # cutoff frequency (units?) (legacy: 0.1)
-    temp = 800                                  # temperature (K) (legacy: 200)
-    reorg_nrg = 0.03                            # reorganization energy (units?)
+    temp = 300                                  # temperature (K) (legacy: 200)
+    reorg_nrg = 0.80                            # reorganization energy (units?)
+    spectral_density = 'drude-lorentz'              # bath spectral density
 
     # ---- KMC parameters ---------
-    ntrajs = 200                                # number of trajectories to compute MSDs over
+    ntrajs = 50                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
-    t_final = 3
+    t_final = 10
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
@@ -44,12 +45,12 @@ def main():
     # define dataclasses
     geom = qdotkmc.config.GeometryConfig(dims = ndim, N = N)
     dis  = qdotkmc.config.DisorderConfig(nrg_center = nrg_center, inhomog_sd = inhomog_sd, J_c = J_c)
-    bath_cfg = qdotkmc.config.BathConfig(temp = temp, w_c=w_c, reorg_nrg=reorg_nrg)
+    bath_cfg = qdotkmc.config.BathConfig(temp = temp, w_c=w_c, reorg_nrg=reorg_nrg, spectral_density=spectral_density)
     run  = qdotkmc.config.RunConfig(ntrajs = ntrajs, nrealizations = nrealizations,
                                     rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 
                                     t_final = t_final,
-                                    adaptive_tfinal = True,
+                                    adaptive_tfinal = False,
                                     print_diagnostics = True)
     
     # check .config to see defaults here
@@ -73,6 +74,7 @@ def main():
     # -------------------------------------------------------------------------
     print('diffusivity ', diff1, diff2)
     print('diffusivity error', sigma_D1, sigma_D2)
+
     
 
 if __name__ == '__main__':

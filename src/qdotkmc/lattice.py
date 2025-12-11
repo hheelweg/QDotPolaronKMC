@@ -10,7 +10,66 @@ from .hamiltonian import SpecDens
 from qdotkmc.backend import Backend
 
 
+# kernel to build couplings fast on GPU
+_BUILDJ_SRC = r'''
+extern "C" __global__
+void buildJ_upper(
+    const double* __restrict__ pos,    // (n,3)
+    const double* __restrict__ mu_u,   // (n,3)
+    const double  Jc,
+    const double  kap,
+    const double  L,
+    const int     d,
+    const int     n,
+    double* __restrict__ J             // (n,n) row-major
+){
+    int i = blockDim.y * blockIdx.y + threadIdx.y;
+    int j = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i >= n || j >= n || j < i) return;
 
+    double pix = pos[3*i+0], piy = pos[3*i+1], piz = pos[3*i+2];
+    double pjx = pos[3*j+0], pjy = pos[3*j+1], pjz = pos[3*j+2];
+
+    double uix = mu_u[3*i+0], uiy = mu_u[3*i+1], uiz = mu_u[3*i+2];
+    double ujx = mu_u[3*j+0], ujy = mu_u[3*j+1], ujz = mu_u[3*j+2];
+
+    // unwrapped delta (direction)
+    double ux = pjx - pix;
+    double uy = pjy - piy;
+    double uz = pjz - piz;
+
+    // wrapped delta (magnitude)
+    double wx = ux, wy = uy, wz = uz;
+    if (L > 0.0) {
+        if (d >= 1) { wx = ux - L * floor(ux / L + 0.5); }
+        if (d >= 2) { wy = uy - L * floor(uy / L + 0.5); }
+    }
+
+    double r2 = wx*wx + wy*wy + wz*wz;
+    double inv_r3 = 0.0;
+    if (r2 > 0.0) {
+        double r = sqrt(r2);
+        inv_r3 = 1.0 / (r2 * r);
+    }
+
+    double nr2 = ux*ux + uy*uy + uz*uz;
+    double rx=0.0, ry=0.0, rz=0.0;
+    if (nr2 > 0.0) {
+        double rinv = rsqrt(nr2);
+        rx = ux * rinv; ry = uy * rinv; rz = uz * rinv;
+    }
+
+    double mui_dot_muj = uix*ujx + uiy*ujy + uiz*ujz;
+    double mui_dot_r   = uix*rx   + uiy*ry   + uiz*rz;
+    double muj_dot_r   = ujx*rx   + ujy*ry   + ujz*rz;
+    double kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r);
+
+    double val = (Jc * kap) * (kappa * inv_r3);
+
+    J[i*(long long)n + j] = val;
+    if (j != i) J[j*(long long)n + i] = val;
+}
+''';
 
 
 # class to set up QD Lattice 
@@ -51,7 +110,15 @@ class QDLattice():
                 self.qd_locations[i, :] = (i%self.geom.N * self.geom.qd_spacing) \
                     + self.rng.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder, [1, self.geom.dims])
             elif self.geom.dims == 3:
-                raise NotImplementedError("3 dimensions currently not implemented!")
+                ix = i % self.geom.N
+                iy = (i // self.geom.N) % self.geom.N
+                iz = i // (self.geom.N * self.geom.N)
+                base = np.array(
+                    [ix, iy, iz], dtype=float
+                ) * self.geom.qd_spacing
+                self.qd_locations[i, :] = base + self.rng.normal(0, self.geom.qd_spacing * self.dis.relative_spatial_disorder,[1, self.geom.dims])
+            else:
+                raise ValueError(f"scatterPoints: dim={self.geom.dims} not supported (must be 1,2,3)")
             
         self.qd_locations[self.qd_locations < 0] = self.qd_locations[self.qd_locations < 0] + self.geom.N * self.geom.qd_spacing
         self.qd_locations[self.qd_locations > self.geom.N * self.geom.qd_spacing] = \
@@ -108,67 +175,7 @@ class QDLattice():
         Jd = cp.zeros((n,n), dtype=cp.float64)
         L  = 0.0 if boundary is None else float(boundary)
 
-        # ompile/get the kernel from backend cache
-        # kernel to build couplings fast on GPU
-        _BUILDJ_SRC = r'''
-        extern "C" __global__
-        void buildJ_upper(
-            const double* __restrict__ pos,    // (n,3)
-            const double* __restrict__ mu_u,   // (n,3)
-            const double  Jc,
-            const double  kap,
-            const double  L,
-            const int     d,
-            const int     n,
-            double* __restrict__ J             // (n,n) row-major
-        ){
-            int i = blockDim.y * blockIdx.y + threadIdx.y;
-            int j = blockDim.x * blockIdx.x + threadIdx.x;
-            if (i >= n || j >= n || j < i) return;
-
-            double pix = pos[3*i+0], piy = pos[3*i+1], piz = pos[3*i+2];
-            double pjx = pos[3*j+0], pjy = pos[3*j+1], pjz = pos[3*j+2];
-
-            double uix = mu_u[3*i+0], uiy = mu_u[3*i+1], uiz = mu_u[3*i+2];
-            double ujx = mu_u[3*j+0], ujy = mu_u[3*j+1], ujz = mu_u[3*j+2];
-
-            // unwrapped delta (direction)
-            double ux = pjx - pix;
-            double uy = pjy - piy;
-            double uz = pjz - piz;
-
-            // wrapped delta (magnitude)
-            double wx = ux, wy = uy, wz = uz;
-            if (L > 0.0) {
-                if (d >= 1) { wx = ux - L * floor(ux / L + 0.5); }
-                if (d >= 2) { wy = uy - L * floor(uy / L + 0.5); }
-            }
-
-            double r2 = wx*wx + wy*wy + wz*wz;
-            double inv_r3 = 0.0;
-            if (r2 > 0.0) {
-                double r = sqrt(r2);
-                inv_r3 = 1.0 / (r2 * r);
-            }
-
-            double nr2 = ux*ux + uy*uy + uz*uz;
-            double rx=0.0, ry=0.0, rz=0.0;
-            if (nr2 > 0.0) {
-                double rinv = rsqrt(nr2);
-                rx = ux * rinv; ry = uy * rinv; rz = uz * rinv;
-            }
-
-            double mui_dot_muj = uix*ujx + uiy*ujy + uiz*ujz;
-            double mui_dot_r   = uix*rx   + uiy*ry   + uiz*rz;
-            double muj_dot_r   = ujx*rx   + ujy*ry   + ujz*rz;
-            double kappa = mui_dot_muj - 3.0 * (mui_dot_r * muj_dot_r);
-
-            double val = (Jc * kap) * (kappa * inv_r3);
-
-            J[i*(long long)n + j] = val;
-            if (j != i) J[j*(long long)n + i] = val;
-        }
-        ''';
+        # compile/get the kernel from backend cache
         kern = backend.rawkernel("buildJ_upper", _BUILDJ_SRC)
 
         # launch
@@ -192,11 +199,8 @@ class QDLattice():
         Vectorized but physics-identical to the original loops:
         J_ij = J_c * kappa_polaron * [ μ_i·μ_j - 3(μ_i·r̂_unwrapped)(μ_j·r̂_unwrapped) ] / (‖r_wrap‖^3),
         with pairwise normalization of μ_i, μ_j, and r̂_unwrapped (as in get_kappa).
-        """
-        import numpy as np
-
+        """ 
         n, d = qd_pos.shape
-        assert d in (1, 2)
 
         # --- Magnitude uses WRAPPED displacement (minimum image), exactly like get_disp_vector_matrix
         if boundary is not None:
