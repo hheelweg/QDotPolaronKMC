@@ -49,11 +49,16 @@ class BathConfig:
 
     w_c: float                                  # cutoff frequency for bath (units ?)
     reorg_nrg: float                            # reorganization energy (units ?) 
+    optical_phonons: float = 0
+    optical_phonon_couplings: float = 0
     spectral_density: Any = "cubic-exp"         
 
     @property
     def spectrum(self) -> list:
-        return [self.spectral_density, self.reorg_nrg, self.w_c]
+        if self.spectral_density == "cubic-exp":
+            return [self.spectral_density, self.reorg_nrg, self.w_c]
+        elif self.spectral_density == "cubic-exp-optical-phonons":
+            return[self.spectral_density, self.reorg_nrg, self.w_c, self.optical_phonons, self.optical_phonon_couplings]
 
 
 RatesBy = Literal["radius", "weight"]
