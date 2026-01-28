@@ -37,7 +37,8 @@ class _PhiTransformer:
     ## optical phonons is intended to be an N x 2 array where each row is a phonon, first column is coupling strength, second column is frequency
 
     def __init__(self, J_callable, beta, omega_c, omega_inf,
-                 low_freq_cutoff, optical_phonons, N_tau=2000, tau_max_factor=70.0):
+                # low_freq_cutoff, optical_phonons, N_tau=2000, tau_max_factor=70.0):
+                low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
 
         import numpy as np
         from scipy import integrate
@@ -74,6 +75,7 @@ class _PhiTransformer:
 
                 phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim)[0]
                 phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim)[0]
+                """
                 if optical_phonons != None:
                     for i in optical_phonons:
                         phonon_coupling_strength = optical_phonons[i, 0]
@@ -81,6 +83,7 @@ class _PhiTransformer:
                         
                         phi_real[i] = phi_real[i] + phonon_coupling_strength * integrand_real(optical_phonon_freq)
                         phi_imag[i] = phi_imag[i] + phonon_coupling_strength * integrand_imag(optical_phonon_freq)
+                """
                         
 
             else:
@@ -103,6 +106,7 @@ class _PhiTransformer:
                     weight='sin', wvar=tau, limit=200
                 )[0]
                 
+                """
                 if optical_phonons != None:
                     for i in optical_phonons:
                         phonon_coupling_strength = optical_phonons[i, 0]
@@ -110,6 +114,7 @@ class _PhiTransformer:
                         
                         phi_real[i] = phi_real[i] + phonon_coupling_strength * integrand_real(optical_phonon_freq)
                         phi_imag[i] = phi_imag[i] + phonon_coupling_strength * integrand_imag(optical_phonon_freq)
+                """
 
         self.phi_grid = phi_real - 1j * phi_imag
 
