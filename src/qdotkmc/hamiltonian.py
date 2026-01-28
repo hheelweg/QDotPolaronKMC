@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import special
 from scipy import integrate
 from scipy import optimize
 from scipy.signal import hilbert
@@ -33,9 +34,10 @@ class Hamiltonian():
 
 class _PhiTransformer:
     """Accurate Eq. (17) on a fixed (τ) grid via direct quad integration."""
+    ## optical phonons is intended to be an N x 2 array where each row is a phonon, first column is coupling strength, second column is frequency
 
     def __init__(self, J_callable, beta, omega_c, omega_inf,
-                 low_freq_cutoff, N_tau=2000, tau_max_factor=70.0):
+                 low_freq_cutoff, optical_phonons, N_tau=2000, tau_max_factor=70.0):
 
         import numpy as np
         from scipy import integrate
@@ -72,6 +74,14 @@ class _PhiTransformer:
 
                 phi_real[i] = integrate.quad(integrand_real, lowLim, uppLim)[0]
                 phi_imag[i] = integrate.quad(integrand_imag, lowLim, uppLim)[0]
+                if optical_phonons != None:
+                    for i in optical_phonons:
+                        phonon_coupling_strength = optical_phonons[i, 0]
+                        optical_phonon_freq = optical_phonons[i, 1]
+                        
+                        phi_real[i] = phi_real[i] + phonon_coupling_strength * integrand_real(optical_phonon_freq)
+                        phi_imag[i] = phi_imag[i] + phonon_coupling_strength * integrand_imag(optical_phonon_freq)
+                        
 
             else:
                 def integrand_real(omega):
@@ -92,6 +102,14 @@ class _PhiTransformer:
                     lowLim, uppLim,
                     weight='sin', wvar=tau, limit=200
                 )[0]
+                
+                if optical_phonons != None:
+                    for i in optical_phonons:
+                        phonon_coupling_strength = optical_phonons[i, 0]
+                        optical_phonon_freq = optical_phonons[i, 1]
+                        
+                        phi_real[i] = phi_real[i] + phonon_coupling_strength * integrand_real(optical_phonon_freq)
+                        phi_imag[i] = phi_imag[i] + phonon_coupling_strength * integrand_imag(optical_phonon_freq)
 
         self.phi_grid = phi_real - 1j * phi_imag
 
@@ -191,13 +209,25 @@ class SpecDens:
             self.J = self.cubic_exp
             self.low_freq_cutoff = self.omega_c / 2000.0
             self.omega_inf = 40 * self.omega_c
-        
+            self.optical_phonons = []
+            
+        if sd_type == 'cubic-exp-optical-phonons':
+            self.lamda = spec_dens_list[1]
+            self.omega_c = spec_dens_list[2]
+            self.J = self.cubic_exp
+            self.low_freq_cutoff = self.omega_c / 2000.0
+            self.omega_inf = 40 * self.omega_c
+            self.optical_phonons = spec_dens_list[3]
+            self.optical_phonon_couplings = spec_dens_list[4]
+            
         elif sd_type == "ohmic-exp":
             self.alpha = spec_dens_list[1]
             self.omega_c = spec_dens_list[2]
             self.J = self.ohmic_exp
             self.low_freq_cutoff = self.omega_c / 30.0              # going to small low_freq_cutoff can be very expensive in _PhiTransformer, i.e. adjust accordingly
             self.omega_inf = 40 * self.omega_c
+            self.optical_phonons = []
+
 
         elif sd_type == "drude-lorentz":
             self.lamda = spec_dens_list[1]
@@ -205,6 +235,7 @@ class SpecDens:
             self.J = self.drude_lorentz
             self.low_freq_cutoff = self.omega_c / 30.0              # going to small low_freq_cutoff can be very expensive in _PhiTransformer, i.e. adjust accordingly
             self.omega_inf = 40 * self.omega_c
+            self.optical_phonons = []
         
         else:
             raise ValueError("Please specify valid spectral density type!")
@@ -221,6 +252,17 @@ class SpecDens:
         Jw = (self.lamda / (2 * self.omega_c**3)) * w**3 * np.exp(-w / self.omega_c)
         return Jw * (omega >= 0) - Jw * (omega < 0)
     
+    # cubic-exponential bath spectral density with high-freq. LO phonons: J(ω) = (λ / (2 ω_c³)) · |ω|³ · exp(−|ω| / ω_c) · sgn(ω) + LO phonons
+    # LO phonons modeled as Gaussian functions multiplied by the erf so they have the right tails around 0
+    def cubic_exp_LO_phonons(self, omega):
+        w = abs(omega)
+        Jw = (self.lamda / (2 * self.omega_c**3)) * w**3 * np.exp(-w / self.omega_c)
+        gauss_width = 0.1
+        for i in np.arange(len(self.optical_phonons)):
+            Jw = Jw + self.optical_phonon_couplings[i]* special.erf(w*3) * 1/np.sqrt(2*np.pi*gauss_width ** 2) * np.exp(-1/2 * ((w - self.optical_phonons[i])/gauss_width) ** 2)
+        return Jw * (omega >= 0) - Jw * (omega < 0)
+
+    
     # ohmic-exponential bath spectral density: J(ω) = 2 α · ω · exp(−ω / ω_c)
     def ohmic_exp(self, omega):
         w = abs(omega)
@@ -232,7 +274,6 @@ class SpecDens:
         w = abs(omega)
         Jw = 2 * self.lamda * (self.omega_c * w) / (w**2 + self.omega_c**2)
         return Jw * (omega >= 0) - Jw * (omega < 0)
-
 
     # fast Eq. (15) via FFT using cached grids
     def _correlationFT_fft(self, omega, lamda, kappa, eta=None, return_grid=False):
