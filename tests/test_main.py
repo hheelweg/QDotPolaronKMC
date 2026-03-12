@@ -13,24 +13,24 @@ def main():
     # have been moved as defaults to .config dataclasses. 
 
     # ---- QDLattice gometry ------
-    ndim = 3                                    # number of dimensions
-    N = 4                                      # number of QDs in each dimension
+    ndim = 1                                    # number of dimensions
+    N = 100                                      # number of QDs in each dimension
 
     # ---- system parameters ------
-    inhomog_sd = 0.03                           # inhomogenous broadening (units?) (legacy: 0.002)
+    inhomog_sd = 0.001                           # inhomogenous broadening (units?) (legacy: 0.002)
     nrg_center = 2.0                            # mean site energy (units ?) (legacy: 2.0)
-    J_c = 30                                    # J_c (units?) (legacy: 10)
+    J_c = 3                                    # J_c (units?) (legacy: 10)
 
     # ----- bath parameters -------
-    w_c = 0.1                                   # cutoff frequency (units?) (legacy: 0.1)
-    temp = 300                                  # temperature (K) (legacy: 200)
-    reorg_nrg = 0.80                            # reorganization energy (units?)
-    spectral_density = 'drude-lorentz'              # bath spectral density
+    w_c = 0.01                                   # cutoff frequency (units?) (legacy: 0.1)
+    temp = 150                                  # temperature (K) (legacy: 200)
+    reorg_nrg = 0.03                            # reorganization energy (units?)
+    spectral_density = 'cubic-exp'              # bath spectral density
 
     # ---- KMC parameters ---------
-    ntrajs = 50                                 # number of trajectories to compute MSDs over
+    ntrajs = 8                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
-    t_final = 10
+    t_final = 5
 
     rates_by = "weight"                         # select mode/strategy for rates comutation
     # NOTE : as soon as we pick "radius" or "weight" we confine ourselves ro r_hop/r_ove or theta_site/theta_pol
@@ -50,13 +50,13 @@ def main():
                                     rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 
                                     t_final = t_final,
-                                    adaptive_tfinal = False,
+                                    adaptive_tfinal = True,
                                     print_diagnostics = True)
     
     # check .config to see defaults here
     exec_plan = qdotkmc.config.ExecutionPlan(prefer_gpu = True,
                                              gpu_use_c64 = True,
-                                             do_parallel = True)
+                                             do_parallel = False)
     
     # set up KMC simulation
     kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose=True)
@@ -88,5 +88,5 @@ if __name__ == '__main__':
         profiler.stop()
         submit_dir = os.environ.get("SLURM_SUBMIT_DIR", os.getcwd()) 
         output_path = os.path.join(submit_dir, "pyinstrument_output.txt")
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(profiler.output_text(unicode=True, color=False))

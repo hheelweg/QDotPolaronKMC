@@ -67,7 +67,7 @@ class KMCRunner():
         npts = max(npts, 2)     # ensure at least 2 points
         if alpha >= 0:
             npts = min(npts, alpha * 20)
-        time_grid = np.linspace(0.0, t_final, int(npts))
+        time_grid = np.linspace(0.0, t_final, npts)
         return time_grid
     
     # per-realization seed for each (per-QDLattice)
@@ -560,8 +560,11 @@ class KMCRunner():
     # serial KMC
     def simulate_kmc_serial(self):
         
-        # times_msds = KMCRunner._make_time_grid(self.run.t_final, self.run.time_grid_density)        # time ranges to use for computation of msds                                                                 
-        # msds = np.zeros((self.run.nrealizations, len(times_msds)))                                  # initialize MSD output
+        if self.run.adaptive_tfinal:
+            times_msds = KMCRunner._make_time_grid(self.run.t_final, self.run.time_grid_density, self.run.alpha)        # time ranges to use for computation of msds                                                                 
+        else:
+            times_msds = KMCRunner._make_time_grid(self.run.t_final, self.run.time_grid_density)        # time ranges to use for computation of msds                                                                 
+        msds = np.zeros((self.run.nrealizations, len(times_msds)))                                  # initialize MSD output
 
         # some diagnostics outputs
         tot_rates_time = 0.0                                                                        # simulated time for rates

@@ -1,0 +1,14 @@
+
+  _     ._   __/__   _ _  _  _ _/_   Recorded: 16:10:02  Samples:  386
+ /_//_/// /_\ / //_// / //_'/ //     Duration: 6.236     CPU time: 10.094
+/   _/                      v5.1.2
+
+Profile at c:\users\chemegrad2021\mit dropbox\thomas sheehan\research\simulations\github\qdotpolaronkmc\tests\test_main.py:83
+
+6.227 <module>  test_main.py:1
+└─ 6.227 main  test_main.py:10
+   ├─ 5.914 KMCRunner._simulate_kmc  qdotkmc\montecarlo.py:494
+   │     [56 frames hidden]  qdotkmc, <built-in>, numpy, threadpoo...
+   └─ 0.292 export_msds  qdotkmc\utils.py:63
+         [12 frames hidden]  pandas, <built-in>
+
