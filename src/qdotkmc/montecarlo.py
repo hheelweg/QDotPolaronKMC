@@ -465,7 +465,7 @@ class KMCRunner():
 
 
     # compute adaptive t_final 
-    def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20):
+    def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20, max_t = 1E9):
 
         # (1) draw random samples to compute cumulative rates (at most 20)
         no_samples = min(int(0.05 * qd_lattice.geom.n_sites), no_samples)
@@ -486,7 +486,7 @@ class KMCRunner():
         S_mean /= no_samples
 
         # (3) compute t_final based on (mean) cumulative rate
-        t_final = alpha / S_mean
+        t_final = min(max_t, alpha / S_mean)
 
         return t_final
 
