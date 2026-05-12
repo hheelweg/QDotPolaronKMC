@@ -102,7 +102,7 @@ def run_sim(args, N):
         # set up KMC simulation
         kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose = False)
         # perform KMC simulation (automatically switches parallel/serial based on max_workers)
-        times, msds = kmc._simulate_kmc()
+        times, msds, IPRs = kmc._simulate_kmc()
         
         # get noise-averaged (pooled) trajectory MSD
         msds_mean, times_mean = qdotkmc.utils.get_msd_array(msds, times, t_final)

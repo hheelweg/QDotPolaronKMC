@@ -28,14 +28,14 @@ def _one_lattice_worker(args):
     bath = SpecDens(bath_cfg.spectrum, const.kB * bath_cfg.temp)
 
     # run KMC on single lattice realization
-    times_r, msd_r, lattice_summary = runner._run_single_lattice(
+    times_r, msd_r, lattice_summary, IPRs = runner._run_single_lattice(
                                                      bath=bath,
                                                      run_cfg=run, 
                                                      realization_id=rid, 
                                                      seed=seed,
                                                      )
     
-    return rid, times_r, msd_r, lattice_summary
+    return rid, times_r, msd_r, lattice_summary, IPRs
 
 
 class KMCRunner():
@@ -461,7 +461,7 @@ class KMCRunner():
             msd = (1.0 - w) * msd + w * sds
         
     
-        return times, msd, lattice_summary
+        return times, msd, lattice_summary, qd_lattice.IPRs
 
 
     # compute adaptive t_final 
@@ -507,9 +507,10 @@ class KMCRunner():
         os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
         R = self.run.nrealizations
-        # store msds and times
+        # store msds times and IPRs
         msds = []
         times = []
+        IPRs= []
 
         # some diagnostics outputs
         tot_rates_time = 0.0                                                                        # this measure time taken for rates computation
@@ -542,9 +543,10 @@ class KMCRunner():
                 futs = [ex.submit(_one_lattice_worker, j) for j in jobs]
                 for fut in as_completed(futs):
                     # return realization ID, times array for realization, msd, sim_time for rates
-                    rid, times_r, msd_r, lattice_summary = fut.result()
+                    rid, times_r, msd_r, lattice_summary, IPRs_r = fut.result()
                     times.append(times_r)
                     msds.append(msd_r)
+                    IPRs.append(IPRs_r)
                     tot_rates_time += lattice_summary['rates time (tot)']
                     mean_step_count += lattice_summary['step count (mean)'] / self.run.nrealizations
         
@@ -555,7 +557,7 @@ class KMCRunner():
             # print mean KMC step count average across all lattice realizations and trajectories
             print(print_utils.mean_kmc_steps(mean_step_count))
 
-        return times, msds
+        return times, msds, IPRs
         
     # serial KMC
     def simulate_kmc_serial(self):
@@ -570,9 +572,10 @@ class KMCRunner():
         R = self.run.nrealizations                                                                  # number of QDLattice realizations
         T = self.run.ntrajs                                                                         # number of trajetories per QDLattice realization
 
-        # store msds and times
+        # store msds times and IPRs
         msds = []
         times = []
+        IPRs = []
 
         # build bath spectral density (once for all QDLattice realizations!)
         bath = hamiltonian.SpecDens(self.bath_cfg.spectrum, const.kB * self.bath_cfg.temp)
@@ -581,7 +584,7 @@ class KMCRunner():
         for r in range(R):
 
             # run ntrajs KMC trajectories for single QDLattice realization indexed with r
-            times_r, msd_r, lattice_summary = self._run_single_lattice(
+            times_r, msd_r, lattice_summary, IPRs_r = self._run_single_lattice(
                                                             bath = bath, 
                                                             run_cfg = self.run, 
                                                             realization_id = r
@@ -590,6 +593,7 @@ class KMCRunner():
             mean_step_count += lattice_summary['step count (mean)'] / self.run.nrealizations
             times.append(times_r)
             msds.append(msd_r)
+            IPRs.append(IPRs_r)
 
         # print diagnostics if desired
         if self.run.print_diagnostics:
@@ -598,7 +602,7 @@ class KMCRunner():
             # print mean KMC step count average across all lattice realizations and trajectories
             print(print_utils.mean_kmc_steps(mean_step_count))
 
-        return times, msds
+        return times, msds, IPRs
 
     # make box around center position where we are currently at
     # TODO : incorporate periodic boundary conditions explicty (boolean)

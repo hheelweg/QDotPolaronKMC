@@ -321,4 +321,4 @@ def get_msd_array(msds, times, t_final, n_time_points = 1000):
 def get_ipr(Umat):
     # returns ipr of one column vector, or mean ipr of multiple column vectors
     IPRs = 1/np.sum(Umat ** 4, axis = 0)
-    return np.mean(IPRs), np.std(IPRs)
+    return IPRs

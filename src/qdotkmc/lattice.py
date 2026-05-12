@@ -94,7 +94,9 @@ class QDLattice():
 
         # store closes polaron
         self._closest_polaron_cache = {}
-
+        
+        # store IPRs
+        self.IPRs = []
 
     # NOTE: old make_qd_array method (basically unchanged)
     def _make_lattice(self):    
@@ -294,9 +296,9 @@ class QDLattice():
             J_dense = self.J_dense
             )
         
-        # (6) optional : get IPR statistics
-        ipr_mean, ipr_std = utils.get_ipr(self.eigstates)
-        print("ipr mean: %f" %(ipr_mean))
+        # (6) get IPR statistics
+        self.IPRs = utils.get_ipr(self.eigstates)
+        # print("ipr mean: %f" %(ipr_mean))
 
 
     # setup instance of Redfield class
