@@ -468,7 +468,7 @@ class KMCRunner():
     def _get_adaptive_tfinal(self, qd_lattice, alpha, no_samples : int = 20, max_t = 1E9):
 
         # (1) draw random samples to compute cumulative rates (at most 20)
-        no_samples = min(int(0.05 * qd_lattice.geom.n_sites), no_samples)
+        no_samples = max(5, min(int(0.05 * qd_lattice.geom.n_sites), no_samples))
         assert no_samples <= qd_lattice.geom.n_sites, "Too many samples for adaptive t_final specified!"
         # (1.1) spawn a child sequence
         rng = np.random.default_rng(self._ss_root.spawn(1)[0])

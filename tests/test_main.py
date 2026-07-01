@@ -13,8 +13,8 @@ def main():
     # have been moved as defaults to .config dataclasses. 
 
     # ---- QDLattice gometry ------
-    ndim = 1                                    # number of dimensions
-    N = 100                                      # number of QDs in each dimension
+    ndim = 2                                   # number of dimensions
+    N = 25                                      # number of QDs in each dimension
 
     # ---- system parameters ------
     inhomog_sd = 0.001                           # inhomogenous broadening (units?) (legacy: 0.002)
@@ -28,7 +28,7 @@ def main():
     spectral_density = 'cubic-exp'              # bath spectral density
 
     # ---- KMC parameters ---------
-    ntrajs = 8                                 # number of trajectories to compute MSDs over
+    ntrajs = 0                                 # number of trajectories to compute MSDs over
     nrealizations = 8                           # number of disorder realizations (i.e. number of time we initialize a new QD lattice)
     t_final = 5
 
@@ -50,7 +50,7 @@ def main():
                                     rates_by = rates_by, 
                                     theta_site = theta_site, theta_pol = theta_pol, 
                                     t_final = t_final,
-                                    adaptive_tfinal = True,
+                                    adaptive_tfinal = False,
                                     print_diagnostics = True)
     
     # check .config to see defaults here
@@ -62,18 +62,20 @@ def main():
     kmc = qdotkmc.montecarlo.KMCRunner(geom, dis, bath_cfg, run, exec_plan, backend_verbose=True)
 
     # perform KMC simulation (automatically switches parallel/serial based on max_workers)
-    times, msds = kmc._simulate_kmc()
+    times, msds, IPRs = kmc._simulate_kmc()
 
     # export msds as .csv file for inspection, and return mean msds 
     times_axis, msds_mean = qdotkmc.utils.export_msds(times, msds)
 
     # obtain diffusivities in two distinct ways
-    diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times_axis, ndim)
-    diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
+    # diff1, sigma_D1 = qdotkmc.utils.get_diffusivity(msds_mean, times_axis, ndim)
+    # diff2, sigma_D2 = qdotkmc.utils.summarize_diffusivity(msds, times, ndim)
     
     # -------------------------------------------------------------------------
-    print('diffusivity ', diff1, diff2)
-    print('diffusivity error', sigma_D1, sigma_D2)
+    # print('diffusivity ', diff1, diff2)
+    # print('diffusivity error', sigma_D1, sigma_D2)
+    for realization in IPRs:
+        print(str(np.mean(realization)) + "," + str(np.std(realization)) + "," + str(np.min(realization)) + "," + str(np.max(realization)) + ";")
 
     
 

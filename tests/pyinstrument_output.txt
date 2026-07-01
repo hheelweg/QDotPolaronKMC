@@ -1,14 +1,41 @@
 
-  _     ._   __/__   _ _  _  _ _/_   Recorded: 16:10:02  Samples:  386
- /_//_/// /_\ / //_// / //_'/ //     Duration: 6.236     CPU time: 10.094
+  _     ._   __/__   _ _  _  _ _/_   Recorded: 18:37:25  Samples:  174
+ /_//_/// /_\ / //_// / //_'/ //     Duration: 3.029     CPU time: 7.078
 /   _/                      v5.1.2
 
-Profile at c:\users\chemegrad2021\mit dropbox\thomas sheehan\research\simulations\github\qdotpolaronkmc\tests\test_main.py:83
+Profile at c:\users\chemegrad2021\mit dropbox\thomas sheehan\research\simulations\github\qdotpolaronkmc\tests\test_main.py:85
 
-6.227 <module>  test_main.py:1
-└─ 6.227 main  test_main.py:10
-   ├─ 5.914 KMCRunner._simulate_kmc  qdotkmc\montecarlo.py:494
-   │     [56 frames hidden]  qdotkmc, <built-in>, numpy, threadpoo...
-   └─ 0.292 export_msds  qdotkmc\utils.py:63
-         [12 frames hidden]  pandas, <built-in>
+3.017 <module>  test_main.py:1
+└─ 3.017 main  test_main.py:10
+   └─ 3.001 KMCRunner._simulate_kmc  qdotkmc\montecarlo.py:494
+      └─ 3.001 KMCRunner.simulate_kmc_serial  qdotkmc\montecarlo.py:563
+         ├─ 1.562 SpecDens.__init__  qdotkmc\hamiltonian.py:206
+         │  └─ 1.562 _PhiTransformer.__init__  qdotkmc\hamiltonian.py:39
+         │     └─ 1.546 quad  scipy\integrate\_quadpack_py.py:22
+         │        └─ 1.530 _quad_weight  scipy\integrate\_quadpack_py.py:628
+         │           ├─ 0.852 integrand_real  qdotkmc\hamiltonian.py:90
+         │           │  ├─ 0.442 [self]  qdotkmc\hamiltonian.py
+         │           │  └─ 0.410 SpecDens.cubic_exp  qdotkmc\hamiltonian.py:255
+         │           ├─ 0.490 integrand_imag  qdotkmc\hamiltonian.py:94
+         │           │  ├─ 0.412 SpecDens.cubic_exp  qdotkmc\hamiltonian.py:255
+         │           │  └─ 0.078 [self]  qdotkmc\hamiltonian.py
+         │           └─ 0.188 [self]  scipy\integrate\_quadpack_py.py
+         └─ 1.423 KMCRunner._run_single_lattice  qdotkmc\montecarlo.py:409
+            └─ 1.423 _build_grid_realization  qdotkmc\montecarlo.py:247
+               ├─ 1.389 QDLattice._setup  qdotkmc\lattice.py:315
+               │  └─ 1.389 QDLattice._setup_hamil  qdotkmc\lattice.py:256
+               │     ├─ 0.833 diagonalize  qdotkmc\utils.py:10
+               │     │  ├─ 0.504 inner_f  scipy\_lib\deprecation.py:209
+               │     │  │  └─ 0.504 eigh  scipy\linalg\_decomp.py:271
+               │     │  └─ 0.329 threadpool_limits.__init__  threadpoolctl.py:167
+               │     │        [4 frames hidden]  threadpoolctl
+               │     ├─ 0.417 QDLattice._build_J  qdotkmc\lattice.py:244
+               │     │  └─ 0.390 _build_J_cpu  qdotkmc\lattice.py:198
+               │     │     ├─ 0.207 [self]  qdotkmc\lattice.py
+               │     │     ├─ 0.099 get_pairwise_displacements  qdotkmc\utils.py:282
+               │     │     └─ 0.068 einsum  numpy\core\einsumfunc.py:1009
+               │     │        └─ 0.068 c_einsum  <built-in>
+               │     └─ 0.101 get_ipr  qdotkmc\utils.py:321
+               └─ 0.035 QDLattice.__init__  qdotkmc\lattice.py:79
+                  └─ 0.035 QDLattice._make_lattice  qdotkmc\lattice.py:102
 
